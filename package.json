@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "next": "^16.2.0-canary.53",
+    "nodemailer": "^8.0.1"
+  }
+}

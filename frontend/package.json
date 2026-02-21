@@ -1,0 +1,25 @@
+{
+    "name": "job-seeking-app-frontend",
+    "version": "1.0.0",
+    "description": "Job seeking platform - Next.js frontend",
+    "scripts": {
+        "dev": "next dev",
+        "build": "next build",
+        "start": "next start",
+        "lint": "next lint"
+    },
+    "dependencies": {
+        "react": "^18.3.0",
+        "react-dom": "^18.3.0",
+        "next": "^14.2.0",
+        "axios": "^1.6.0",
+        "zustand": "^4.4.0"
+    },
+    "devDependencies": {
+        "tailwindcss": "^3.4.0",
+        "postcss": "^8.4.0",
+        "autoprefixer": "^10.4.0",
+        "eslint": "^8.0.0",
+        "eslint-config-next": "^14.0.0"
+    }
+}
