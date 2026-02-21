@@ -13,9 +13,12 @@ export default function JobsPage() {
         location: '',
         jobType: '',
     })
+    const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     useEffect(() => {
         fetchJobs()
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        setIsLoggedIn(!!token)
     }, [])
 
     const fetchJobs = async () => {
@@ -51,22 +54,6 @@ export default function JobsPage() {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <nav className="bg-white shadow">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                    <h1 className="text-2xl font-bold text-indigo-600">JobSeek</h1>
-                    <div className="space-x-4">
-                        <a href="/profile" className="text-gray-600 hover:text-indigo-600">Profile</a>
-                        <a href="/saved-jobs" className="text-gray-600 hover:text-indigo-600">Saved Jobs</a>
-                        <button onClick={() => {
-                            localStorage.removeItem('token')
-                            window.location.href = '/'
-                        }} className="text-gray-600 hover:text-indigo-600">
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </nav>
-
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <SearchBar onSearch={handleSearch} />
 

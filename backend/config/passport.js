@@ -1,7 +1,8 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const GitHubStrategy = require('passport-github2').Strategy;
-const User = require('../models/User');
+const pool = require('./database');
+const bcrypt = require('bcryptjs');
 
 passport.use(
     new GoogleStrategy(
@@ -12,19 +13,29 @@ passport.use(
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
-                let user = await User.findOne({ email: profile.emails[0].value });
-                if (!user) {
-                    user = new User({
-                        email: profile.emails[0].value,
-                        firstName: profile.name.givenName || '',
-                        lastName: profile.name.familyName || '',
-                        googleId: profile.id,
-                        password: 'oauth-user',
-                    });
-                    await user.save();
+                const email = profile.emails?.[0]?.value;
+                if (!email) {
+                    return done(new Error('No email found in Google profile'));
                 }
-                return done(null, user);
+
+                const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+                if (result.rows.length > 0) {
+                    return done(null, result.rows[0]);
+                }
+
+                const firstName = profile.name?.givenName || '';
+                const lastName = profile.name?.familyName || '';
+                const hashedPassword = await bcrypt.hash('oauth-user', 10);
+
+                const insertResult = await pool.query(
+                    'INSERT INTO users (email, password, first_name, last_name, user_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+                    [email, hashedPassword, firstName, lastName, 'job_seeker']
+                );
+
+                return done(null, insertResult.rows[0]);
             } catch (err) {
+                console.error('Google strategy error:', err);
                 return done(err);
             }
         }
@@ -40,30 +51,45 @@ passport.use(
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
-                let user = await User.findOne({ email: profile.emails?.[0]?.value || profile.username + '@github.com' });
-                if (!user) {
-                    user = new User({
-                        email: profile.emails?.[0]?.value || profile.username + '@github.com',
-                        firstName: profile.displayName?.split(' ')[0] || profile.username,
-                        lastName: profile.displayName?.split(' ')[1] || '',
-                        githubId: profile.id,
-                        password: 'oauth-user',
-                    });
-                    await user.save();
+                const email = profile.emails?.[0]?.value || profile.username + '@github.com';
+
+                const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+
+                if (result.rows.length > 0) {
+                    return done(null, result.rows[0]);
                 }
-                return done(null, user);
+
+                const displayName = profile.displayName || profile.username || '';
+                const parts = displayName.split(' ');
+                const firstName = parts[0] || profile.username || '';
+                const lastName = parts[1] || '';
+                const hashedPassword = await bcrypt.hash('oauth-user', 10);
+
+                const insertResult = await pool.query(
+                    'INSERT INTO users (email, password, first_name, last_name, user_type) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+                    [email, hashedPassword, firstName, lastName, 'job_seeker']
+                );
+
+                return done(null, insertResult.rows[0]);
             } catch (err) {
+                console.error('GitHub strategy error:', err);
                 return done(err);
             }
         }
     )
 );
 
-passport.serializeUser((user, done) => done(null, user.id));
+passport.serializeUser((user, done) => {
+    done(null, user.id);
+});
+
 passport.deserializeUser(async (id, done) => {
     try {
-        const user = await User.findById(id);
-        done(null, user);
+        const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+        if (result.rows.length === 0) {
+            return done(null, null);
+        }
+        done(null, result.rows[0]);
     } catch (err) {
         done(err);
     }

@@ -96,17 +96,25 @@ router.get(
     '/google/callback',
     passport.authenticate('google', { failureRedirect: '/login' }),
     (req, res) => {
-        const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        const user = {
-            id: req.user._id,
-            email: req.user.email,
-            firstName: req.user.firstName,
-            lastName: req.user.lastName,
-        };
-        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth-success?token=${token}&user=${encodeURIComponent(
-            JSON.stringify(user)
-        )}`;
-        res.redirect(redirectUrl);
+        try {
+            if (!req.user || !req.user.id) {
+                return res.status(500).json({ error: 'User not authenticated properly' });
+            }
+            const token = jwt.sign({ id: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+            const user = {
+                id: req.user.id,
+                email: req.user.email,
+                firstName: req.user.first_name,
+                lastName: req.user.last_name,
+            };
+            const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth-success?token=${token}&user=${encodeURIComponent(
+                JSON.stringify(user)
+            )}`;
+            res.redirect(redirectUrl);
+        } catch (err) {
+            console.error('Google callback error:', err);
+            res.status(500).json({ error: 'Google authentication failed', details: err.message });
+        }
     }
 );
 
@@ -118,17 +126,25 @@ router.get(
     '/github/callback',
     passport.authenticate('github', { failureRedirect: '/login' }),
     (req, res) => {
-        const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        const user = {
-            id: req.user._id,
-            email: req.user.email,
-            firstName: req.user.firstName,
-            lastName: req.user.lastName,
-        };
-        const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth-success?token=${token}&user=${encodeURIComponent(
-            JSON.stringify(user)
-        )}`;
-        res.redirect(redirectUrl);
+        try {
+            if (!req.user || !req.user.id) {
+                return res.status(500).json({ error: 'User not authenticated properly' });
+            }
+            const token = jwt.sign({ id: req.user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+            const user = {
+                id: req.user.id,
+                email: req.user.email,
+                firstName: req.user.first_name,
+                lastName: req.user.last_name,
+            };
+            const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3001'}/auth-success?token=${token}&user=${encodeURIComponent(
+                JSON.stringify(user)
+            )}`;
+            res.redirect(redirectUrl);
+        } catch (err) {
+            console.error('GitHub callback error:', err);
+            res.status(500).json({ error: 'GitHub authentication failed', details: err.message });
+        }
     }
 );
 
