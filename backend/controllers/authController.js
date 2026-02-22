@@ -4,24 +4,44 @@ const pool = require('../config/database');
 
 const register = async (req, res) => {
     try {
-        const { email, password, firstName, lastName, userType } = req.body;
+        const { email, password, firstName, lastName, phoneNumber, userType } = req.body;
 
+        // Check for duplicate email
         const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
         if (userExists.rows.length > 0) {
             return res.status(400).json({ error: 'Email already registered' });
         }
 
+        // Check for duplicate phone number if provided
+        if (phoneNumber) {
+            const phoneExists = await pool.query('SELECT * FROM users WHERE phone_number = $1', [phoneNumber]);
+            if (phoneExists.rows.length > 0) {
+                return res.status(400).json({ error: 'Phone number already registered' });
+            }
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await pool.query(
-            'INSERT INTO users (email, password, first_name, last_name, user_type) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, first_name',
-            [email, hashedPassword, firstName, lastName, userType || 'job_seeker']
+            'INSERT INTO users (email, password, first_name, last_name, phone_number, user_type) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, email, first_name, last_name, phone_number, user_type',
+            [email, hashedPassword, firstName, lastName, phoneNumber, null]
         );
 
-        const token = jwt.sign({ id: result.rows[0].id, email }, process.env.JWT_SECRET, {
+        const user = result.rows[0];
+        const token = jwt.sign({ id: user.id, email }, process.env.JWT_SECRET, {
             expiresIn: process.env.JWT_EXPIRY,
         });
 
-        res.status(201).json({ user: result.rows[0], token });
+        res.status(201).json({
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                phoneNumber: user.phone_number,
+                userType: user.user_type
+            },
+            token
+        });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Registration failed' });
@@ -47,7 +67,7 @@ const login = async (req, res) => {
             expiresIn: process.env.JWT_EXPIRY,
         });
 
-        res.json({ user: { id: user.id, email: user.email, firstName: user.first_name }, token });
+        res.json({ user: { id: user.id, email: user.email, firstName: user.first_name, lastName: user.last_name, phoneNumber: user.phone_number, userType: user.user_type }, token });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Login failed' });
@@ -58,4 +78,40 @@ const logout = (req, res) => {
     res.json({ message: 'Logged out successfully' });
 };
 
-module.exports = { register, login, logout };
+const updateUserRole = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { userType } = req.body;
+
+        // Validate userType
+        if (!userType || !['worker', 'client'].includes(userType)) {
+            return res.status(400).json({ error: 'Invalid user type. Must be "worker" or "client"' });
+        }
+
+        const result = await pool.query(
+            'UPDATE users SET user_type = $1 WHERE id = $2 RETURNING id, email, first_name, last_name, phone_number, user_type',
+            [userType, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const user = result.rows[0];
+        res.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                phoneNumber: user.phone_number,
+                userType: user.user_type
+            }
+        });
+    } catch (err) {
+        console.error('Failed to update user role:', err);
+        res.status(500).json({ error: 'Failed to update user role' });
+    }
+};
+
+module.exports = { register, login, logout, updateUserRole };

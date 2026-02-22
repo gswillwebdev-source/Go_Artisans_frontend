@@ -13,16 +13,25 @@ export default function AuthSuccessPage() {
 
         if (token) {
             localStorage.setItem('token', token)
+            let user = null
             if (userStr) {
                 try {
-                    const user = JSON.parse(decodeURIComponent(userStr))
+                    user = JSON.parse(decodeURIComponent(userStr))
                     localStorage.setItem('user', JSON.stringify(user))
                 } catch (err) {
                     console.error('Failed to parse user data:', err)
                 }
             }
-            // Redirect to home or dashboard
-            router.push('/jobs')
+
+            // Redirect based on user role
+            if (user?.userType === 'worker') {
+                router.push('/worker-profile')
+            } else if (user?.userType === 'client') {
+                router.push('/client-profile')
+            } else {
+                // No role assigned yet, show role selection
+                router.push('/choose-role')
+            }
         } else {
             router.push('/login')
         }

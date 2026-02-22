@@ -3,6 +3,8 @@
 import Link from 'next/link'
 
 export default function JobCard({ job }) {
+    const postedDate = job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Recently'
+
     return (
         <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-2">{job.title}</h3>
@@ -20,9 +22,13 @@ export default function JobCard({ job }) {
                 {job.salary && (
                     <div className="flex items-center text-gray-600 text-sm">
                         <span className="font-medium">💰</span>
-                        <span className="ml-2">${job.salary}</span>
+                        <span className="ml-2">CFA {job.salary}</span>
                     </div>
                 )}
+                <div className="flex items-center text-gray-500 text-xs">
+                    <span className="font-medium">📅</span>
+                    <span className="ml-2">Posted: {postedDate}</span>
+                </div>
             </div>
 
             <div className="flex gap-2">

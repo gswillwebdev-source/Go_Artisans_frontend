@@ -58,10 +58,11 @@ const searchJobs = async (req, res) => {
 
 const createJob = async (req, res) => {
     try {
-        const { title, description, location, jobType, salary, companyId } = req.body;
+        const userId = req.user.id;
+        const { title, description, location, jobType, salary } = req.body;
         const result = await pool.query(
-            'INSERT INTO jobs (title, description, location, job_type, salary, company_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-            [title, description, location, jobType, salary, companyId]
+            'INSERT INTO jobs (title, description, location, job_type, salary, posted_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+            [title, description, location, jobType, salary, userId]
         );
         res.status(201).json(result.rows[0]);
     } catch (err) {
@@ -102,4 +103,18 @@ const deleteJob = async (req, res) => {
     }
 };
 
-module.exports = { getJobs, getJobById, createJob, updateJob, deleteJob, searchJobs };
+const getMyJobs = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            'SELECT * FROM jobs WHERE posted_by = $1 ORDER BY created_at DESC',
+            [userId]
+        );
+        res.json({ jobs: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch your jobs' });
+    }
+};
+
+module.exports = { getJobs, getJobById, createJob, updateJob, deleteJob, searchJobs, getMyJobs };

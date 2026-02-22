@@ -2,17 +2,18 @@ require('dotenv').config();
 const pool = require('../config/database');
 
 async function createTables() {
-    try {
-        console.log('Creating database tables...');
+  try {
+    console.log('Creating database tables...');
 
-        // Users table
-        await pool.query(`
+    // Users table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         first_name VARCHAR(100) NOT NULL,
         last_name VARCHAR(100) NOT NULL,
+        phone_number VARCHAR(20),
         user_type VARCHAR(50) DEFAULT 'job_seeker',
         profile_picture VARCHAR(255),
         bio TEXT,
@@ -21,8 +22,8 @@ async function createTables() {
       )
     `);
 
-        // Jobs table
-        await pool.query(`
+    // Jobs table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
         title VARCHAR(255) NOT NULL,
@@ -37,8 +38,8 @@ async function createTables() {
       )
     `);
 
-        // Applications table
-        await pool.query(`
+    // Applications table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS applications (
         id SERIAL PRIMARY KEY,
         job_id INTEGER NOT NULL REFERENCES jobs(id),
@@ -51,8 +52,8 @@ async function createTables() {
       )
     `);
 
-        // Saved jobs table
-        await pool.query(`
+    // Saved jobs table
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS saved_jobs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL REFERENCES users(id),
@@ -62,12 +63,12 @@ async function createTables() {
       )
     `);
 
-        console.log('✅ All tables created successfully!');
-        process.exit(0);
-    } catch (err) {
-        console.error('❌ Error creating tables:', err);
-        process.exit(1);
-    }
+    console.log('✅ All tables created successfully!');
+    process.exit(0);
+  } catch (err) {
+    console.error('❌ Error creating tables:', err);
+    process.exit(1);
+  }
 }
 
 createTables();

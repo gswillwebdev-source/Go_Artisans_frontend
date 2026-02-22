@@ -3,14 +3,19 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
+import Link from 'next/link'
 
 export default function JobDetailsPage() {
     const params = useParams()
     const [job, setJob] = useState(null)
+    const [client, setClient] = useState(null)
     const [loading, setLoading] = useState(true)
     const [applying, setApplying] = useState(false)
+    const [token, setToken] = useState(null)
 
     useEffect(() => {
+        const tkn = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        setToken(tkn)
         fetchJob()
     }, [params.id])
 
@@ -18,7 +23,20 @@ export default function JobDetailsPage() {
         try {
             setLoading(true)
             const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/jobs/${params.id}`)
-            setJob(response.data)
+            const jobData = response.data
+            setJob(jobData)
+
+            // Fetch client info if job has posted_by
+            if (jobData.posted_by) {
+                try {
+                    const clientResponse = await axios.get(
+                        `${process.env.NEXT_PUBLIC_API_URL}/api/users/worker/${jobData.posted_by}`
+                    )
+                    setClient(clientResponse.data.worker)
+                } catch (err) {
+                    console.error('Failed to fetch client info:', err)
+                }
+            }
         } catch (err) {
             console.error('Failed to fetch job:', err)
         } finally {
@@ -27,9 +45,14 @@ export default function JobDetailsPage() {
     }
 
     const handleApply = async () => {
+        if (!token) {
+            alert('Please login to apply for this job')
+            window.location.href = '/login'
+            return
+        }
+
         try {
             setApplying(true)
-            const token = localStorage.getItem('token')
             await axios.post(
                 `${process.env.NEXT_PUBLIC_API_URL}/api/applications`,
                 { jobId: params.id },
@@ -50,7 +73,7 @@ export default function JobDetailsPage() {
         <div className="min-h-screen bg-gray-50">
             <nav className="bg-white shadow">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <a href="/jobs" className="text-indigo-600 hover:text-indigo-700">← Back to Jobs</a>
+                    <Link href="/jobs" className="text-indigo-600 hover:text-indigo-700">← Back to Jobs</Link>
                 </div>
             </nav>
 
@@ -68,8 +91,8 @@ export default function JobDetailsPage() {
                             <p className="font-semibold">{job.job_type}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded">
-                            <p className="text-sm text-gray-600">Salary</p>
-                            <p className="font-semibold">${job.salary || 'Competitive'}</p>
+                            <p className="text-sm text-gray-600">Budget</p>
+                            <p className="font-semibold text-indigo-600">CFA {job.salary || 'Competitive'}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded">
                             <p className="text-sm text-gray-600">Posted</p>
@@ -82,10 +105,53 @@ export default function JobDetailsPage() {
                         <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
                     </div>
 
+                    {/* Client Info Section */}
+                    {client && (
+                        <div className="mb-8 bg-indigo-50 p-6 rounded-lg">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-4">About Client</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Client Name</p>
+                                    <p className="font-semibold text-lg">{client.firstName} {client.lastName}</p>
+                                </div>
+                                {client.email && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Email</p>
+                                        <p className="font-medium text-indigo-600">{client.email}</p>
+                                    </div>
+                                )}
+                                {client.phoneNumber && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Phone</p>
+                                        <p className="font-medium">{client.phoneNumber}</p>
+                                    </div>
+                                )}
+                                {client.location && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Location</p>
+                                        <p className="font-medium">{client.location}</p>
+                                    </div>
+                                )}
+                                {client.rating > 0 && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Rating</p>
+                                        <p className="font-medium">⭐ {client.rating.toFixed(1)} / 5.0</p>
+                                    </div>
+                                )}
+                                {client.completedJobs > 0 && (
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Jobs Posted</p>
+                                        <p className="font-medium">{client.completedJobs} jobs</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     <button
                         onClick={handleApply}
                         disabled={applying}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-lg"
+                        className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-lg transition"
                     >
                         {applying ? 'Applying...' : 'Apply Now'}
                     </button>

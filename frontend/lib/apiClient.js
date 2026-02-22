@@ -9,6 +9,7 @@ class ApiClient {
             headers: {
                 'Content-Type': 'application/json',
             },
+            timeout: 15000, // 15 second timeout
         });
     }
 
@@ -25,6 +26,10 @@ class ApiClient {
 
     async login(data) {
         return this.client.post('/api/auth/login', data);
+    }
+
+    async updateUserRole(userType) {
+        return this.client.put('/api/auth/update-role', { userType });
     }
 
     // Jobs endpoints
@@ -48,6 +53,18 @@ class ApiClient {
         return this.client.post('/api/jobs', data);
     }
 
+    async updateJob(id, data) {
+        return this.client.put(`/api/jobs/${id}`, data);
+    }
+
+    async deleteJob(id) {
+        return this.client.delete(`/api/jobs/${id}`);
+    }
+
+    async getMyJobs() {
+        return this.client.get('/api/jobs/my-jobs');
+    }
+
     // Applications endpoints
     async applyForJob(jobId, data) {
         return this.client.post('/api/applications', { jobId, ...data });
@@ -64,6 +81,10 @@ class ApiClient {
 
     async updateUserProfile(data) {
         return this.client.put('/api/users/profile', data);
+    }
+
+    async getWorkerProfile(id) {
+        return this.client.get(`/api/users/worker/${id}`);
     }
 }
 
