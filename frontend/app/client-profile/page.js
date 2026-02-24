@@ -37,6 +37,10 @@ export default function ClientProfilePage() {
     const [jobFormSuccess, setJobFormSuccess] = useState(false)
     const [editingJobId, setEditingJobId] = useState(null)
     const [timeoutWarning, setTimeoutWarning] = useState(false)
+    const [jobApplicants, setJobApplicants] = useState({}) // Job ID -> Array of applicants
+    const [applicantsLoading, setApplicantsLoading] = useState(false)
+    const [applicantsError, setApplicantsError] = useState(null)
+    const [showApplicants, setShowApplicants] = useState(true)
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -110,6 +114,24 @@ export default function ClientProfilePage() {
 
                 setJobs(jobsRes.data.jobs || [])
                 setTimeoutWarning(false)
+
+                // Fetch applicants for all jobs
+                try {
+                    const applicantsRes = await apiClient.getAllJobApplicants()
+                    const applicantsMap = {}
+                    if (applicantsRes.data.applicants) {
+                        applicantsRes.data.applicants.forEach(applicant => {
+                            if (!applicantsMap[applicant.job_id]) {
+                                applicantsMap[applicant.job_id] = []
+                            }
+                            applicantsMap[applicant.job_id].push(applicant)
+                        })
+                    }
+                    setJobApplicants(applicantsMap)
+                } catch (err) {
+                    console.error('Failed to fetch applicants', err)
+                    setApplicantsError('Failed to load applicants')
+                }
             } catch (err) {
                 clearTimeout(timeoutId)
                 clearTimeout(warningTimeoutId)
@@ -217,6 +239,23 @@ export default function ClientProfilePage() {
         } catch (err) {
             console.error('Failed to delete job', err)
             alert('Failed to delete project')
+        }
+    }
+
+    const handleUpdateApplicationStatus = async (appId, newStatus) => {
+        try {
+            await apiClient.updateApplicationStatus(appId, newStatus)
+            // Update the applicants state
+            const updatedApplicants = { ...jobApplicants }
+            for (const jobId in updatedApplicants) {
+                updatedApplicants[jobId] = updatedApplicants[jobId].map(app =>
+                    app.id === appId ? { ...app, status: newStatus } : app
+                )
+            }
+            setJobApplicants(updatedApplicants)
+        } catch (err) {
+            console.error('Failed to update application status', err)
+            alert('Failed to update application status')
         }
     }
 
@@ -454,6 +493,92 @@ export default function ClientProfilePage() {
                                         </div>
                                     ))}
                                 </div>
+                            )}
+                        </div>
+
+                        {/* Job Applicants Section */}
+                        <div className="bg-white shadow rounded-lg p-8">
+                            <div className="flex justify-between items-center mb-6">
+                                <h2 className="text-xl font-semibold">Project Applicants</h2>
+                                <button
+                                    onClick={() => setShowApplicants(!showApplicants)}
+                                    className="text-sm text-gray-600 hover:text-gray-900"
+                                >
+                                    {showApplicants ? 'Hide' : 'Show'}
+                                </button>
+                            </div>
+
+                            {showApplicants && (
+                                <>
+                                    {applicantsLoading ? (
+                                        <div className="text-center py-12">Loading applicants...</div>
+                                    ) : applicantsError ? (
+                                        <div className="bg-yellow-50 text-yellow-600 p-3 rounded mb-4">
+                                            {applicantsError}
+                                        </div>
+                                    ) : Object.keys(jobApplicants).length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <div className="text-4xl mb-4">👥</div>
+                                            <p className="text-gray-600">No applicants yet</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            {jobs.map(job => {
+                                                const applicants = jobApplicants[job.id] || []
+                                                if (applicants.length === 0) return null
+
+                                                return (
+                                                    <div key={job.id} className="border border-gray-200 rounded-lg p-6">
+                                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">{job.title}</h3>
+                                                        <div className="space-y-3">
+                                                            {applicants.map(applicant => (
+                                                                <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-b-0">
+                                                                    <div className="flex-1">
+                                                                        <p className="font-medium text-gray-900">
+                                                                            {applicant.first_name} {applicant.last_name}
+                                                                        </p>
+                                                                        <div className="flex gap-4 text-sm text-gray-600 mt-1">
+                                                                            <span>📧 {applicant.email}</span>
+                                                                            {applicant.phone_number && <span>📱 {applicant.phone_number}</span>}
+                                                                        </div>
+                                                                        <p className="text-xs text-gray-500 mt-1">
+                                                                            Applied: {new Date(applicant.created_at).toLocaleDateString()}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${applicant.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                                                                applicant.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                                                    applicant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                                                                        'bg-yellow-100 text-yellow-800'
+                                                                            }`}>
+                                                                            {applicant.status}
+                                                                        </span>
+                                                                        {applicant.status === 'pending' && (
+                                                                            <div className="flex gap-1">
+                                                                                <button
+                                                                                    onClick={() => handleUpdateApplicationStatus(applicant.id, 'accepted')}
+                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition"
+                                                                                >
+                                                                                    Accept
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleUpdateApplicationStatus(applicant.id, 'rejected')}
+                                                                                    className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition"
+                                                                                >
+                                                                                    Reject
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>

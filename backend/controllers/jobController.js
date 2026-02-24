@@ -21,7 +21,7 @@ const getJobById = async (req, res) => {
         if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Job not found' });
         }
-        res.json(result.rows[0]);
+        res.json({ job: result.rows[0] });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to fetch job' });
@@ -64,7 +64,7 @@ const createJob = async (req, res) => {
             'INSERT INTO jobs (title, description, location, job_type, salary, posted_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
             [title, description, location, jobType, salary, userId]
         );
-        res.status(201).json(result.rows[0]);
+        res.status(201).json({ job: result.rows[0] });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to create job' });
@@ -73,16 +73,24 @@ const createJob = async (req, res) => {
 
 const updateJob = async (req, res) => {
     try {
+        const userId = req.user.id;
         const { id } = req.params;
         const { title, description, location, jobType, salary } = req.body;
+
+        // Check if job exists and user is the owner
+        const checkResult = await pool.query('SELECT posted_by FROM jobs WHERE id = $1', [id]);
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+        if (checkResult.rows[0].posted_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized to update this job' });
+        }
+
         const result = await pool.query(
             'UPDATE jobs SET title = $1, description = $2, location = $3, job_type = $4, salary = $5 WHERE id = $6 RETURNING *',
             [title, description, location, jobType, salary, id]
         );
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Job not found' });
-        }
-        res.json(result.rows[0]);
+        res.json({ job: result.rows[0] });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to update job' });
@@ -91,12 +99,20 @@ const updateJob = async (req, res) => {
 
 const deleteJob = async (req, res) => {
     try {
+        const userId = req.user.id;
         const { id } = req.params;
-        const result = await pool.query('DELETE FROM jobs WHERE id = $1 RETURNING *', [id]);
-        if (result.rows.length === 0) {
+
+        // Check if job exists and user is the owner
+        const checkResult = await pool.query('SELECT posted_by FROM jobs WHERE id = $1', [id]);
+        if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Job not found' });
         }
-        res.json({ message: 'Job deleted successfully' });
+        if (checkResult.rows[0].posted_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized to delete this job' });
+        }
+
+        const result = await pool.query('DELETE FROM jobs WHERE id = $1 RETURNING *', [id]);
+        res.json({ message: 'Job deleted successfully', job: result.rows[0] });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to delete job' });

@@ -44,7 +44,69 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 });
 
-// Get user's applications
+// Get applications for client's jobs
+router.get('/job/:jobId', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { jobId } = req.params;
+
+        // Verify user is the job poster
+        const jobResult = await pool.query(
+            'SELECT posted_by FROM jobs WHERE id = $1',
+            [jobId]
+        );
+
+        if (jobResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Job not found' });
+        }
+
+        if (jobResult.rows[0].posted_by !== userId) {
+            return res.status(403).json({ error: 'Not authorized to view applications for this job' });
+        }
+
+        // Get all applications for this job with applicant details
+        const result = await pool.query(
+            `SELECT a.id, a.user_id, a.status, a.created_at,
+                    u.first_name, u.last_name, u.email, u.phone_number, u.profile_picture
+             FROM applications a
+             JOIN users u ON a.user_id = u.id
+             WHERE a.job_id = $1
+             ORDER BY a.created_at DESC`,
+            [jobId]
+        );
+
+        res.json({ applications: result.rows });
+    } catch (err) {
+        console.error('Failed to fetch applications:', err);
+        res.status(500).json({ error: 'Failed to fetch applications' });
+    }
+});
+
+// Get all applications for current user's jobs (for dashboard)
+router.get('/jobs/applicants/all', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+
+        const result = await pool.query(
+            `SELECT a.id, a.job_id, a.user_id, a.status, a.created_at,
+                    u.first_name, u.last_name, u.email, u.phone_number, u.profile_picture,
+                    j.title, j.location, j.salary
+             FROM applications a
+             JOIN users u ON a.user_id = u.id
+             JOIN jobs j ON a.job_id = j.id
+             WHERE j.posted_by = $1
+             ORDER BY a.created_at DESC`,
+            [userId]
+        );
+
+        res.json({ applications: result.rows });
+    } catch (err) {
+        console.error('Failed to fetch job applicants:', err);
+        res.status(500).json({ error: 'Failed to fetch job applicants' });
+    }
+});
+
+// Get my applications (for worker dashboard)
 router.get('/my-applications', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;

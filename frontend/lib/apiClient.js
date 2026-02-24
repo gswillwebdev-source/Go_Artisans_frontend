@@ -65,6 +65,18 @@ class ApiClient {
         return this.client.get('/api/jobs/my-jobs');
     }
 
+    async saveJob(jobId) {
+        return this.client.post(`/api/jobs/${jobId}/save`);
+    }
+
+    async unsaveJob(jobId) {
+        return this.client.delete(`/api/jobs/${jobId}/save`);
+    }
+
+    async getSavedJobs() {
+        return this.client.get('/api/jobs/saved/all');
+    }
+
     // Applications endpoints
     async applyForJob(jobId, data) {
         return this.client.post('/api/applications', { jobId, ...data });
@@ -72,6 +84,18 @@ class ApiClient {
 
     async getMyApplications() {
         return this.client.get('/api/applications/my-applications');
+    }
+
+    async getJobApplicants(jobId) {
+        return this.client.get(`/api/applications/job/${jobId}`);
+    }
+
+    async getAllJobApplicants() {
+        return this.client.get('/api/applications/jobs/applicants/all');
+    }
+
+    async updateApplicationStatus(appId, status) {
+        return this.client.put(`/api/applications/${appId}`, { status });
     }
 
     // Users endpoints

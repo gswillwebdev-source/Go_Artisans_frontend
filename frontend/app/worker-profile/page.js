@@ -29,6 +29,10 @@ export default function WorkerProfilePage() {
     const [newService, setNewService] = useState('')
     const [portfolioFiles, setPortfolioFiles] = useState([])
     const [timeoutWarning, setTimeoutWarning] = useState(false)
+    const [savedJobs, setSavedJobs] = useState([])
+    const [finishedJobs, setFinishedJobs] = useState([])
+    const [pendingJobs, setPendingJobs] = useState([])
+    const [jobsLoading, setJobsLoading] = useState(false)
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -81,9 +85,32 @@ export default function WorkerProfilePage() {
 
                 const userData = res.data.user || res.data
                 setProfile(userData)
+
+                // Set profile picture
                 if (userData.profilePicture) {
                     setProfilePicturePreview(userData.profilePicture)
                 }
+
+                // Parse portfolio if it's a JSON string
+                let portfolioData = userData.portfolio || []
+                if (typeof portfolioData === 'string') {
+                    try {
+                        portfolioData = JSON.parse(portfolioData)
+                    } catch (e) {
+                        portfolioData = []
+                    }
+                }
+
+                // Parse services if it's a JSON string
+                let servicesData = userData.services || []
+                if (typeof servicesData === 'string') {
+                    try {
+                        servicesData = JSON.parse(servicesData)
+                    } catch (e) {
+                        servicesData = []
+                    }
+                }
+
                 setFormData({
                     email: userData.email || '',
                     firstName: userData.firstName || '',
@@ -94,11 +121,28 @@ export default function WorkerProfilePage() {
                     location: userData.location || '',
                     bio: userData.bio || '',
                     yearsExperience: userData.yearsExperience || 0,
-                    services: userData.services || [],
-                    portfolio: userData.portfolio || [],
+                    services: servicesData,
+                    portfolio: portfolioData,
                     profilePicture: userData.profilePicture || null
                 })
                 setTimeoutWarning(false)
+
+                // Fetch jobs related to this worker
+                try {
+                    const jobsRes = await apiClient.getMyApplications()
+                    const applications = jobsRes.data?.applications || []
+
+                    // Categorize jobs by status
+                    const applied = applications.filter(app => app.status === 'pending')
+                    const accepted = applications.filter(app => app.status === 'accepted')
+                    const finished = applications.filter(app => app.status === 'completed')
+
+                    setSavedJobs(applied)
+                    setPendingJobs(accepted)
+                    setFinishedJobs(finished)
+                } catch (jobErr) {
+                    console.error('Failed to fetch jobs:', jobErr)
+                }
             } catch (err) {
                 clearTimeout(timeoutId)
                 clearTimeout(warningTimeoutId)
@@ -405,22 +449,125 @@ export default function WorkerProfilePage() {
                                             <span className="text-gray-500">No portfolio images.</span>
                                         ) : (
                                             (profile.portfolio || []).map((img, idx) => {
-                                                const isImageUrl = typeof img === 'string' && /\.(jpg|jpeg|png|gif|webp|svg|data:)/.test(img)
+                                                // Handle both array of strings and array of objects
+                                                const imageUrl = typeof img === 'string' ? img : (img?.url || img?.name || '')
+                                                const isValidImage = imageUrl && (imageUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl))
 
                                                 return (
-                                                    <div key={idx} className="bg-gray-200 h-40 rounded-lg flex items-center justify-center overflow-hidden">
-                                                        {isImageUrl ? (
-                                                            <img src={img} alt={`portfolio-${idx}`} className="w-full h-full object-cover" />
-                                                        ) : typeof img === 'object' && img.url ? (
-                                                            <img src={img.url} alt={`portfolio-${idx}`} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <span className="text-gray-600 text-sm text-center p-2">{typeof img === 'object' ? img.name : 'Portfolio Item'}</span>
-                                                        )}
+                                                    <div key={idx} className="bg-gray-100 h-40 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                                                        {isValidImage ? (
+                                                            <img src={imageUrl} alt={`portfolio-${idx}`} className="w-full h-full object-cover" onError={(e) => {
+                                                                e.target.style.display = 'none'
+                                                                e.target.nextSibling.style.display = 'flex'
+                                                            }} />
+                                                        ) : null}
+                                                        <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm text-center p-2 bg-gray-50" style={{ display: isValidImage ? 'none' : 'flex' }}>
+                                                            No Image
+                                                        </div>
                                                     </div>
                                                 )
                                             })
                                         )}
                                     </div>
+                                </div>
+
+                                {/* Jobs Tracking Section */}
+                                <div className="bg-white shadow rounded-lg p-8">
+                                    <h3 className="text-lg font-semibold mb-6">Job Applications & Status</h3>
+
+                                    {/* Stats Cards */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                        {/* Applied Jobs */}
+                                        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                                            <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                                                <span className="text-2xl">📝</span> Applied
+                                            </h4>
+                                            <p className="text-3xl font-bold text-blue-600">{savedJobs.length}</p>
+                                            <p className="text-xs text-blue-700 mt-2">Pending review from clients</p>
+                                        </div>
+
+                                        {/* Accepted Jobs */}
+                                        <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                                            <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
+                                                <span className="text-2xl">✅</span> Accepted
+                                            </h4>
+                                            <p className="text-3xl font-bold text-green-600">{pendingJobs.length}</p>
+                                            <p className="text-xs text-green-700 mt-2">Jobs you've been accepted for</p>
+                                        </div>
+
+                                        {/* Finished Jobs */}
+                                        <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                                            <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                                                <span className="text-2xl">🏆</span> Completed
+                                            </h4>
+                                            <p className="text-3xl font-bold text-purple-600">{finishedJobs.length}</p>
+                                            <p className="text-xs text-purple-700 mt-2">Jobs you've completed</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Applied Jobs Details */}
+                                    {savedJobs.length > 0 && (
+                                        <div className="mb-6 bg-blue-50 rounded-lg p-4">
+                                            <h4 className="font-semibold text-blue-900 mb-3">Applied Jobs (Pending Review)</h4>
+                                            <div className="space-y-2">
+                                                {savedJobs.map(job => (
+                                                    <div key={job.id} className="bg-white p-3 rounded border border-blue-200">
+                                                        <p className="font-medium text-gray-900">{job.title}</p>
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            <span>📍 {job.location}</span>
+                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                        </div>
+                                                        <div className="text-xs text-blue-600 mt-1">Status: <span className="font-semibold">Pending</span></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Accepted Jobs Details */}
+                                    {pendingJobs.length > 0 && (
+                                        <div className="mb-6 bg-green-50 rounded-lg p-4">
+                                            <h4 className="font-semibold text-green-900 mb-3">Accepted Jobs (In Progress)</h4>
+                                            <div className="space-y-2">
+                                                {pendingJobs.map(job => (
+                                                    <div key={job.id} className="bg-white p-3 rounded border border-green-200">
+                                                        <p className="font-medium text-gray-900">{job.title}</p>
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            <span>📍 {job.location}</span>
+                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                        </div>
+                                                        <div className="text-xs text-green-600 mt-1">Status: <span className="font-semibold">Accepted</span></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Finished Jobs Details */}
+                                    {finishedJobs.length > 0 && (
+                                        <div className="bg-purple-50 rounded-lg p-4">
+                                            <h4 className="font-semibold text-purple-900 mb-3">Completed Jobs</h4>
+                                            <div className="space-y-2">
+                                                {finishedJobs.map(job => (
+                                                    <div key={job.id} className="bg-white p-3 rounded border border-purple-200">
+                                                        <p className="font-medium text-gray-900">{job.title}</p>
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            <span>📍 {job.location}</span>
+                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                        </div>
+                                                        <div className="text-xs text-purple-600 mt-1">Status: <span className="font-semibold">Completed</span></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* No Jobs Message */}
+                                    {savedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && (
+                                        <div className="text-center py-8 text-gray-500">
+                                            <p>No job applications yet. Browse and apply for jobs to get started!</p>
+                                        </div>
+                                    )}
                                 </div>
                             </>
                         )}
@@ -600,7 +747,7 @@ export default function WorkerProfilePage() {
                         <div className="bg-white shadow rounded-lg p-8">
                             <h3 className="text-lg font-semibold mb-4">Portfolio / Gallery</h3>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photos of Your Work</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Clear Photos of Your Work</label>
                                 <input
                                     type="file"
                                     multiple
@@ -608,23 +755,30 @@ export default function WorkerProfilePage() {
                                     onChange={handlePortfolioChange}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg cursor-pointer"
                                 />
-                                <p className="text-xs text-gray-500 mt-2">Upload 3+ photos to showcase your work (JPG, PNG)</p>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    <span className="font-semibold text-indigo-700">Upload only very clear, high-quality images to attract more customers.</span><br />
+                                    Upload 3+ photos to showcase your work (JPG, PNG, max 5MB each).
+                                </p>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
                                 {(formData.portfolio || []).map((img, idx) => {
-                                    const isImageUrl = typeof img === 'string' && /\.(jpg|jpeg|png|gif|webp|svg|data:)/.test(img)
+                                    // Handle both array of strings and array of objects
+                                    const imageUrl = typeof img === 'string' ? img : (img?.url || '')
+                                    const imageName = typeof img === 'object' ? img.name : ''
+                                    const isValidImage = imageUrl && (imageUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl))
 
                                     return (
-                                        <div key={idx} className="relative bg-gray-200 h-40 rounded-lg overflow-hidden group">
-                                            {isImageUrl ? (
-                                                <img src={img} alt={`portfolio-${idx}`} className="w-full h-full object-cover" />
-                                            ) : typeof img === 'object' && img.url ? (
-                                                <img src={img.url} alt={`portfolio-${idx}`} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-gray-600 text-sm text-center p-2">
-                                                    {typeof img === 'object' ? img.name : 'Portfolio Item'}
-                                                </div>
-                                            )}
+                                        <div key={idx} className="relative bg-gray-100 h-40 rounded-lg overflow-hidden group border border-gray-200">
+                                            {isValidImage ? (
+                                                <img src={imageUrl} alt={`portfolio-${idx}`} className="w-full h-full object-cover" onError={(e) => {
+                                                    e.target.style.display = 'none'
+                                                    const errorDiv = e.target.nextSibling
+                                                    if (errorDiv) errorDiv.style.display = 'flex'
+                                                }} />
+                                            ) : null}
+                                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs text-center p-2 bg-gray-50" style={{ display: isValidImage ? 'none' : 'flex' }}>
+                                                {imageName && <span className="text-gray-600">{imageName}</span>}
+                                            </div>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemovePortfolio(idx)}
