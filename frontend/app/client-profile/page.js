@@ -1,9 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import apiClient from '@/lib/apiClient'
+import completionClient from '@/lib/completionClient'
+import RatingModal from '@/components/RatingModal'
+import DeclineReasonModal from '@/components/DeclineReasonModal'
+import RatingsDisplay from '@/components/RatingsDisplay'
+import { useLanguage } from '@/context/LanguageContext'
+import { togoLocations, handworks } from '@/lib/togoData'
 
 export default function ClientProfilePage() {
+    const { t } = useLanguage()
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -41,6 +49,16 @@ export default function ClientProfilePage() {
     const [applicantsLoading, setApplicantsLoading] = useState(false)
     const [applicantsError, setApplicantsError] = useState(null)
     const [showApplicants, setShowApplicants] = useState(true)
+    const [emailVerificationCode, setEmailVerificationCode] = useState('')
+    const [verifyingEmail, setVerifyingEmail] = useState(false)
+    const [emailVerificationError, setEmailVerificationError] = useState('')
+    const [emailResendLoading, setEmailResendLoading] = useState(false)
+    const [emailResendCooldown, setEmailResendCooldown] = useState(0)
+    const [completionStatus, setCompletionStatus] = useState({})
+    const [showRatingModal, setShowRatingModal] = useState(false)
+    const [ratingCompletionId, setRatingCompletionId] = useState(null)
+    const [showDeclineModal, setShowDeclineModal] = useState(false)
+    const [declineCompletionId, setDeclineCompletionId] = useState(null)
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -115,12 +133,28 @@ export default function ClientProfilePage() {
                 setJobs(jobsRes.data.jobs || [])
                 setTimeoutWarning(false)
 
+                // Extract completion status from jobs that now include worker_id
+                const completionStatusMap = {}
+                const jobsWithCompletions = jobsRes.data.jobs?.filter(job => job.worker_id && job.completion_id) || []
+                jobsWithCompletions.forEach(job => {
+                    completionStatusMap[job.id] = {
+                        id: job.completion_id,
+                        job_id: job.id,
+                        worker_id: job.worker_id,
+                        status: job.completion_status
+                    }
+                })
+                if (Object.keys(completionStatusMap).length > 0) {
+                    setCompletionStatus(completionStatusMap)
+                    console.log('Completion status from jobs:', completionStatusMap)
+                }
+
                 // Fetch applicants for all jobs
                 try {
                     const applicantsRes = await apiClient.getAllJobApplicants()
                     const applicantsMap = {}
-                    if (applicantsRes.data.applicants) {
-                        applicantsRes.data.applicants.forEach(applicant => {
+                    if (applicantsRes.data.applications) {
+                        applicantsRes.data.applications.forEach(applicant => {
                             if (!applicantsMap[applicant.job_id]) {
                                 applicantsMap[applicant.job_id] = []
                             }
@@ -159,6 +193,16 @@ export default function ClientProfilePage() {
 
         fetchData()
     }, [])
+
+    // Handle email resend cooldown timer
+    useEffect(() => {
+        if (emailResendCooldown > 0) {
+            const timer = setTimeout(() => {
+                setEmailResendCooldown(emailResendCooldown - 1)
+            }, 1000)
+            return () => clearTimeout(timer)
+        }
+    }, [emailResendCooldown])
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target
@@ -292,6 +336,134 @@ export default function ClientProfilePage() {
         }
     }
 
+    const handleVerifyEmail = async (e) => {
+        e.preventDefault()
+        setVerifyingEmail(true)
+        setEmailVerificationError('')
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/verify-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ verificationCode: emailVerificationCode })
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Verification failed')
+            }
+
+            // Update profile to show email verified
+            const userData = JSON.parse(localStorage.getItem('user') || '{}')
+            userData.emailVerified = true
+            localStorage.setItem('user', JSON.stringify(userData))
+
+            setProfile(prev => ({ ...prev, emailVerified: true }))
+            setEmailVerificationCode('')
+            setUpdateSuccess(true)
+            setTimeout(() => setUpdateSuccess(false), 3000)
+        } catch (err) {
+            setEmailVerificationError(err.message || 'Failed to verify email')
+        } finally {
+            setVerifyingEmail(false)
+        }
+    }
+
+    const handleResendVerificationEmail = async () => {
+        setEmailResendLoading(true)
+        setEmailVerificationError('')
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/resend-verification-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to resend code')
+            }
+
+            setUpdateSuccess(true)
+            setEmailResendCooldown(60)
+            setTimeout(() => setUpdateSuccess(false), 3000)
+        } catch (err) {
+            setEmailVerificationError(err.message || 'Failed to resend verification code')
+        } finally {
+            setEmailResendLoading(false)
+        }
+    }
+
+    const handleConfirmCompletion = async (completionId) => {
+        try {
+            await completionClient.confirmCompletion(completionId)
+            // Find the job_id for this completion
+            const jobId = Object.keys(completionStatus).find(key => completionStatus[key].id === completionId)
+            if (jobId) {
+                setCompletionStatus(prev => ({
+                    ...prev,
+                    [jobId]: { ...prev[jobId], status: 'confirmed' }
+                }))
+            }
+            setRatingCompletionId(completionId)
+            setShowRatingModal(true)
+            setUpdateSuccess(true)
+            setTimeout(() => setUpdateSuccess(false), 3000)
+        } catch (err) {
+            setUpdateError(err.message || 'Failed to confirm completion')
+            setTimeout(() => setUpdateError(null), 3000)
+        }
+    }
+
+    const handleDeclineCompletion = (completionId) => {
+        setDeclineCompletionId(completionId)
+        setShowDeclineModal(true)
+    }
+
+    const handleDeclineSubmit = async () => {
+        // The modal will handle the actual submission
+        // Just refresh the completion status after
+        if (declineCompletionId) {
+            try {
+                // Find the job_id for this completion
+                const jobId = Object.keys(completionStatus).find(key => completionStatus[key].id === declineCompletionId)
+                if (jobId) {
+                    const response = await completionClient.getCompletionStatus(jobId)
+                    const status = response.data || response
+                    if (status && status.id) {
+                        setCompletionStatus(prev => ({
+                            ...prev,
+                            [jobId]: status
+                        }))
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to refresh completion status:', err)
+            }
+        }
+    }
+
+    const loadCompletionStatus = async (jobId) => {
+        try {
+            const response = await completionClient.getCompletionStatus(jobId)
+            const status = response.data || response
+            if (status && status.id) {
+                setCompletionStatus(prev => ({
+                    ...prev,
+                    [jobId]: status
+                }))
+            }
+        } catch (err) {
+            console.error('Failed to load completion status:', err)
+        }
+    }
+
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
@@ -336,28 +508,83 @@ export default function ClientProfilePage() {
                 <div className="bg-white shadow rounded-lg p-8 mb-6">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">Your Client Profile</h1>
-                            <p className="text-gray-600 mt-1">Manage your information and find the help you need</p>
+                            <h1 className="text-3xl font-bold text-gray-900">{t('yourClientProfile')}</h1>
+                            <p className="text-gray-600 mt-1">{t('manageInformation')}</p>
                         </div>
                         {!isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
                                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
                             >
-                                Edit Profile
+                                {t('editProfile')}
                             </button>
                         )}
                     </div>
 
                     {updateSuccess && (
                         <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4">
-                            Profile updated successfully!
+                            {t('profileUpdatedSuccess')}
                         </div>
                     )}
 
                     {updateError && (
                         <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
                             {updateError}
+                        </div>
+                    )}
+
+                    {/* Email Verification Section */}
+                    {profile && !profile.emailVerified && (
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r">
+                            <div className="flex items-start">
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
+                                    <p className="text-sm text-yellow-700 mb-4">
+                                        {t('verifySixDigitCode').replace('{{email}}', profile.email)}
+                                    </p>
+                                    <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
+                                        <input
+                                            type="text"
+                                            value={emailVerificationCode}
+                                            onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="000000"
+                                            maxLength="6"
+                                            className="w-32 px-3 py-2 border border-yellow-300 rounded text-center text-lg tracking-widest font-mono"
+                                            required
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={verifyingEmail || emailVerificationCode.length !== 6}
+                                            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
+                                        >
+                                            {verifyingEmail ? t('verifying') : t('verifyButton')}
+                                        </button>
+                                    </form>
+                                    {emailVerificationError && (
+                                        <div className="text-sm text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-200">
+                                            ❌ {emailVerificationError}
+                                            {(emailVerificationError.toLowerCase().includes('expired') || emailVerificationError.toLowerCase().includes('invalid')) && (
+                                                <div className="mt-2 pt-2 border-t border-red-200">
+                                                    <button
+                                                        onClick={handleResendVerificationEmail}
+                                                        disabled={emailResendLoading || emailResendCooldown > 0}
+                                                        className="text-red-700 hover:text-red-800 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {emailResendCooldown > 0 ? t('getNewCode').includes('{{') ? t('getNewCode') : `${t('getNewCode')}` : emailResendLoading ? t('sendingCode') : t('getNewCode')}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={handleResendVerificationEmail}
+                                        disabled={emailResendLoading || emailResendCooldown > 0}
+                                        className="text-sm text-yellow-700 hover:text-yellow-800 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {emailResendCooldown > 0 ? `${t('resendCodeIn').replace('{{seconds}}', emailResendCooldown)}` : emailResendLoading ? t('sendingCode') : t('didntReceiveCode')}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -383,54 +610,63 @@ export default function ClientProfilePage() {
                                     <p className="text-lg font-semibold text-gray-900">
                                         {profile?.firstName} {profile?.lastName}
                                     </p>
-                                    <p className="text-gray-600 text-sm mt-1">{profile?.location || 'Location not set'}</p>
-                                    <p className="text-sm text-gray-500 mt-2">Member since {new Date(profile?.createdAt).toLocaleDateString()}</p>
+                                    <p className="text-gray-600 text-sm mt-1">{profile?.location || t('notProvided')}</p>
+                                    <p className="text-sm text-gray-500 mt-2">{t('memberSince').replace('{{date}}', new Date(profile?.createdAt).toLocaleDateString())}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Basic Information Section */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">Basic Information</h2>
+                            <h2 className="text-xl font-semibold mb-6">{t('basicInformation')}</h2>
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700">First Name</label>
-                                    <p className="text-gray-900 mt-1">{profile?.firstName || 'Not provided'}</p>
+                                    <label className="text-sm font-medium text-gray-700">{t('firstName')}</label>
+                                    <p className="text-gray-900 mt-1">{profile?.firstName || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700">Last Name</label>
-                                    <p className="text-gray-900 mt-1">{profile?.lastName || 'Not provided'}</p>
+                                    <label className="text-sm font-medium text-gray-700">{t('lastName')}</label>
+                                    <p className="text-gray-900 mt-1">{profile?.lastName || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700">Email</label>
+                                    <label className="text-sm font-medium text-gray-700">{t('email')}</label>
                                     <p className="text-gray-900 mt-1">{profile?.email}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700">Phone</label>
-                                    <p className="text-gray-900 mt-1">{profile?.phoneNumber || 'Not provided'}</p>
+                                    <label className="text-sm font-medium text-gray-700">{t('phoneNumber')}</label>
+                                    <p className="text-gray-900 mt-1">{profile?.phoneNumber || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-700">Location</label>
-                                    <p className="text-gray-900 mt-1">{profile?.location || 'Not provided'}</p>
+                                    <label className="text-sm font-medium text-gray-700">{t('location')}</label>
+                                    <p className="text-gray-900 mt-1">{profile?.location || t('notProvided')}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* About Section */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">About You</h2>
+                            <h2 className="text-xl font-semibold mb-6">{t('aboutMe')}</h2>
                             <div>
-                                <label className="text-sm font-medium text-gray-700">Skills You Need</label>
+                                <label className="text-sm font-medium text-gray-700">{t('skillsYouNeed')}</label>
                                 <p className="text-gray-900 mt-2 whitespace-pre-wrap">
-                                    {profile?.bio || 'Not provided'}
+                                    {profile?.bio || t('notProvided')}
                                 </p>
                             </div>
+                        </div>
+
+                        {/* Ratings Section */}
+                        <div className="bg-white shadow rounded-lg p-8">
+                            <h2 className="text-xl font-semibold mb-6">{t('yourRatingsAsClient')}</h2>
+                            <p className="text-sm text-gray-600 mb-6">
+                                {t('workersSeeyourRatings')}
+                            </p>
+                            <RatingsDisplay userId={profile?.id} />
                         </div>
 
                         {/* Your Projects Section */}
                         <div className="bg-white shadow rounded-lg p-8">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-semibold">Your Projects</h2>
+                                <h2 className="text-xl font-semibold">{t('yourProjects')}</h2>
                                 <button
                                     onClick={() => {
                                         setEditingJobId(null)
@@ -439,17 +675,17 @@ export default function ClientProfilePage() {
                                     }}
                                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm"
                                 >
-                                    Post New Project
+                                    {t('postNewProject')}
                                 </button>
                             </div>
 
                             {jobsLoading ? (
-                                <div className="text-center py-12">Loading projects...</div>
+                                <div className="text-center py-12">{t('loadingProjects')}</div>
                             ) : jobs.length === 0 ? (
                                 <div className="text-center py-12">
                                     <div className="text-4xl mb-4">📋</div>
-                                    <p className="text-gray-600">No projects posted yet</p>
-                                    <p className="text-sm text-gray-500 mt-2">Start by posting your first project to find service providers</p>
+                                    <p className="text-gray-600">{t('noProjectsPosted')}</p>
+                                    <p className="text-sm text-gray-500 mt-2">{t('startPostingProject')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
@@ -465,28 +701,28 @@ export default function ClientProfilePage() {
                                                         onClick={() => handleEditJob(job)}
                                                         className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100 transition"
                                                     >
-                                                        Edit
+                                                        {t('editProfile')}
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteJob(job.id)}
                                                         className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100 transition"
                                                     >
-                                                        Delete
+                                                        {t('delete')}
                                                     </button>
                                                 </div>
                                             </div>
                                             <p className="text-gray-700 mt-3">{job.description}</p>
                                             <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
                                                 <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">Type</span>
-                                                    <p className="text-sm text-gray-900 mt-1">{job.job_type || 'Not specified'}</p>
+                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('type')}</span>
+                                                    <p className="text-sm text-gray-900 mt-1">{job.job_type || t('notSpecified')}</p>
                                                 </div>
                                                 <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">Hiring Rate</span>
-                                                    <p className="text-sm text-gray-900 mt-1 font-semibold">{job.salary || 'Negotiable'}</p>
+                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('hiringRate')}</span>
+                                                    <p className="text-sm text-gray-900 mt-1 font-semibold">{job.salary || t('negotiable')}</p>
                                                 </div>
                                                 <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">Posted</span>
+                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('posted')}</span>
                                                     <p className="text-sm text-gray-900 mt-1">{new Date(job.created_at).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
@@ -496,22 +732,92 @@ export default function ClientProfilePage() {
                             )}
                         </div>
 
+                        {/* Completion Requests Section */}
+                        <div className="bg-white shadow rounded-lg p-8 mb-8">
+                            <h2 className="text-xl font-semibold mb-6">{t('activeProjectsCompletion')}</h2>
+
+                            {jobs.filter(job => job.worker_id).length === 0 ? (
+                                <div className="text-center py-12">
+                                    <div className="text-4xl mb-4">🔄</div>
+                                    <p className="text-gray-600">{t('noActiveProjectsCompletion')}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {jobs.filter(job => job.worker_id).map(job => {
+                                        const completion = completionStatus[job.id]
+
+                                        if (!completion) {
+                                            return (
+                                                <div key={job.id} className="border border-gray-200 rounded-lg p-4">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <h3 className="font-semibold text-gray-900">{job.title}</h3>
+                                                            <p className="text-sm text-gray-600 mt-1">{t('waitingForWorkerCompletion')}</p>
+                                                        </div>
+                                                        <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">{t('inProgress')}</span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        }
+
+                                        return (
+                                            <div key={job.id} className="border-2 border-yellow-300 rounded-lg p-4 bg-yellow-50">
+                                                <div className="flex justify-between items-start mb-4">
+                                                    <div>
+                                                        <h3 className="font-semibold text-gray-900">{job.title}</h3>
+                                                        <p className="text-sm text-gray-600 mt-1">
+                                                            {completion.status === 'pending' ? `⏳ ${t('workerCompletedAwaiting')}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    {completion.status === 'pending' && (
+                                                        <span className="px-3 py-1 bg-yellow-200 text-yellow-900 rounded-full text-xs font-medium animate-pulse">{t('needsReview')}</span>
+                                                    )}
+                                                </div>
+
+                                                {completion.status === 'pending' && (
+                                                    <div className="bg-white p-4 rounded mb-4 border border-yellow-200">
+                                                        <p className="text-sm text-gray-700 mb-4">
+                                                            <strong>{t('whyRateEachOther')}</strong> {t('ratingHelpWorkers')}
+                                                        </p>
+                                                        <div className="flex gap-3">
+                                                            <button
+                                                                onClick={() => handleConfirmCompletion(completion.id)}
+                                                                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-medium"
+                                                            >
+                                                                ✓ {t('confirmCompleted')}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeclineCompletion(completion.id)}
+                                                                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium"
+                                                            >
+                                                                ✕ {t('decline')}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Job Applicants Section */}
                         <div className="bg-white shadow rounded-lg p-8">
                             <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-semibold">Project Applicants</h2>
+                                <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
                                 <button
                                     onClick={() => setShowApplicants(!showApplicants)}
                                     className="text-sm text-gray-600 hover:text-gray-900"
                                 >
-                                    {showApplicants ? 'Hide' : 'Show'}
+                                    {showApplicants ? t('hideBtn') : t('showBtn')}
                                 </button>
                             </div>
 
                             {showApplicants && (
                                 <>
                                     {applicantsLoading ? (
-                                        <div className="text-center py-12">Loading applicants...</div>
+                                        <div className="text-center py-12">{t('loadingApplicants')}</div>
                                     ) : applicantsError ? (
                                         <div className="bg-yellow-50 text-yellow-600 p-3 rounded mb-4">
                                             {applicantsError}
@@ -519,7 +825,7 @@ export default function ClientProfilePage() {
                                     ) : Object.keys(jobApplicants).length === 0 ? (
                                         <div className="text-center py-12">
                                             <div className="text-4xl mb-4">👥</div>
-                                            <p className="text-gray-600">No applicants yet</p>
+                                            <p className="text-gray-600">{t('noApplicantsYet')}</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-6">
@@ -532,40 +838,58 @@ export default function ClientProfilePage() {
                                                         <h3 className="text-lg font-semibold text-gray-900 mb-4">{job.title}</h3>
                                                         <div className="space-y-3">
                                                             {applicants.map(applicant => (
-                                                                <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-b-0">
+                                                                <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-b-0 gap-4">
                                                                     <div className="flex-1">
                                                                         <p className="font-medium text-gray-900">
                                                                             {applicant.first_name} {applicant.last_name}
                                                                         </p>
-                                                                        <div className="flex gap-4 text-sm text-gray-600 mt-1">
+                                                                        <div className="flex gap-4 text-sm text-gray-600 mt-1 flex-wrap">
                                                                             <span>📧 {applicant.email}</span>
                                                                             {applicant.phone_number && <span>📱 {applicant.phone_number}</span>}
                                                                         </div>
                                                                         <p className="text-xs text-gray-500 mt-1">
-                                                                            Applied: {new Date(applicant.created_at).toLocaleDateString()}
+                                                                            {t('applied')}: {new Date(applicant.created_at).toLocaleDateString()}
                                                                         </p>
                                                                     </div>
-                                                                    <div className="flex items-center gap-2">
+                                                                    <div className="flex flex-col items-end gap-2">
                                                                         <span className={`px-3 py-1 rounded-full text-xs font-medium ${applicant.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                                                                applicant.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                                                                    applicant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                                                                        'bg-yellow-100 text-yellow-800'
+                                                                            applicant.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                                                applicant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                                                                    'bg-yellow-100 text-yellow-800'
                                                                             }`}>
                                                                             {applicant.status}
                                                                         </span>
+                                                                        <div className="flex gap-1">
+                                                                            <Link
+                                                                                href={`/workers/${applicant.user_id}`}
+                                                                                className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"
+                                                                            >
+                                                                                {t('viewProfile')}
+                                                                            </Link>
+                                                                            {applicant.phone_number && (
+                                                                                <a
+                                                                                    href={`https://wa.me/${applicant.phone_number.replace(/\D/g, '')}?text=Hello%20${applicant.first_name},%20I%20reviewed%20your%20application.`}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition"
+                                                                                >
+                                                                                    WhatsApp
+                                                                                </a>
+                                                                            )}
+                                                                        </div>
                                                                         {applicant.status === 'pending' && (
                                                                             <div className="flex gap-1">
                                                                                 <button
                                                                                     onClick={() => handleUpdateApplicationStatus(applicant.id, 'accepted')}
-                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition"
+                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition font-medium"
                                                                                 >
-                                                                                    Accept
+                                                                                    ✓ {t('acceptApplicant')}
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => handleUpdateApplicationStatus(applicant.id, 'rejected')}
-                                                                                    className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition"
+                                                                                    className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition font-medium"
                                                                                 >
-                                                                                    Reject
+                                                                                    ✕ {t('rejectApplicant')}
                                                                                 </button>
                                                                             </div>
                                                                         )}
@@ -587,7 +911,7 @@ export default function ClientProfilePage() {
                     <form onSubmit={handleUpdate} className="space-y-6">
                         {/* Edit Profile Picture Section */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">Profile Picture</h2>
+                            <h2 className="text-xl font-semibold mb-6">{t('profilePicture')}</h2>
                             <div className="flex items-center gap-6">
                                 <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden">
                                     {profilePicturePreview || profile?.profilePicture ? (
@@ -601,24 +925,24 @@ export default function ClientProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('uploadPhoto')}</label>
                                     <input
                                         type="file"
                                         accept="image/*"
                                         onChange={handleProfilePictureChange}
                                         className="block text-sm text-gray-500 border border-gray-300 rounded px-3 py-2"
                                     />
-                                    <p className="text-xs text-gray-500 mt-2">JPG, PNG or GIF (max 5MB)</p>
+                                    <p className="text-xs text-gray-500 mt-2">{t('uploadPhotoHint')}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Edit Basic Information Section */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">Basic Information</h2>
+                            <h2 className="text-xl font-semibold mb-6">{t('basicInformation')}</h2>
                             <div className="grid grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('firstName')}</label>
                                     <input
                                         type="text"
                                         name="firstName"
@@ -629,7 +953,7 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('lastName')}</label>
                                     <input
                                         type="text"
                                         name="lastName"
@@ -640,7 +964,7 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('email')}</label>
                                     <input
                                         type="email"
                                         value={formData.email}
@@ -649,7 +973,7 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('phoneNumber')}</label>
                                     <input
                                         type="tel"
                                         name="phoneNumber"
@@ -660,24 +984,27 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
                                 <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                                    <input
-                                        type="text"
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
+                                    <select
                                         name="location"
                                         value={formData.location}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="e.g., Lomé, Togo"
-                                    />
+                                    >
+                                        <option value="">Select a location...</option>
+                                        {togoLocations.map(loc => (
+                                            <option key={loc.value} value={loc.value}>{loc.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                         </div>
 
                         {/* Edit About Section */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">About You</h2>
+                            <h2 className="text-xl font-semibold mb-6">{t('aboutMe')}</h2>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Skills You Need</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('skillsYouNeed')}</label>
                                 <textarea
                                     name="bio"
                                     value={formData.bio}
@@ -686,7 +1013,7 @@ export default function ClientProfilePage() {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                     placeholder="Describe the skills and services you're looking for. Example: I need a web developer to build an ecommerce site, a designer for logos, etc."
                                 />
-                                <p className="text-xs text-gray-500 mt-2">Help service providers understand what you need</p>
+                                <p className="text-xs text-gray-500 mt-2">{t('helpServiceProviders')}</p>
                             </div>
                         </div>
 
@@ -697,14 +1024,14 @@ export default function ClientProfilePage() {
                                 disabled={updateLoading}
                                 className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium"
                             >
-                                {updateLoading ? 'Saving...' : 'Save Changes'}
+                                {updateLoading ? 'Saving...' : t('saveChanges')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsEditing(false)}
                                 className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium"
                             >
-                                Cancel
+                                {t('cancel')}
                             </button>
                         </div>
                     </form>
@@ -766,14 +1093,17 @@ export default function ClientProfilePage() {
                                 <div className="grid grid-cols-2 gap-6">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             name="location"
                                             value={jobFormData.location}
                                             onChange={handleJobInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                            placeholder="e.g., Lomé, Remote"
-                                        />
+                                        >
+                                            <option value="">Select a location...</option>
+                                            {togoLocations.map(loc => (
+                                                <option key={loc.value} value={loc.value}>{loc.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
 
                                     <div>
@@ -825,6 +1155,31 @@ export default function ClientProfilePage() {
                     </div>
                 )}
             </div>
+
+            {/* Rating Modal */}
+            <RatingModal
+                completionId={ratingCompletionId}
+                isOpen={showRatingModal}
+                onClose={() => setShowRatingModal(false)}
+                onSuccess={() => {
+                    // Reload completion status
+                    if (ratingCompletionId) {
+                        const jobId = Object.keys(completionStatus).find(key => completionStatus[key].id === ratingCompletionId)
+                        if (jobId) {
+                            loadCompletionStatus(jobId)
+                        }
+                    }
+                }}
+                isWorker={false}
+            />
+
+            {/* Decline Reason Modal */}
+            <DeclineReasonModal
+                completionId={declineCompletionId}
+                isOpen={showDeclineModal}
+                onClose={() => setShowDeclineModal(false)}
+                onSuccess={handleDeclineSubmit}
+            />
         </div>
     )
 }

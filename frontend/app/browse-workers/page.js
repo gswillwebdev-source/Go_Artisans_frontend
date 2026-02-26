@@ -17,8 +17,7 @@ export default function BrowseWorkersPage() {
     const [userType, setUserType] = useState(null)
 
     useEffect(() => {
-        fetchWorkers()
-
+        // Check auth state
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
         const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
 
@@ -32,6 +31,8 @@ export default function BrowseWorkersPage() {
                 console.error('Failed to parse user data:', e)
             }
         }
+
+        fetchWorkers()
     }, [])
 
     const fetchWorkers = async () => {

@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import apiClient from '@/lib/apiClient'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSaved: initialIsSaved = false }) {
     const [isApplying, setIsApplying] = useState(false)
@@ -10,6 +12,8 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
     const [isSaving, setIsSaving] = useState(false)
     const [isSaved, setIsSaved] = useState(initialIsSaved)
     const [error, setError] = useState(null)
+    const router = useRouter()
+    const { t } = useLanguage()
 
     const postedDate = job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Recently'
 
@@ -20,7 +24,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
             const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
             if (!token) {
-                window.location.href = '/login'
+                router.push('/register?redirect=/jobs/' + job.id)
                 return
             }
 
@@ -37,7 +41,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
             if (err.response?.status === 400 && err.response?.data?.error?.includes('already applied')) {
                 setHasApplied(true)
             } else {
-                setError(err.response?.data?.error || 'Failed to apply for job')
+                setError(err.response?.data?.error || t('applicationFailed'))
             }
         } finally {
             setIsApplying(false)
@@ -51,7 +55,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
             const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
             if (!token) {
-                window.location.href = '/login'
+                router.push('/register?redirect=/jobs/' + job.id)
                 return
             }
 
@@ -69,7 +73,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                 onSaveToggle(job.id, !isSaved)
             }
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to save job')
+            setError(err.response?.data?.error || t('saveFailed'))
         } finally {
             setIsSaving(false)
         }
@@ -97,7 +101,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                 )}
                 <div className="flex items-center text-gray-500 text-xs">
                     <span className="font-medium">📅</span>
-                    <span className="ml-2">Posted: {postedDate}</span>
+                    <span className="ml-2">{t('posted')}: {postedDate}</span>
                 </div>
             </div>
 
@@ -109,7 +113,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
 
             <div className="flex gap-2">
                 <Link href={`/jobs/${job.id}`} className="flex-1 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 text-center font-medium text-sm">
-                    View Details
+                    {t('viewDetails')}
                 </Link>
                 <button
                     onClick={handleApply}
@@ -119,7 +123,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                         : 'border border-indigo-600 text-indigo-600 hover:bg-indigo-50'
                         }`}
                 >
-                    {isApplying ? 'Applying...' : hasApplied ? 'Applied' : 'Apply'}
+                    {isApplying ? t('applying') : hasApplied ? t('applied') : t('applyNow')}
                 </button>
                 <button
                     onClick={handleSaveToggle}

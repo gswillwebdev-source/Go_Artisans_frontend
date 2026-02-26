@@ -87,9 +87,11 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/admin', require('./routes/admin'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/completion', require('./routes/completion'));
 
 // Error Handling - show stack in development
 app.use((err, req, res, next) => {

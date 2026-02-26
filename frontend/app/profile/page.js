@@ -35,6 +35,24 @@ export default function ProfilePage() {
             return
         }
 
+        // Check user type and redirect as needed
+        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        if (userData) {
+            try {
+                const user = JSON.parse(userData)
+                // If user has a specific role, redirect to their profile type
+                if (user.userType === 'worker') {
+                    window.location.href = '/worker-profile'
+                    return
+                } else if (user.userType === 'client') {
+                    window.location.href = '/client-profile'
+                    return
+                }
+            } catch (e) {
+                console.error('Error parsing user data:', e)
+            }
+        }
+
         apiClient.setToken(token)
 
         async function fetchProfile() {

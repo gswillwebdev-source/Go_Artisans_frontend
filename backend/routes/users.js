@@ -7,7 +7,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const result = await pool.query(
-            `SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, bio, years_experience, services, portfolio, profile_picture FROM users WHERE id = $1`,
+            `SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, bio, years_experience, services, portfolio, profile_picture, completed_jobs FROM users WHERE id = $1`,
             [userId]
         );
 
@@ -32,7 +32,8 @@ router.get('/profile', authenticateToken, async (req, res) => {
                 yearsExperience: user.years_experience,
                 services: user.services || [],
                 portfolio: user.portfolio || [],
-                profilePicture: user.profile_picture
+                profilePicture: user.profile_picture,
+                completedJobs: user.completed_jobs || 0
             }
         });
     } catch (err) {

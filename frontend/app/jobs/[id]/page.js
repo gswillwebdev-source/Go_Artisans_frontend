@@ -1,12 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import axios from 'axios'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobDetailsPage() {
     const params = useParams()
+    const router = useRouter()
+    const { t } = useLanguage()
     const [job, setJob] = useState(null)
     const [client, setClient] = useState(null)
     const [loading, setLoading] = useState(true)
@@ -16,14 +19,19 @@ export default function JobDetailsPage() {
     useEffect(() => {
         const tkn = typeof window !== 'undefined' ? localStorage.getItem('token') : null
         setToken(tkn)
-        fetchJob()
-    }, [params.id])
+    }, [])
+
+    useEffect(() => {
+        if (params?.id) {
+            fetchJob()
+        }
+    }, [params?.id])
 
     const fetchJob = async () => {
         try {
             setLoading(true)
             const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/jobs/${params.id}`)
-            const jobData = response.data
+            const jobData = response.data.job
             setJob(jobData)
 
             // Fetch client info if job has posted_by
@@ -46,8 +54,8 @@ export default function JobDetailsPage() {
 
     const handleApply = async () => {
         if (!token) {
-            alert('Please login to apply for this job')
-            window.location.href = '/login'
+            // Redirect to register page instead of login
+            router.push('/register?redirect=/jobs/' + params.id)
             return
         }
 
@@ -58,22 +66,24 @@ export default function JobDetailsPage() {
                 { jobId: params.id },
                 { headers: { Authorization: `Bearer ${token}` } }
             )
-            alert('Application submitted successfully!')
+            alert(t('applicationSubmitted'))
+            // Redirect to worker profile to see updated applied jobs count
+            router.push('/worker-profile')
         } catch (err) {
-            alert(err.response?.data?.error || 'Application failed')
+            alert(err.response?.data?.error || t('applicationFailed'))
         } finally {
             setApplying(false)
         }
     }
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
-    if (!job) return <div className="min-h-screen flex items-center justify-center">Job not found</div>
+    if (loading) return <div className="min-h-screen flex items-center justify-center">{t('loading')}</div>
+    if (!job) return <div className="min-h-screen flex items-center justify-center">{t('jobNotFound')}</div>
 
     return (
         <div className="min-h-screen bg-gray-50">
             <nav className="bg-white shadow">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <Link href="/jobs" className="text-indigo-600 hover:text-indigo-700">← Back to Jobs</Link>
+                    <Link href="/jobs" className="text-indigo-600 hover:text-indigo-700">{t('backToJobs')}</Link>
                 </div>
             </nav>
 
@@ -83,64 +93,64 @@ export default function JobDetailsPage() {
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 mt-4">
                         <div className="bg-gray-50 p-4 rounded">
-                            <p className="text-sm text-gray-600">Location</p>
+                            <p className="text-sm text-gray-600">{t('location')}</p>
                             <p className="font-semibold">{job.location}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded">
-                            <p className="text-sm text-gray-600">Job Type</p>
+                            <p className="text-sm text-gray-600">{t('jobType')}</p>
                             <p className="font-semibold">{job.job_type}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded">
-                            <p className="text-sm text-gray-600">Budget</p>
-                            <p className="font-semibold text-indigo-600">CFA {job.salary || 'Competitive'}</p>
+                            <p className="text-sm text-gray-600">{t('budget')}</p>
+                            <p className="font-semibold text-indigo-600">CFA {job.salary || t('competitive')}</p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded">
-                            <p className="text-sm text-gray-600">Posted</p>
+                            <p className="text-sm text-gray-600">{t('posted')}</p>
                             <p className="font-semibold">{new Date(job.created_at).toLocaleDateString()}</p>
                         </div>
                     </div>
 
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Job Description</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('jobDescription')}</h2>
                         <p className="text-gray-700 whitespace-pre-wrap">{job.description}</p>
                     </div>
 
                     {/* Client Info Section */}
                     {client && (
                         <div className="mb-8 bg-indigo-50 p-6 rounded-lg">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-4">About Client</h2>
+                            <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('aboutClient')}</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <p className="text-sm text-gray-600 mb-1">Client Name</p>
+                                    <p className="text-sm text-gray-600 mb-1">{t('clientName')}</p>
                                     <p className="font-semibold text-lg">{client.firstName} {client.lastName}</p>
                                 </div>
                                 {client.email && (
                                     <div>
-                                        <p className="text-sm text-gray-600 mb-1">Email</p>
+                                        <p className="text-sm text-gray-600 mb-1">{t('email')}</p>
                                         <p className="font-medium text-indigo-600">{client.email}</p>
                                     </div>
                                 )}
                                 {client.phoneNumber && (
                                     <div>
-                                        <p className="text-sm text-gray-600 mb-1">Phone</p>
+                                        <p className="text-sm text-gray-600 mb-1">Téléphone</p>
                                         <p className="font-medium">{client.phoneNumber}</p>
                                     </div>
                                 )}
                                 {client.location && (
                                     <div>
-                                        <p className="text-sm text-gray-600 mb-1">Location</p>
+                                        <p className="text-sm text-gray-600 mb-1">{t('location')}</p>
                                         <p className="font-medium">{client.location}</p>
                                     </div>
                                 )}
                                 {client.rating > 0 && (
                                     <div>
-                                        <p className="text-sm text-gray-600 mb-1">Rating</p>
+                                        <p className="text-sm text-gray-600 mb-1">{t('rating')}</p>
                                         <p className="font-medium">⭐ {client.rating.toFixed(1)} / 5.0</p>
                                     </div>
                                 )}
                                 {client.completedJobs > 0 && (
                                     <div>
-                                        <p className="text-sm text-gray-600 mb-1">Jobs Posted</p>
+                                        <p className="text-sm text-gray-600 mb-1">{t('jobsPosted')}</p>
                                         <p className="font-medium">{client.completedJobs} jobs</p>
                                     </div>
                                 )}
@@ -148,12 +158,32 @@ export default function JobDetailsPage() {
                         </div>
                     )}
 
+                    {!token && (
+                        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <p className="text-blue-700 font-medium mb-4">{t('loginToApply')}</p>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => router.push('/login')}
+                                    className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-semibold transition"
+                                >
+                                    {t('login')}
+                                </button>
+                                <button
+                                    onClick={() => router.push('/register')}
+                                    className="flex-1 bg-white text-indigo-600 border border-indigo-600 py-2 rounded-lg hover:bg-indigo-50 font-semibold transition"
+                                >
+                                    {t('register')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <button
                         onClick={handleApply}
-                        disabled={applying}
+                        disabled={applying || !token}
                         className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-lg transition"
                     >
-                        {applying ? 'Applying...' : 'Apply Now'}
+                        {applying ? t('applying') : t('applyNow')}
                     </button>
                 </div>
             </div>

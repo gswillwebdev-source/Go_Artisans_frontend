@@ -1,10 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, logout, updateUserRole } = require('../controllers/authController');
+const { register, login, logout, updateUserRole, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword } = require('../controllers/authController');
 const { body } = require('express-validator');
-const crypto = require('crypto');
-const { sendVerificationCode } = require('../config/email');
-const User = require('../models/User');
 const passport = require('passport');
 const jwt = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
@@ -22,72 +19,17 @@ const validateLogin = [
     body('password').notEmpty(),
 ];
 
-// Forgot password - send verification code
-router.post('/forgot-password', async (req, res) => {
-    try {
-        const { email } = req.body
-        const user = await User.findOne({ email })
+// Email verification
+router.post('/verify-email', authenticateToken, verifyEmail);
 
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
+// Resend verification email
+router.post('/resend-verification-email', authenticateToken, resendVerificationEmail);
 
-        const code = Math.floor(100000 + Math.random() * 900000).toString()
-        user.resetCode = code
-        user.resetCodeExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
-        await user.save()
+// Forgot password - send reset link
+router.post('/forgot-password', forgotPassword);
 
-        await sendVerificationCode(email, code)
-        res.json({ message: 'Verification code sent to email' })
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to send verification code' })
-    }
-})
-
-// Verify code
-router.post('/verify-code', async (req, res) => {
-    try {
-        const { email, code } = req.body
-        const user = await User.findOne({ email })
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
-
-        if (user.resetCode !== code || user.resetCodeExpiry < new Date()) {
-            return res.status(400).json({ error: 'Invalid or expired code' })
-        }
-
-        res.json({ message: 'Code verified' })
-    } catch (err) {
-        res.status(500).json({ error: 'Verification failed' })
-    }
-})
-
-// Reset password
-router.post('/reset-password', async (req, res) => {
-    try {
-        const { email, code, newPassword } = req.body
-        const user = await User.findOne({ email })
-
-        if (!user) {
-            return res.status(404).json({ error: 'User not found' })
-        }
-
-        if (user.resetCode !== code || user.resetCodeExpiry < new Date()) {
-            return res.status(400).json({ error: 'Invalid or expired code' })
-        }
-
-        user.password = newPassword
-        user.resetCode = null
-        user.resetCodeExpiry = null
-        await user.save()
-
-        res.json({ message: 'Password reset successful' })
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to reset password' })
-    }
-})
+// Reset password with token
+router.post('/reset-password', resetPassword);
 
 // OAuth: initiate Google
 router.get('/google', (req, res, next) => {

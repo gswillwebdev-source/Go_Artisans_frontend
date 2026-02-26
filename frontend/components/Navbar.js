@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { useLanguage } from '@/context/LanguageContext'
 
 // Initialize auth state from localStorage
 const getInitialAuthState = () => {
@@ -29,6 +30,8 @@ export default function Navbar() {
     const [isHydrated, setIsHydrated] = useState(false)
     const router = useRouter()
     const pathname = usePathname()
+    const { language, changeLanguage, t } = useLanguage()
+    const [languageDropdown, setLanguageDropdown] = useState(false)
 
     // Ensure we're hydrated on client side
     useEffect(() => {
@@ -84,7 +87,7 @@ export default function Navbar() {
                 <div className="flex justify-between items-center h-16">
                     {/* Logo */}
                     <Link href="/" className="flex items-center">
-                        <span className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition">JobSeek</span>
+                        <span className="text-2xl font-bold text-indigo-600 hover:text-indigo-700 transition">GoArtisans</span>
                     </Link>
 
                     {/* Navigation Links - Center */}
@@ -97,7 +100,7 @@ export default function Navbar() {
                                             href="/browse-workers"
                                             className={getLinkClasses('/browse-workers')}
                                         >
-                                            Browse Workers
+                                            {t('browseWorkers')}
                                         </Link>
                                     </>
                                 ) : authState.user?.userType === 'worker' ? (
@@ -106,7 +109,7 @@ export default function Navbar() {
                                             href="/jobs"
                                             className={getLinkClasses('/jobs')}
                                         >
-                                            Browse Jobs
+                                            {t('jobs')}
                                         </Link>
                                     </>
                                 ) : null}
@@ -114,22 +117,54 @@ export default function Navbar() {
                         )}
                     </div>
 
-                    {/* Right Side - Auth Links */}
+                    {/* Right Side - Auth Links and Language Switcher */}
                     <div className="flex items-center space-x-3">
+                        {/* Language Switcher */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setLanguageDropdown(!languageDropdown)}
+                                className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition flex items-center gap-1"
+                            >
+                                🌐 {language === 'fr' ? 'FR' : 'EN'}
+                            </button>
+                            {languageDropdown && (
+                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-lg shadow-lg z-50 border border-gray-200">
+                                    <button
+                                        onClick={() => {
+                                            changeLanguage('fr')
+                                            setLanguageDropdown(false)
+                                        }}
+                                        className={`block w-full text-left px-4 py-2 text-sm ${language === 'fr' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-700 hover:bg-gray-100'}`}
+                                    >
+                                        Français (FR)
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            changeLanguage('en')
+                                            setLanguageDropdown(false)
+                                        }}
+                                        className={`block w-full text-left px-4 py-2 text-sm border-t ${language === 'en' ? 'bg-indigo-100 text-indigo-600' : 'text-gray-700 hover:bg-gray-100'}`}
+                                    >
+                                        English (EN)
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         {isHydrated ? (
                             authState.isLoggedIn ? (
                                 <>
                                     <Link
-                                        href="/profile"
-                                        className={getLinkClasses('/profile')}
+                                        href={authState.user?.userType === 'worker' ? '/worker-profile' : authState.user?.userType === 'client' ? '/client-profile' : '/profile'}
+                                        className={getLinkClasses(authState.user?.userType === 'worker' ? '/worker-profile' : authState.user?.userType === 'client' ? '/client-profile' : '/profile')}
                                     >
-                                        Profile
+                                        {t('profile')}
                                     </Link>
                                     <button
                                         onClick={handleLogout}
                                         className="transition px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50"
                                     >
-                                        Logout
+                                        {t('logout')}
                                     </button>
                                 </>
                             ) : (
@@ -138,13 +173,13 @@ export default function Navbar() {
                                         href="/login"
                                         className={getLinkClasses('/login')}
                                     >
-                                        Login
+                                        {t('login')}
                                     </Link>
                                     <Link
                                         href="/register"
                                         className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-indigo-600 hover:bg-indigo-700 transition"
                                     >
-                                        Register
+                                        {t('register')}
                                     </Link>
                                 </>
                             )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import axios from 'axios'
 import { useRouter } from 'next/navigation'
@@ -10,6 +10,33 @@ export default function LoginPage() {
     const [formData, setFormData] = useState({ email: '', password: '' })
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+    const [isChecking, setIsChecking] = useState(true)
+    const [showPassword, setShowPassword] = useState(false)
+
+    useEffect(() => {
+        // Check if user is already logged in
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+
+        if (token && userData) {
+            try {
+                const user = JSON.parse(userData)
+                // Redirect logged-in users to their profile
+                if (user.userType === 'worker') {
+                    router.push('/worker-profile')
+                } else if (user.userType === 'client') {
+                    router.push('/client-profile')
+                } else {
+                    router.push('/choose-role')
+                }
+            } catch (e) {
+                console.error('Error parsing user data:', e)
+                setIsChecking(false)
+            }
+        } else {
+            setIsChecking(false)
+        }
+    }, [router])
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value })
@@ -42,13 +69,17 @@ export default function LoginPage() {
         setLoading(false)
     }
 
+    if (isChecking) {
+        return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
     const handleGoogleLogin = () => { window.location.href = `${baseUrl}/api/auth/google` }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">JobSeek</h1>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">GoArtisans</h1>
                 <p className="text-gray-600 mb-8">Sign in to your account</p>
 
                 {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
@@ -68,15 +99,33 @@ export default function LoginPage() {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                            placeholder="••••••••"
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                                className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                placeholder="••••••••"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+                            >
+                                {showPassword ? (
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                    </svg>
+                                ) : (
+                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-14-14zM10 15a5 5 0 015-5v2a3 3 0 01-3 3H8.5a3 3 0 01-2.12-.88l1.415-1.415A2.972 2.972 0 0110 13z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
                     </div>
                     <div className="text-right">
                         <Link href="/forgot-password" className="text-sm text-indigo-600 hover:underline">

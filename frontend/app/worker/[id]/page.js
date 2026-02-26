@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import apiClient from '@/lib/apiClient'
+import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 
 export default function WorkerProfilePage() {
     const params = useParams()
@@ -84,6 +85,12 @@ export default function WorkerProfilePage() {
                             </div>
                         ))}
                     </div>
+                </div>
+
+                {/* Ratings Section */}
+                <div className="mt-6">
+                    <h2 className="text-lg font-semibold mb-3">Client Ratings & Feedback</h2>
+                    <WorkerRatingsDisplay workerId={worker.id} />
                 </div>
 
                 {/* Contact / Actions */}

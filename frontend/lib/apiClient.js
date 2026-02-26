@@ -110,6 +110,27 @@ class ApiClient {
     async getWorkerProfile(id) {
         return this.client.get(`/api/users/worker/${id}`);
     }
+
+    // Generic HTTP methods for custom endpoints
+    async get(url) {
+        return this.client.get(url);
+    }
+
+    async post(url, data) {
+        return this.client.post(url, data);
+    }
+
+    async patch(url, data) {
+        return this.client.patch(url, data);
+    }
+
+    async put(url, data) {
+        return this.client.put(url, data);
+    }
+
+    async delete(url) {
+        return this.client.delete(url);
+    }
 }
 
 export default new ApiClient();

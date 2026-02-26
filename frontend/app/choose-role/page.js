@@ -85,7 +85,7 @@ export default function ChooseRolePage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
-                <h1 className="text-4xl font-bold text-gray-900 mb-2 text-center">Welcome to JobSeek</h1>
+                <h1 className="text-4xl font-bold text-gray-900 mb-2 text-center">Welcome to GoArtisans</h1>
                 <p className="text-gray-600 text-center mb-4">Hi {user.firstName}! 👋</p>
                 <p className="text-gray-600 text-center mb-8">What are you looking to do?</p>
 

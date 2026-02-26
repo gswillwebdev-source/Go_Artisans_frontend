@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import axios from 'axios'
 import Link from 'next/link'
+import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 
 export default function WorkerProfilePage() {
     const params = useParams()
@@ -126,9 +127,21 @@ export default function WorkerProfilePage() {
                             </div>
 
                             {/* Contact Button */}
-                            <button className="mt-6 bg-indigo-600 text-white px-8 py-3 rounded-lg hover:bg-indigo-700 font-medium transition">
-                                Contact Worker
-                            </button>
+                            {worker.phoneNumber ? (
+                                <a
+                                    href={`https://wa.me/${worker.phoneNumber.replace(/\D/g, '')}?text=Hello%20${worker.firstName},%20I%20am%20interested%20in%20your%20services.`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-6 bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 font-medium transition inline-flex items-center gap-2"
+                                >
+                                    <span>💬</span>
+                                    Contact on WhatsApp
+                                </a>
+                            ) : (
+                                <button disabled className="mt-6 bg-gray-300 text-white px-8 py-3 rounded-lg cursor-not-allowed font-medium">
+                                    No Contact Info Available
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -221,6 +234,12 @@ export default function WorkerProfilePage() {
                             </div>
                         </div>
                     )}
+
+                    {/* Ratings Section */}
+                    <div className="mb-8">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Client Ratings & Feedback</h2>
+                        <WorkerRatingsDisplay workerId={worker.id} />
+                    </div>
                 </div>
             </div>
         </div>

@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import apiClient from '@/lib/apiClient'
+import completionClient from '@/lib/completionClient'
+import RatingModal from '@/components/RatingModal'
+import RatingsDisplay from '@/components/RatingsDisplay'
+import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
+import { togoLocations, handworks } from '@/lib/togoData'
 
 export default function WorkerProfilePage() {
     const [profile, setProfile] = useState(null)
@@ -33,6 +38,16 @@ export default function WorkerProfilePage() {
     const [finishedJobs, setFinishedJobs] = useState([])
     const [pendingJobs, setPendingJobs] = useState([])
     const [jobsLoading, setJobsLoading] = useState(false)
+    const [emailVerificationCode, setEmailVerificationCode] = useState('')
+    const [verifyingEmail, setVerifyingEmail] = useState(false)
+    const [emailVerificationError, setEmailVerificationError] = useState('')
+    const [emailResendLoading, setEmailResendLoading] = useState(false)
+    const [emailResendCooldown, setEmailResendCooldown] = useState(0)
+    const [completionStatus, setCompletionStatus] = useState({})
+    const [requestingCompletion, setRequestingCompletion] = useState({})
+    const [showRatingModal, setShowRatingModal] = useState(false)
+    const [ratingCompletionId, setRatingCompletionId] = useState(null)
+    const [completionSuccess, setCompletionSuccess] = useState('')
 
     useEffect(() => {
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
@@ -135,7 +150,7 @@ export default function WorkerProfilePage() {
                     // Categorize jobs by status
                     const applied = applications.filter(app => app.status === 'pending')
                     const accepted = applications.filter(app => app.status === 'accepted')
-                    const finished = applications.filter(app => app.status === 'completed')
+                    const finished = applications.filter(app => app.completion_status === 'confirmed' || app.completion_status === 'completed_and_rated')
 
                     setSavedJobs(applied)
                     setPendingJobs(accepted)
@@ -280,6 +295,116 @@ export default function WorkerProfilePage() {
         }
     }
 
+    const handleVerifyEmail = async (e) => {
+        e.preventDefault()
+        setVerifyingEmail(true)
+        setEmailVerificationError('')
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/verify-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ verificationCode: emailVerificationCode })
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Verification failed')
+            }
+
+            // Update profile to show email verified
+            const userData = JSON.parse(localStorage.getItem('user') || '{}')
+            userData.emailVerified = true
+            localStorage.setItem('user', JSON.stringify(userData))
+
+            setProfile(prev => ({ ...prev, emailVerified: true }))
+            setEmailVerificationCode('')
+            setUpdateSuccess(true)
+            setTimeout(() => setUpdateSuccess(false), 3000)
+        } catch (err) {
+            setEmailVerificationError(err.message || 'Failed to verify email')
+        } finally {
+            setVerifyingEmail(false)
+        }
+    }
+
+    const handleResendVerificationEmail = async () => {
+        setEmailResendLoading(true)
+        setEmailVerificationError('')
+        try {
+            const token = localStorage.getItem('token')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/resend-verification-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+
+            if (!response.ok) {
+                const data = await response.json()
+                throw new Error(data.error || 'Failed to resend code')
+            }
+
+            setUpdateSuccess(true)
+            setEmailResendCooldown(60)
+            setTimeout(() => setUpdateSuccess(false), 3000)
+        } catch (err) {
+            setEmailVerificationError(err.message || 'Failed to resend verification code')
+        } finally {
+            setEmailResendLoading(false)
+        }
+    }
+
+    const handleRequestCompletion = async (jobId) => {
+        setRequestingCompletion(prev => ({ ...prev, [jobId]: true }))
+        try {
+            await completionClient.requestCompletion(jobId)
+            // Get updated completion status
+            const status = await completionClient.getCompletionStatus(jobId)
+            setCompletionStatus(prev => ({ ...prev, [jobId]: status }))
+            setCompletionSuccess('✓ Completion request sent! A confirmation message has been sent to the client. They will review and confirm or request changes.')
+            setTimeout(() => setCompletionSuccess(''), 4000)
+        } catch (err) {
+            const errorMessage = err.response?.data?.error || err.message || 'Failed to request completion'
+            setUpdateError(errorMessage)
+            setTimeout(() => setUpdateError(null), 5000)
+        } finally {
+            setRequestingCompletion(prev => ({ ...prev, [jobId]: false }))
+        }
+    }
+
+    const loadCompletionStatus = async (jobId) => {
+        try {
+            const status = await completionClient.getCompletionStatus(jobId)
+            setCompletionStatus(prev => ({ ...prev, [jobId]: status }))
+        } catch (err) {
+            console.error('Failed to load completion status:', err)
+        }
+    }
+
+    // Load completion status for all pending jobs
+    useEffect(() => {
+        if (pendingJobs.length > 0) {
+            pendingJobs.forEach(job => {
+                loadCompletionStatus(job.id)
+            })
+        }
+    }, [pendingJobs])
+
+    // Handle email resend cooldown timer
+    useEffect(() => {
+        if (emailResendCooldown > 0) {
+            const timer = setTimeout(() => {
+                setEmailResendCooldown(emailResendCooldown - 1)
+            }, 1000)
+            return () => clearTimeout(timer)
+        }
+    }, [emailResendCooldown])
+
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
@@ -343,9 +468,70 @@ export default function WorkerProfilePage() {
                         </div>
                     )}
 
+                    {completionSuccess && (
+                        <div className="bg-blue-50 text-blue-600 p-3 rounded-lg mb-4 border border-blue-200">
+                            {completionSuccess}
+                        </div>
+                    )}
+
                     {updateError && (
                         <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
                             {updateError}
+                        </div>
+                    )}
+
+                    {/* Email Verification Section */}
+                    {profile && !profile.emailVerified && (
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r">
+                            <div className="flex items-start">
+                                <div className="flex-1">
+                                    <h3 className="text-sm font-semibold text-yellow-800 mb-2">Verify Your Email</h3>
+                                    <p className="text-sm text-yellow-700 mb-4">
+                                        We sent a 6-digit verification code to {profile.email}. Please enter it below to verify your email address.
+                                    </p>
+                                    <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
+                                        <input
+                                            type="text"
+                                            value={emailVerificationCode}
+                                            onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                            placeholder="000000"
+                                            maxLength="6"
+                                            className="w-32 px-3 py-2 border border-yellow-300 rounded text-center text-lg tracking-widest font-mono"
+                                            required
+                                        />
+                                        <button
+                                            type="submit"
+                                            disabled={verifyingEmail || emailVerificationCode.length !== 6}
+                                            className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
+                                        >
+                                            {verifyingEmail ? 'Verifying...' : 'Verify'}
+                                        </button>
+                                    </form>
+                                    {emailVerificationError && (
+                                        <div className="text-sm text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-200">
+                                            ❌ {emailVerificationError}
+                                            {(emailVerificationError.toLowerCase().includes('expired') || emailVerificationError.toLowerCase().includes('invalid')) && (
+                                                <div className="mt-2 pt-2 border-t border-red-200">
+                                                    <button
+                                                        onClick={handleResendVerificationEmail}
+                                                        disabled={emailResendLoading || emailResendCooldown > 0}
+                                                        className="text-red-700 hover:text-red-800 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {emailResendCooldown > 0 ? `Get new code in ${emailResendCooldown}s` : emailResendLoading ? 'Sending...' : '→ Get a new code'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={handleResendVerificationEmail}
+                                        disabled={emailResendLoading || emailResendCooldown > 0}
+                                        className="text-sm text-yellow-700 hover:text-yellow-800 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {emailResendCooldown > 0 ? `Resend code in ${emailResendCooldown}s` : emailResendLoading ? 'Sending...' : 'Didn\'t receive the code? Resend'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -471,6 +657,15 @@ export default function WorkerProfilePage() {
                                     </div>
                                 </div>
 
+                                {/* Ratings Section */}
+                                <div className="bg-white shadow rounded-lg p-8">
+                                    <h3 className="text-lg font-semibold mb-6">Public Ratings & Reviews</h3>
+                                    <p className="text-sm text-gray-600 mb-6">
+                                        Your ratings from clients help build trust and showcase your professional reputation. More ratings lead to better opportunities!
+                                    </p>
+                                    <WorkerRatingsDisplay workerId={profile.id} />
+                                </div>
+
                                 {/* Jobs Tracking Section */}
                                 <div className="bg-white shadow rounded-lg p-8">
                                     <h3 className="text-lg font-semibold mb-6">Job Applications & Status</h3>
@@ -528,17 +723,49 @@ export default function WorkerProfilePage() {
                                     {pendingJobs.length > 0 && (
                                         <div className="mb-6 bg-green-50 rounded-lg p-4">
                                             <h4 className="font-semibold text-green-900 mb-3">Accepted Jobs (In Progress)</h4>
-                                            <div className="space-y-2">
-                                                {pendingJobs.map(job => (
-                                                    <div key={job.id} className="bg-white p-3 rounded border border-green-200">
-                                                        <p className="font-medium text-gray-900">{job.title}</p>
-                                                        <div className="text-xs text-gray-600 mt-1">
-                                                            <span>📍 {job.location}</span>
-                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                            <div className="space-y-3">
+                                                {pendingJobs.map(job => {
+                                                    const status = completionStatus[job.id] || { status: 'not_requested' }
+                                                    const isCompleted = status.status === 'confirmed' || status.status === 'completed_and_rated'
+
+                                                    return (
+                                                        <div key={job.id} className="bg-white p-4 rounded border border-green-200">
+                                                            <div className="flex justify-between items-start">
+                                                                <div className="flex-1">
+                                                                    <p className="font-medium text-gray-900">{job.title}</p>
+                                                                    <div className="text-xs text-gray-600 mt-1">
+                                                                        <span>📍 {job.location}</span>
+                                                                        {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Completion Status Indicator */}
+                                                                {status.status === 'not_requested' ? (
+                                                                    <button
+                                                                        onClick={() => handleRequestCompletion(job.id)}
+                                                                        disabled={requestingCompletion[job.id]}
+                                                                        className="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 whitespace-nowrap text-sm"
+                                                                    >
+                                                                        {requestingCompletion[job.id] ? 'Requesting...' : 'Mark as Completed'}
+                                                                    </button>
+                                                                ) : status.status === 'pending' ? (
+                                                                    <div className="ml-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm whitespace-nowrap flex items-center gap-2">
+                                                                        <span className="animate-spin">⏳</span> Waiting for client
+                                                                    </div>
+                                                                ) : status.status === 'declined' ? (
+                                                                    <div className="ml-4 px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm">
+                                                                        <p className="font-semibold">Declined</p>
+                                                                        <p className="text-xs mt-1">{status.reason_for_decline}</p>
+                                                                    </div>
+                                                                ) : isCompleted ? (
+                                                                    <div className="ml-4 px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm whitespace-nowrap">
+                                                                        <p className="font-semibold">✓ Completed</p>
+                                                                    </div>
+                                                                ) : null}
+                                                            </div>
                                                         </div>
-                                                        <div className="text-xs text-green-600 mt-1">Status: <span className="font-semibold">Accepted</span></div>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     )}
@@ -670,14 +897,17 @@ export default function WorkerProfilePage() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                                        <input
-                                            type="text"
+                                        <select
                                             name="location"
                                             value={formData.location}
                                             onChange={handleInputChange}
-                                            placeholder="e.g., Lomé – Baguida"
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        />
+                                        >
+                                            <option value="">Select a location...</option>
+                                            {togoLocations.map(loc => (
+                                                <option key={loc.value} value={loc.value}>{loc.label}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
@@ -709,20 +939,23 @@ export default function WorkerProfilePage() {
 
                         {/* Services Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Services / Skills You Offer</h3>
+                            <h3 className="text-lg font-semibold mb-4">Services / Handworks You Offer</h3>
                             <div className="flex gap-2 mb-2">
-                                <input
-                                    type="text"
+                                <select
                                     value={newService}
                                     onChange={(e) => setNewService(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddService())}
-                                    placeholder="e.g., Pipe installation, Leak repair"
                                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                />
+                                >
+                                    <option value="">Select a handwork...</option>
+                                    {handworks.map(hw => (
+                                        <option key={hw.value} value={hw.label}>{hw.label}</option>
+                                    ))}
+                                </select>
                                 <button
                                     type="button"
                                     onClick={handleAddService}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                                    disabled={!newService}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                 >
                                     Add Service
                                 </button>
@@ -812,6 +1045,20 @@ export default function WorkerProfilePage() {
                     </form>
                 )}
             </div>
+
+            {/* Rating Modal */}
+            <RatingModal
+                completionId={ratingCompletionId}
+                isOpen={showRatingModal}
+                onClose={() => setShowRatingModal(false)}
+                onSuccess={() => {
+                    // Reload completion status
+                    if (ratingCompletionId) {
+                        loadCompletionStatus(ratingCompletionId)
+                    }
+                }}
+                isWorker={true}
+            />
         </div>
     )
 }

@@ -7,6 +7,15 @@
             ],
             "@/lib/*": [
                 "lib/*"
+            ],
+            "@/context/*": [
+                "context/*"
+            ],
+            "@/hooks/*": [
+                "hooks/*"
+            ],
+            "@/app/*": [
+                "app/*"
             ]
         }
     }

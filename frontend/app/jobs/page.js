@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import JobCard from '@/components/JobCard'
 import SearchBar from '@/components/SearchBar'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobsPage() {
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(true)
+    const { t } = useLanguage()
     const [filters, setFilters] = useState({
         keyword: '',
         location: '',
@@ -16,9 +18,11 @@ export default function JobsPage() {
     const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     useEffect(() => {
-        fetchJobs()
+        // Check login state
         const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
         setIsLoggedIn(!!token)
+
+        fetchJobs()
     }, [])
 
     const fetchJobs = async () => {
@@ -27,7 +31,7 @@ export default function JobsPage() {
             const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/jobs`)
             setJobs(response.data.jobs)
         } catch (err) {
-            console.error('Failed to fetch jobs:', err)
+            console.error(t('failedToFetchJobs'), err)
         } finally {
             setLoading(false)
         }
@@ -46,7 +50,7 @@ export default function JobsPage() {
             )
             setJobs(response.data.jobs)
         } catch (err) {
-            console.error('Search failed:', err)
+            console.error(t('searchFailed'), err)
         } finally {
             setLoading(false)
         }
@@ -58,9 +62,9 @@ export default function JobsPage() {
                 <SearchBar onSearch={handleSearch} />
 
                 {loading ? (
-                    <div className="text-center py-8">Loading...</div>
+                    <div className="text-center py-8">{t('loading')}</div>
                 ) : jobs.length === 0 ? (
-                    <div className="text-center py-8 text-gray-600">No jobs found</div>
+                    <div className="text-center py-8 text-gray-600">{t('noJobsFound')}</div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
                         {jobs.map((job) => (

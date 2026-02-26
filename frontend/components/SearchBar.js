@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { handworks, togoLocations } from '@/lib/togoData'
 
 export default function SearchBar({ onSearch }) {
     const [keyword, setKeyword] = useState('')
@@ -16,25 +17,31 @@ export default function SearchBar({ onSearch }) {
         <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Job Title or keyword</label>
-                    <input
-                        type="text"
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Handwork / Trade</label>
+                    <select
                         value={keyword}
                         onChange={(e) => setKeyword(e.target.value)}
-                        placeholder="e.g. Developer, Designer"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
-                    />
+                    >
+                        <option value="">All Handworks</option>
+                        {handworks.map(hw => (
+                            <option key={hw.value} value={hw.value}>{hw.label}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                    <input
-                        type="text"
+                    <select
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
-                        placeholder="e.g. New York"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
-                    />
+                    >
+                        <option value="">All Locations</option>
+                        {togoLocations.map(loc => (
+                            <option key={loc.value} value={loc.value}>{loc.label}</option>
+                        ))}
+                    </select>
                 </div>
 
                 <div>
@@ -45,10 +52,10 @@ export default function SearchBar({ onSearch }) {
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
                     >
                         <option value="">All Types</option>
-                        <option value="full_time">Full Time</option>
-                        <option value="part_time">Part Time</option>
-                        <option value="contract">Contract</option>
-                        <option value="remote">Remote</option>
+                        <option value="one-time">One-time</option>
+                        <option value="ongoing">Ongoing</option>
+                        <option value="part-time">Part-time</option>
+                        <option value="full-time">Full-time</option>
                     </select>
                 </div>
 

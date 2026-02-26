@@ -113,10 +113,12 @@ router.get('/my-applications', authenticateToken, async (req, res) => {
         const result = await pool.query(
             `SELECT a.id, a.job_id, a.status, a.created_at, 
                     j.title, j.location, j.salary, j.job_type,
-                    u.first_name, u.last_name
+                    u.first_name, u.last_name,
+                    jc.status as completion_status, jc.id as completion_id
              FROM applications a
              JOIN jobs j ON a.job_id = j.id
              JOIN users u ON j.posted_by = u.id
+             LEFT JOIN job_completions jc ON j.id = jc.job_id AND jc.worker_id = $1 AND jc.status IN ('pending', 'confirmed', 'completed_and_rated')
              WHERE a.user_id = $1
              ORDER BY a.created_at DESC`,
             [userId]

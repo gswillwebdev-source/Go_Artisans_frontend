@@ -123,7 +123,15 @@ const getMyJobs = async (req, res) => {
     try {
         const userId = req.user.id;
         const result = await pool.query(
-            'SELECT * FROM jobs WHERE posted_by = $1 ORDER BY created_at DESC',
+            `SELECT 
+                j.*,
+                jc.worker_id,
+                jc.status as completion_status,
+                jc.id as completion_id
+            FROM jobs j
+            LEFT JOIN job_completions jc ON j.id = jc.job_id AND jc.status IN ('pending', 'confirmed')
+            WHERE j.posted_by = $1 
+            ORDER BY j.created_at DESC`,
             [userId]
         );
         res.json({ jobs: result.rows });
