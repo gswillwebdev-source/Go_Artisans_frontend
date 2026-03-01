@@ -223,6 +223,7 @@ Comprehensive form with all editable fields:
 ## Migration Files Created
 
 All migrations in backend/migrations/:
+- set_is_worker_from_user_type.js    # new script: synchronize is_worker flag based on existing user_type values
 
 1. `create_database.js` - Initial table creation
 2. `init.js` - Database initialization

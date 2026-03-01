@@ -219,7 +219,7 @@ export default function ProfilePage() {
                             </div>
                         </div>
 
-                        {profile.isWorker && (
+                        {(profile.isWorker || profile.userType === 'worker') && (
                             <>
                                 <div className="border-b pb-4">
                                     <h3 className="text-lg font-semibold">Professional Profile</h3>

@@ -7,7 +7,7 @@ router.get('/profile', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const result = await pool.query(
-            `SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, bio, years_experience, services, portfolio, profile_picture, completed_jobs FROM users WHERE id = $1`,
+            `SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, bio, years_experience, services, portfolio, profile_picture, completed_jobs, email_verified FROM users WHERE id = $1`,
             [userId]
         );
 
@@ -16,6 +16,8 @@ router.get('/profile', authenticateToken, async (req, res) => {
         }
 
         const user = result.rows[0];
+        // if the database flag is missing but the user_type says worker we treat them as a worker
+        const isWorkerFlag = !!user.is_worker || user.user_type === 'worker';
         res.json({
             user: {
                 id: user.id,
@@ -25,7 +27,8 @@ router.get('/profile', authenticateToken, async (req, res) => {
                 phoneNumber: user.phone_number,
                 userType: user.user_type,
                 createdAt: user.created_at,
-                isWorker: user.is_worker,
+                isWorker: isWorkerFlag,
+                emailVerified: user.email_verified,
                 jobTitle: user.job_title,
                 location: user.location,
                 bio: user.bio,
@@ -49,7 +52,7 @@ router.get('/worker/:id', async (req, res) => {
         if (isNaN(workerId)) return res.status(400).json({ error: 'Invalid worker id' });
 
         const result = await pool.query(
-            'SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, rating, years_experience, services, completed_jobs, bio, portfolio, profile_picture FROM users WHERE id = $1',
+            'SELECT id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, rating, years_experience, services, completed_jobs, bio, portfolio, profile_picture, email_verified FROM users WHERE id = $1',
             [workerId]
         );
 
@@ -84,6 +87,7 @@ router.get('/worker/:id', async (req, res) => {
                 lastName: worker.last_name,
                 phoneNumber: worker.phone_number,
                 isWorker: worker.is_worker,
+                emailVerified: worker.email_verified,
                 jobTitle: worker.job_title,
                 location: worker.location,
                 rating: avgRating,
@@ -122,7 +126,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
                 portfolio = COALESCE($10, portfolio),
                 profile_picture = COALESCE($11, profile_picture)
             WHERE id = $12 
-            RETURNING id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, job_title, location, bio, years_experience, services, portfolio, profile_picture`,
+            RETURNING id, email, first_name, last_name, phone_number, user_type, created_at, is_worker, email_verified, job_title, location, bio, years_experience, services, portfolio, profile_picture`,
             [firstName, lastName, phoneNumber, isWorker, jobTitle, location, bio, yearsExperience, services ? JSON.stringify(services) : null, portfolio ? JSON.stringify(portfolio) : null, profilePicture, userId]
         );
 
@@ -141,6 +145,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
                 userType: user.user_type,
                 createdAt: user.created_at,
                 isWorker: user.is_worker,
+                emailVerified: user.email_verified,
                 jobTitle: user.job_title,
                 location: user.location,
                 bio: user.bio,
@@ -161,8 +166,8 @@ router.get('/search/workers', async (req, res) => {
     try {
         const { keyword, location, jobType } = req.query;
         let query = `SELECT id, first_name, last_name, email, phone_number, user_type, is_worker, 
-                     job_title, location, bio, years_experience, services, completed_jobs, rating, 
-                     profile_picture FROM users WHERE user_type = 'worker' AND 1=1`;
+                 job_title, location, bio, years_experience, services, completed_jobs, rating, 
+                 profile_picture, email_verified FROM users WHERE user_type = 'worker' AND 1=1`;
         const params = [];
 
         if (keyword) {
@@ -189,6 +194,7 @@ router.get('/search/workers', async (req, res) => {
             phoneNumber: worker.phone_number,
             userType: worker.user_type,
             isWorker: worker.is_worker,
+            emailVerified: worker.email_verified,
             jobTitle: worker.job_title,
             location: worker.location,
             bio: worker.bio || '',

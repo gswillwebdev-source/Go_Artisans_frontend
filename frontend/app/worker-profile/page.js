@@ -7,8 +7,10 @@ import RatingModal from '@/components/RatingModal'
 import RatingsDisplay from '@/components/RatingsDisplay'
 import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 import { togoLocations, handworks } from '@/lib/togoData'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function WorkerProfilePage() {
+    const { t } = useLanguage()
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -34,7 +36,8 @@ export default function WorkerProfilePage() {
     const [newService, setNewService] = useState('')
     const [portfolioFiles, setPortfolioFiles] = useState([])
     const [timeoutWarning, setTimeoutWarning] = useState(false)
-    const [savedJobs, setSavedJobs] = useState([])
+    const [appliedJobs, setAppliedJobs] = useState([])
+    const [savedJobs, setSavedJobs] = useState([])  // jobs worker saved for later
     const [finishedJobs, setFinishedJobs] = useState([])
     const [pendingJobs, setPendingJobs] = useState([])
     const [jobsLoading, setJobsLoading] = useState(false)
@@ -90,7 +93,7 @@ export default function WorkerProfilePage() {
                 // Main timeout after 30 seconds
                 timeoutId = setTimeout(() => {
                     setLoading(false)
-                    setError('Profile took too long to load. Please refresh the page.')
+                    setError(t('profileTookTooLong'))
                 }, 30000)
 
                 const res = await apiClient.getUserProfile()
@@ -98,7 +101,11 @@ export default function WorkerProfilePage() {
                 clearTimeout(timeoutId)
                 clearTimeout(warningTimeoutId)
 
-                const userData = res.data.user || res.data
+                let userData = res.data.user || res.data
+                // make sure the flag is consistent with userType so the UI sections render
+                if (!userData.isWorker && userData.userType === 'worker') {
+                    userData = { ...userData, isWorker: true }
+                }
                 setProfile(userData)
 
                 // Set profile picture
@@ -131,7 +138,7 @@ export default function WorkerProfilePage() {
                     firstName: userData.firstName || '',
                     lastName: userData.lastName || '',
                     phoneNumber: userData.phoneNumber || '',
-                    isWorker: userData.isWorker || false,
+                    isWorker: userData.isWorker || userData.userType === 'worker' || false,
                     jobTitle: userData.jobTitle || '',
                     location: userData.location || '',
                     bio: userData.bio || '',
@@ -145,16 +152,30 @@ export default function WorkerProfilePage() {
                 // Fetch jobs related to this worker
                 try {
                     const jobsRes = await apiClient.getMyApplications()
-                    const applications = jobsRes.data?.applications || []
+                    let applications = jobsRes.data?.applications || []
+
+                    // Normalize job_id to id for easier access in the UI
+                    applications = applications.map(app => ({
+                        ...app,
+                        id: app.job_id  // alias job_id to id for button/key references
+                    }))
 
                     // Categorize jobs by status
                     const applied = applications.filter(app => app.status === 'pending')
                     const accepted = applications.filter(app => app.status === 'accepted')
                     const finished = applications.filter(app => app.completion_status === 'confirmed' || app.completion_status === 'completed_and_rated')
 
-                    setSavedJobs(applied)
+                    setAppliedJobs(applied)
                     setPendingJobs(accepted)
                     setFinishedJobs(finished)
+
+                    // also load saved jobs (bookmarks) so the worker can revisit them
+                    try {
+                        const savedRes = await apiClient.getSavedJobs()
+                        setSavedJobs(savedRes.data.jobs || [])
+                    } catch (e) {
+                        console.error('Failed to fetch saved jobs:', e)
+                    }
                 } catch (jobErr) {
                     console.error('Failed to fetch jobs:', jobErr)
                 }
@@ -164,15 +185,15 @@ export default function WorkerProfilePage() {
 
                 console.error('Failed to fetch profile', err)
 
-                let errorMessage = 'Failed to load profile'
+                let errorMessage = t('failedLoadProfileMsg')
                 if (err.code === 'ECONNABORTED') {
-                    errorMessage = 'Request timeout. The server is not responding. Please check your connection.'
+                    errorMessage = t('requestTimeoutMsg')
                 } else if (err.message === 'Network Error') {
-                    errorMessage = 'Network error. Please check your internet connection.'
+                    errorMessage = t('networkErrorMsg')
                 } else if (err.response?.status === 401) {
-                    errorMessage = 'Unauthorized. Please login again.'
+                    errorMessage = t('unauthorizedMsg')
                 } else if (err.response?.status === 500) {
-                    errorMessage = 'Server error. Please try again later.'
+                    errorMessage = t('serverErrorMsg')
                 }
 
                 setError(errorMessage)
@@ -360,15 +381,18 @@ export default function WorkerProfilePage() {
     }
 
     const handleRequestCompletion = async (jobId) => {
+        console.log('Requesting completion for job ID:', jobId)
         setRequestingCompletion(prev => ({ ...prev, [jobId]: true }))
         try {
-            await completionClient.requestCompletion(jobId)
+            const result = await completionClient.requestCompletion(jobId)
+            console.log('Completion request successful:', result)
             // Get updated completion status
             const status = await completionClient.getCompletionStatus(jobId)
             setCompletionStatus(prev => ({ ...prev, [jobId]: status }))
-            setCompletionSuccess('✓ Completion request sent! A confirmation message has been sent to the client. They will review and confirm or request changes.')
+            setCompletionSuccess(t('completionSentSuccess'))
             setTimeout(() => setCompletionSuccess(''), 4000)
         } catch (err) {
+            console.error('Failed to request completion:', err)
             const errorMessage = err.response?.data?.error || err.message || 'Failed to request completion'
             setUpdateError(errorMessage)
             setTimeout(() => setUpdateError(null), 5000)
@@ -411,12 +435,12 @@ export default function WorkerProfilePage() {
                 <div className="inline-block mb-4">
                     <div className="animate-spin h-12 w-12 border-b-2 border-indigo-600 rounded-full"></div>
                 </div>
-                <p className="text-gray-600 text-lg mb-2">Loading your profile...</p>
-                <p className="text-gray-500 text-sm">This may take a few moments</p>
+                <p className="text-gray-600 text-lg mb-2">{t('loadingProfile')}</p>
+                <p className="text-gray-500 text-sm">{t('loadingMoments')}</p>
                 {timeoutWarning && (
                     <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md">
-                        <p className="text-yellow-800 font-semibold">Still loading...</p>
-                        <p className="text-yellow-700 text-sm mt-1">If this takes longer, your connection might be slow. Waiting up to 30 seconds.</p>
+                        <p className="text-yellow-800 font-semibold">{t('stillLoading')}</p>
+                        <p className="text-yellow-700 text-sm mt-1">{t('slowConnection')}</p>
                     </div>
                 )}
             </div>
@@ -430,13 +454,13 @@ export default function WorkerProfilePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
-                <p className="text-red-600 text-lg font-semibold mb-2">Something went wrong</p>
+                <p className="text-red-600 text-lg font-semibold mb-2">{t('somethingWentWrong')}</p>
                 <p className="text-gray-600 mb-6">{error}</p>
                 <button
                     onClick={() => window.location.reload()}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
                 >
-                    Try Again
+                    {t('tryAgain')}
                 </button>
             </div>
         </div>
@@ -449,22 +473,22 @@ export default function WorkerProfilePage() {
                 <div className="bg-white shadow rounded-lg p-8 mb-6">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">Your Worker Profile</h1>
-                            <p className="text-gray-600 mt-1">Build your professional presence and attract clients</p>
+                            <h1 className="text-3xl font-bold text-gray-900">{t('yourWorkerProfile')}</h1>
+                            <p className="text-gray-600 mt-1">{t('buildProfessional')}</p>
                         </div>
                         {!isEditing && (
                             <button
                                 onClick={() => setIsEditing(true)}
                                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
                             >
-                                Edit Profile
+                                {t('editProfile')}
                             </button>
                         )}
                     </div>
 
                     {updateSuccess && (
                         <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4">
-                            ✓ Profile updated successfully!
+                            ✓ {t('profileUpdatedSuccess')}
                         </div>
                     )}
 
@@ -485,9 +509,9 @@ export default function WorkerProfilePage() {
                         <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r">
                             <div className="flex items-start">
                                 <div className="flex-1">
-                                    <h3 className="text-sm font-semibold text-yellow-800 mb-2">Verify Your Email</h3>
+                                    <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
                                     <p className="text-sm text-yellow-700 mb-4">
-                                        We sent a 6-digit verification code to {profile.email}. Please enter it below to verify your email address.
+                                        {t('verifySixDigitCode').replace('{{email}}', profile.email)}
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
                                         <input
@@ -504,7 +528,7 @@ export default function WorkerProfilePage() {
                                             disabled={verifyingEmail || emailVerificationCode.length !== 6}
                                             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
                                         >
-                                            {verifyingEmail ? 'Verifying...' : 'Verify'}
+                                            {verifyingEmail ? t('verifying') : t('verifyButton')}
                                         </button>
                                     </form>
                                     {emailVerificationError && (
@@ -517,7 +541,7 @@ export default function WorkerProfilePage() {
                                                         disabled={emailResendLoading || emailResendCooldown > 0}
                                                         className="text-red-700 hover:text-red-800 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
-                                                        {emailResendCooldown > 0 ? `Get new code in ${emailResendCooldown}s` : emailResendLoading ? 'Sending...' : '→ Get a new code'}
+                                                        {emailResendCooldown > 0 ? `${t('getNewCodeIn').replace('{{seconds}}', emailResendCooldown)}` : emailResendLoading ? t('sendingCode') : t('getNewCode')}
                                                     </button>
                                                 </div>
                                             )}
@@ -528,7 +552,7 @@ export default function WorkerProfilePage() {
                                         disabled={emailResendLoading || emailResendCooldown > 0}
                                         className="text-sm text-yellow-700 hover:text-yellow-800 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {emailResendCooldown > 0 ? `Resend code in ${emailResendCooldown}s` : emailResendLoading ? 'Sending...' : 'Didn\'t receive the code? Resend'}
+                                        {emailResendCooldown > 0 ? `${t('resendCodeIn').replace('{{seconds}}', emailResendCooldown)}` : emailResendLoading ? t('sendingCode') : t('didntReceiveCode')}
                                     </button>
                                 </div>
                             </div>
@@ -546,7 +570,7 @@ export default function WorkerProfilePage() {
                                     {profilePicturePreview ? (
                                         <img
                                             src={profilePicturePreview}
-                                            alt="Profile"
+                                            alt={t('profilePicture')}
                                             className="w-full h-full object-cover"
                                         />
                                     ) : (
@@ -557,31 +581,31 @@ export default function WorkerProfilePage() {
                                     <p className="text-lg font-semibold text-gray-900">
                                         {profile.firstName} {profile.lastName}
                                     </p>
-                                    <p className="text-indigo-600 font-medium">{profile.jobTitle || 'Service Provider'}</p>
-                                    <p className="text-gray-600 text-sm mt-1">{profile.location || 'Location not set'}</p>
+                                    <p className="text-indigo-600 font-medium">{profile.jobTitle || t('serviceProvider')}</p>
+                                    <p className="text-gray-600 text-sm mt-1">{profile.location || t('locationNotSet')}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Basic Information */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('basicInformation')}</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <span className="font-medium text-gray-700">First Name:</span>
-                                    <p className="text-gray-900">{profile.firstName || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('firstName')}:</span>
+                                    <p className="text-gray-900">{profile.firstName || t('notAvailable')}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Last Name:</span>
-                                    <p className="text-gray-900">{profile.lastName || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('lastName')}:</span>
+                                    <p className="text-gray-900">{profile.lastName || t('notAvailable')}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Email:</span>
+                                    <span className="font-medium text-gray-700">{t('email')}:</span>
                                     <p className="text-gray-900">{profile.email}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Phone:</span>
-                                    <p className="text-gray-900">{profile.phoneNumber || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('phone')}:</span>
+                                    <p className="text-gray-900">{profile.phoneNumber || t('notAvailable')}</p>
                                 </div>
                             </div>
                         </div>
@@ -590,35 +614,35 @@ export default function WorkerProfilePage() {
                             <>
                                 {/* Professional Profile */}
                                 <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">Professional Profile</h3>
+                                    <h3 className="text-lg font-semibold mb-4">{t('professionalProfile')}</h3>
                                     <div className="grid grid-cols-3 gap-4">
                                         <div>
-                                            <span className="font-medium text-gray-700">Job Title:</span>
-                                            <p className="text-gray-900">{profile.jobTitle || 'N/A'}</p>
+                                            <span className="font-medium text-gray-700">{t('jobTitle')}:</span>
+                                            <p className="text-gray-900">{profile.jobTitle || t('notAvailable')}</p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-700">Location:</span>
-                                            <p className="text-gray-900">{profile.location || 'N/A'}</p>
+                                            <span className="font-medium text-gray-700">{t('location')}:</span>
+                                            <p className="text-gray-900">{profile.location || t('notAvailable')}</p>
                                         </div>
                                         <div>
-                                            <span className="font-medium text-gray-700">Years of Experience:</span>
-                                            <p className="text-gray-900">{profile.yearsExperience || 0} years</p>
+                                            <span className="font-medium text-gray-700">{t('yearsExperience')}:</span>
+                                            <p className="text-gray-900">{profile.yearsExperience || 0} {t('years')}</p>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* About Me */}
                                 <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">About Me</h3>
-                                    <p className="text-gray-900">{profile.bio || 'No description provided.'}</p>
+                                    <h3 className="text-lg font-semibold mb-4">{t('aboutMe')}</h3>
+                                    <p className="text-gray-900">{profile.bio || t('noDescriptionProvided')}</p>
                                 </div>
 
                                 {/* Services */}
                                 <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">Services / Skills</h3>
+                                    <h3 className="text-lg font-semibold mb-4">{t('servicesSkills')}</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {(profile.services || []).length === 0 ? (
-                                            <span className="text-gray-500">No services listed.</span>
+                                            <span className="text-gray-500">{t('noServicesListed')}</span>
                                         ) : (
                                             (profile.services || []).map((s, idx) => (
                                                 <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">{s}</span>
@@ -629,10 +653,10 @@ export default function WorkerProfilePage() {
 
                                 {/* Portfolio */}
                                 <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">Portfolio / Gallery</h3>
+                                    <h3 className="text-lg font-semibold mb-4">{t('portfolio')}</h3>
                                     <div className="grid grid-cols-3 gap-4">
                                         {(profile.portfolio || []).length === 0 ? (
-                                            <span className="text-gray-500">No portfolio images.</span>
+                                            <span className="text-gray-500">{t('noPortfolioImages')}</span>
                                         ) : (
                                             (profile.portfolio || []).map((img, idx) => {
                                                 // Handle both array of strings and array of objects
@@ -642,13 +666,13 @@ export default function WorkerProfilePage() {
                                                 return (
                                                     <div key={idx} className="bg-gray-100 h-40 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
                                                         {isValidImage ? (
-                                                            <img src={imageUrl} alt={`portfolio-${idx}`} className="w-full h-full object-cover" onError={(e) => {
+                                                            <img src={imageUrl} alt={t('portfolio')} className="w-full h-full object-cover" onError={(e) => {
                                                                 e.target.style.display = 'none'
                                                                 e.target.nextSibling.style.display = 'flex'
                                                             }} />
                                                         ) : null}
                                                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm text-center p-2 bg-gray-50" style={{ display: isValidImage ? 'none' : 'flex' }}>
-                                                            No Image
+                                                            {t('noImage')}
                                                         </div>
                                                     </div>
                                                 )
@@ -659,9 +683,9 @@ export default function WorkerProfilePage() {
 
                                 {/* Ratings Section */}
                                 <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-6">Public Ratings & Reviews</h3>
+                                    <h3 className="text-lg font-semibold mb-6">{t('publicRatings')}</h3>
                                     <p className="text-sm text-gray-600 mb-6">
-                                        Your ratings from clients help build trust and showcase your professional reputation. More ratings lead to better opportunities!
+                                        {t('ratingsDescription')}
                                     </p>
                                     <WorkerRatingsDisplay workerId={profile.id} />
                                 </div>
@@ -671,48 +695,75 @@ export default function WorkerProfilePage() {
                                     <h3 className="text-lg font-semibold mb-6">Job Applications & Status</h3>
 
                                     {/* Stats Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                        {/* Saved Jobs */}
+                                        <div className="border border-teal-200 rounded-lg p-4 bg-teal-50">
+                                            <h4 className="font-semibold text-teal-900 mb-3 flex items-center gap-2">
+                                                <span className="text-2xl">💾</span> {t('savedJobsCountLabel')}
+                                            </h4>
+                                            <p className="text-3xl font-bold text-teal-600">{savedJobs.length}</p>
+                                            <p className="text-xs text-teal-700 mt-2">{t('savedJobsDescription')}</p>
+                                        </div>
+
                                         {/* Applied Jobs */}
                                         <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                                             <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
-                                                <span className="text-2xl">📝</span> Applied
+                                                <span className="text-2xl">📝</span> {t('applied')}
                                             </h4>
-                                            <p className="text-3xl font-bold text-blue-600">{savedJobs.length}</p>
-                                            <p className="text-xs text-blue-700 mt-2">Pending review from clients</p>
+                                            <p className="text-3xl font-bold text-blue-600">{appliedJobs.length}</p>
+                                            <p className="text-xs text-blue-700 mt-2">{t('pendingReview')}</p>
                                         </div>
 
                                         {/* Accepted Jobs */}
                                         <div className="border border-green-200 rounded-lg p-4 bg-green-50">
                                             <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
-                                                <span className="text-2xl">✅</span> Accepted
+                                                <span className="text-2xl">✅</span> {t('accepted')}
                                             </h4>
                                             <p className="text-3xl font-bold text-green-600">{pendingJobs.length}</p>
-                                            <p className="text-xs text-green-700 mt-2">Jobs you've been accepted for</p>
+                                            <p className="text-xs text-green-700 mt-2">{t('acceptedJobsDescription')}</p>
                                         </div>
 
                                         {/* Finished Jobs */}
                                         <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
                                             <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
-                                                <span className="text-2xl">🏆</span> Completed
+                                                <span className="text-2xl">🏆</span> {t('completed')}
                                             </h4>
                                             <p className="text-3xl font-bold text-purple-600">{finishedJobs.length}</p>
-                                            <p className="text-xs text-purple-700 mt-2">Jobs you've completed</p>
+                                            <p className="text-xs text-purple-700 mt-2">{t('completedJobsDescription')}</p>
                                         </div>
                                     </div>
 
-                                    {/* Applied Jobs Details */}
+                                    {/* Saved Jobs Details */}
                                     {savedJobs.length > 0 && (
-                                        <div className="mb-6 bg-blue-50 rounded-lg p-4">
-                                            <h4 className="font-semibold text-blue-900 mb-3">Applied Jobs (Pending Review)</h4>
+                                        <div className="mb-6 bg-teal-50 rounded-lg p-4">
+                                            <h4 className="font-semibold text-teal-900 mb-3">{t('savedJobs')}</h4>
                                             <div className="space-y-2">
                                                 {savedJobs.map(job => (
-                                                    <div key={job.id} className="bg-white p-3 rounded border border-blue-200">
+                                                    <div key={job.id} className="bg-white p-3 rounded border border-teal-200">
                                                         <p className="font-medium text-gray-900">{job.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
                                                             <span>📍 {job.location}</span>
                                                             {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
                                                         </div>
-                                                        <div className="text-xs text-blue-600 mt-1">Status: <span className="font-semibold">Pending</span></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Applied Jobs Details */}
+                                    {appliedJobs.length > 0 && (
+                                        <div className="mb-6 bg-blue-50 rounded-lg p-4">
+                                            <h4 className="font-semibold text-blue-900 mb-3">{t('appliedJobsPending')}</h4>
+                                            <div className="space-y-2">
+                                                {savedJobs.map(job => (
+                                                    <div key={job.job_id || job.id} className="bg-white p-3 rounded border border-blue-200">
+                                                        <p className="font-medium text-gray-900">{job.title}</p>
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            <span>📍 {job.location}</span>
+                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                        </div>
+                                                        <div className="text-xs text-blue-600 mt-1">{t('status')}: <span className="font-semibold">{t('pendingReviewStatus')}</span></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -722,14 +773,15 @@ export default function WorkerProfilePage() {
                                     {/* Accepted Jobs Details */}
                                     {pendingJobs.length > 0 && (
                                         <div className="mb-6 bg-green-50 rounded-lg p-4">
-                                            <h4 className="font-semibold text-green-900 mb-3">Accepted Jobs (In Progress)</h4>
+                                            <h4 className="font-semibold text-green-900 mb-3">{t('acceptedJobsInProgress')}</h4>
                                             <div className="space-y-3">
                                                 {pendingJobs.map(job => {
-                                                    const status = completionStatus[job.id] || { status: 'not_requested' }
+                                                    const jobId = job.job_id || job.id
+                                                    const status = completionStatus[jobId] || { status: 'not_requested' }
                                                     const isCompleted = status.status === 'confirmed' || status.status === 'completed_and_rated'
 
                                                     return (
-                                                        <div key={job.id} className="bg-white p-4 rounded border border-green-200">
+                                                        <div key={jobId} className="bg-white p-4 rounded border border-green-200">
                                                             <div className="flex justify-between items-start">
                                                                 <div className="flex-1">
                                                                     <p className="font-medium text-gray-900">{job.title}</p>
@@ -742,24 +794,24 @@ export default function WorkerProfilePage() {
                                                                 {/* Completion Status Indicator */}
                                                                 {status.status === 'not_requested' ? (
                                                                     <button
-                                                                        onClick={() => handleRequestCompletion(job.id)}
-                                                                        disabled={requestingCompletion[job.id]}
+                                                                        onClick={() => handleRequestCompletion(jobId)}
+                                                                        disabled={requestingCompletion[jobId]}
                                                                         className="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 whitespace-nowrap text-sm"
                                                                     >
-                                                                        {requestingCompletion[job.id] ? 'Requesting...' : 'Mark as Completed'}
+                                                                        {requestingCompletion[jobId] ? t('requesting') : t('markAsCompleted')}
                                                                     </button>
                                                                 ) : status.status === 'pending' ? (
                                                                     <div className="ml-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm whitespace-nowrap flex items-center gap-2">
-                                                                        <span className="animate-spin">⏳</span> Waiting for client
+                                                                        <span className="animate-spin">⏳</span> {t('pendingReviewStatus')}
                                                                     </div>
                                                                 ) : status.status === 'declined' ? (
                                                                     <div className="ml-4 px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm">
-                                                                        <p className="font-semibold">Declined</p>
+                                                                        <p className="font-semibold">{t('declined')}</p>
                                                                         <p className="text-xs mt-1">{status.reason_for_decline}</p>
                                                                     </div>
                                                                 ) : isCompleted ? (
                                                                     <div className="ml-4 px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm whitespace-nowrap">
-                                                                        <p className="font-semibold">✓ Completed</p>
+                                                                        <p className="font-semibold">{t('completedStatus')}</p>
                                                                     </div>
                                                                 ) : null}
                                                             </div>
@@ -773,16 +825,16 @@ export default function WorkerProfilePage() {
                                     {/* Finished Jobs Details */}
                                     {finishedJobs.length > 0 && (
                                         <div className="bg-purple-50 rounded-lg p-4">
-                                            <h4 className="font-semibold text-purple-900 mb-3">Completed Jobs</h4>
+                                            <h4 className="font-semibold text-purple-900 mb-3">{t('completedJobsLabel')}</h4>
                                             <div className="space-y-2">
                                                 {finishedJobs.map(job => (
-                                                    <div key={job.id} className="bg-white p-3 rounded border border-purple-200">
+                                                    <div key={job.job_id || job.id} className="bg-white p-3 rounded border border-purple-200">
                                                         <p className="font-medium text-gray-900">{job.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
                                                             <span>📍 {job.location}</span>
                                                             {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
                                                         </div>
-                                                        <div className="text-xs text-purple-600 mt-1">Status: <span className="font-semibold">Completed</span></div>
+                                                        <div className="text-xs text-purple-600 mt-1">{t('status')}: <span className="font-semibold">{t('completed')}</span></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -790,9 +842,9 @@ export default function WorkerProfilePage() {
                                     )}
 
                                     {/* No Jobs Message */}
-                                    {savedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && (
+                                    {savedJobs.length === 0 && appliedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
-                                            <p>No job applications yet. Browse and apply for jobs to get started!</p>
+                                            <p>{t('noJobApplicationsYet')}</p>
                                         </div>
                                     )}
                                 </div>
@@ -804,7 +856,7 @@ export default function WorkerProfilePage() {
                     <form onSubmit={handleUpdate} className="space-y-6">
                         {/* Profile Picture Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Profile Picture</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('profilePictureLabel')}</h3>
                             <div className="flex items-start gap-6">
                                 <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
                                     {profilePicturePreview ? (
@@ -818,7 +870,7 @@ export default function WorkerProfilePage() {
                                     )}
                                 </div>
                                 <div className="flex-1">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Upload Photo</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('uploadPhotoLabel')}</label>
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -832,10 +884,10 @@ export default function WorkerProfilePage() {
 
                         {/* Basic Information Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('basicInformation')}</h3>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('firstName')}</label>
                                     <input
                                         type="text"
                                         name="firstName"
@@ -846,7 +898,7 @@ export default function WorkerProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('lastName')}</label>
                                     <input
                                         type="text"
                                         name="lastName"
@@ -857,7 +909,7 @@ export default function WorkerProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
                                     <input
                                         type="email"
                                         value={formData.email}
@@ -866,7 +918,7 @@ export default function WorkerProfilePage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('phone')}</label>
                                     <input
                                         type="tel"
                                         name="phoneNumber"
@@ -881,36 +933,36 @@ export default function WorkerProfilePage() {
 
                         {/* Professional Information Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Professional Information</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('professionalInfoLabel')}</h3>
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('jobTitleLabel')}</label>
                                         <input
                                             type="text"
                                             name="jobTitle"
                                             value={formData.jobTitle}
                                             onChange={handleInputChange}
-                                            placeholder="e.g., Electrician, Plumber"
+                                            placeholder={t('jobTitlePlaceholder')}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('locationLabel')}</label>
                                         <select
                                             name="location"
                                             value={formData.location}
                                             onChange={handleInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                         >
-                                            <option value="">Select a location...</option>
+                                            <option value="">{t('selectLocation')}</option>
                                             {togoLocations.map(loc => (
                                                 <option key={loc.value} value={loc.value}>{loc.label}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Years of Experience</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('yearsExperienceLabel')}</label>
                                         <input
                                             type="number"
                                             name="yearsExperience"
@@ -923,30 +975,30 @@ export default function WorkerProfilePage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Bio / About You</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('bioAboutYouLabel')}</label>
                                     <textarea
                                         name="bio"
                                         value={formData.bio}
                                         onChange={handleInputChange}
                                         rows="4"
-                                        placeholder="Describe your experience, skills, and what makes you great..."
+                                        placeholder={t('bioPlaceholder')}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                     />
-                                    <p className="text-xs text-gray-500 mt-1">Be convincing to attract more clients!</p>
+                                    <p className="text-xs text-gray-500 mt-1">{t('bioHint')}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Services Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Services / Handworks You Offer</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('servicesHandworks')}</h3>
                             <div className="flex gap-2 mb-2">
                                 <select
                                     value={newService}
                                     onChange={(e) => setNewService(e.target.value)}
                                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                 >
-                                    <option value="">Select a handwork...</option>
+                                    <option value="">{t('selectHandwork')}</option>
                                     {handworks.map(hw => (
                                         <option key={hw.value} value={hw.label}>{hw.label}</option>
                                     ))}
@@ -957,7 +1009,7 @@ export default function WorkerProfilePage() {
                                     disabled={!newService}
                                     className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                                 >
-                                    Add Service
+                                    {t('addService')}
                                 </button>
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -978,9 +1030,9 @@ export default function WorkerProfilePage() {
 
                         {/* Portfolio Edit */}
                         <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">Portfolio / Gallery</h3>
+                            <h3 className="text-lg font-semibold mb-4">{t('portfolioLabel')}</h3>
                             <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Upload Clear Photos of Your Work</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('uploadClearPhotosLabel')}</label>
                                 <input
                                     type="file"
                                     multiple
@@ -989,8 +1041,8 @@ export default function WorkerProfilePage() {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg cursor-pointer"
                                 />
                                 <p className="text-xs text-gray-500 mt-2">
-                                    <span className="font-semibold text-indigo-700">Upload only very clear, high-quality images to attract more customers.</span><br />
-                                    Upload 3+ photos to showcase your work (JPG, PNG, max 5MB each).
+                                    <span className="font-semibold text-indigo-700">{t('uploadQualityHint')}</span><br />
+                                    {t('uploadPhotosHint')}
                                 </p>
                             </div>
                             <div className="grid grid-cols-3 gap-4">
@@ -1032,14 +1084,14 @@ export default function WorkerProfilePage() {
                                 disabled={updateLoading}
                                 className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium"
                             >
-                                {updateLoading ? 'Saving...' : 'Save Changes'}
+                                {updateLoading ? t('saving') : t('saveChanges')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsEditing(false)}
                                 className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium"
                             >
-                                Cancel
+                                {t('cancel')}
                             </button>
                         </div>
                     </form>

@@ -55,7 +55,9 @@ export default function ChooseRolePage() {
         setError(null)
         try {
             const res = await apiClient.updateUserRole('worker')
-            const updatedUser = res.data.user || res.data
+            let updatedUser = res.data.user || res.data
+            // backend now returns isWorker but fallback to userType check
+            updatedUser.isWorker = updatedUser.isWorker ?? (updatedUser.userType === 'worker')
             localStorage.setItem('user', JSON.stringify(updatedUser))
             router.push('/worker-profile')
         } catch (err) {
@@ -70,7 +72,8 @@ export default function ChooseRolePage() {
         setError(null)
         try {
             const res = await apiClient.updateUserRole('client')
-            const updatedUser = res.data.user || res.data
+            let updatedUser = res.data.user || res.data
+            updatedUser.isWorker = updatedUser.isWorker ?? false
             localStorage.setItem('user', JSON.stringify(updatedUser))
             router.push('/client-profile')
         } catch (err) {

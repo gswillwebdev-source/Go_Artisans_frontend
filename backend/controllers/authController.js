@@ -238,9 +238,11 @@ const updateUserRole = async (req, res) => {
             return res.status(400).json({ error: 'Invalid user type. Must be "worker" or "client"' });
         }
 
+        // Update both the user_type field and is_worker flag (worker helps toggle UI sections)
         const result = await pool.query(
-            'UPDATE users SET user_type = $1 WHERE id = $2 RETURNING id, email, first_name, last_name, phone_number, user_type',
-            [userType, userId]
+            `UPDATE users SET user_type = $1, is_worker = $2 WHERE id = $3 \
+             RETURNING id, email, first_name, last_name, phone_number, user_type, is_worker`,
+            [userType, userType === 'worker', userId]
         );
 
         if (result.rows.length === 0) {
@@ -255,7 +257,9 @@ const updateUserRole = async (req, res) => {
                 firstName: user.first_name,
                 lastName: user.last_name,
                 phoneNumber: user.phone_number,
-                userType: user.user_type
+                userType: user.user_type,
+                // expose the isWorker flag so front‑end can update localStorage correctly
+                isWorker: !!user.is_worker
             }
         });
     } catch (err) {

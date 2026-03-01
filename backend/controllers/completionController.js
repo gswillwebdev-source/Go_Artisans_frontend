@@ -6,6 +6,8 @@ const requestCompletion = async (req, res) => {
         const { jobId } = req.params;
         const workerId = req.user.id;
 
+        console.log(`[requestCompletion] Worker ${workerId} requesting completion for job ${jobId}`);
+
         // Verify job exists
         const jobCheck = await pool.query(
             'SELECT id FROM jobs WHERE id = $1',
@@ -13,6 +15,7 @@ const requestCompletion = async (req, res) => {
         );
 
         if (jobCheck.rows.length === 0) {
+            console.log(`[requestCompletion] Job ${jobId} not found`);
             return res.status(404).json({ error: 'Job not found' });
         }
 
@@ -32,13 +35,17 @@ const requestCompletion = async (req, res) => {
             );
 
             if (anyApp.rows.length === 0) {
+                console.log(`[requestCompletion] Worker ${workerId} has not applied for job ${jobId}`);
                 return res.status(403).json({ error: 'You have not applied for this job' });
             } else {
-                return res.status(403).json({ error: `Your application status is '${anyApp.rows[0].status}'. Only workers with accepted applications can mark jobs as completed.` });
+                const appStatus = anyApp.rows[0].status;
+                console.log(`[requestCompletion] Worker ${workerId} has application for job ${jobId} but status is '${appStatus}', not 'accepted'`);
+                return res.status(403).json({ error: `Your application status is '${appStatus}'. Only workers with accepted applications can mark jobs as completed.` });
             }
         }
 
         const clientId = appCheck.rows[0].client_id;
+        console.log(`[requestCompletion] Worker ${workerId} has accepted application for job ${jobId} (posted by client ${clientId})`);
 
         // Check if completion already requested
         const existingCompletion = await pool.query(
@@ -47,6 +54,7 @@ const requestCompletion = async (req, res) => {
         );
 
         if (existingCompletion.rows.length > 0) {
+            console.log(`[requestCompletion] Completion already requested for job ${jobId}`);
             return res.status(400).json({ error: 'Completion already requested for this job' });
         }
 
@@ -71,13 +79,14 @@ const requestCompletion = async (req, res) => {
             [clientId, jobId, result.rows[0].id]
         );
 
+        console.log(`[requestCompletion] Successfully created completion request for job ${jobId}`);
         res.json({
             message: 'Completion request sent',
             completion: result.rows[0]
         });
     } catch (err) {
         console.error('Error requesting completion:', err);
-        res.status(500).json({ error: 'Failed to request completion' });
+        res.status(500).json({ error: 'Failed to request completion', details: err.message });
     }
 };
 

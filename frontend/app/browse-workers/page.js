@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import axios from 'axios'
+import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
 import WorkerSearchBar from '@/components/WorkerSearchBar'
 
 export default function BrowseWorkersPage() {
+    const { t } = useLanguage()
     const [workers, setWorkers] = useState([])
     const [loading, setLoading] = useState(true)
     const [filters, setFilters] = useState({
@@ -72,9 +74,9 @@ export default function BrowseWorkersPage() {
                 <WorkerSearchBar onSearch={handleSearch} />
 
                 {loading ? (
-                    <div className="text-center py-8">Loading...</div>
+                    <div className="text-center py-8">{t('loading')}</div>
                 ) : workers.length === 0 ? (
-                    <div className="text-center py-8 text-gray-600">No workers found matching your criteria</div>
+                    <div className="text-center py-8 text-gray-600">{t('noWorkersFound')}</div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
                         {workers.map((worker) => (
