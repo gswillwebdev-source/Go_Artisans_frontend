@@ -252,6 +252,14 @@ export const translations = {
         unauthorizedMsg: 'Unauthorized. Please login again.',
         serverErrorMsg: 'Server error. Please try again later.',
         completionSentSuccess: '✓ Completion request sent! A confirmation message has been sent to the client. They will review and confirm or request changes.',
+        // Home page / footer
+        homeHeadline: 'Find Your Next Opportunity',
+        homeSubtext: 'Discover thousands of job listings and connect with top employers',
+        exploreJobs: 'Explore Jobs',
+        footerIntro: 'Welcome to GoArtisans – connect with opportunities and skilled workers in your area.',
+        footerLocation: 'We are situated at Assigame facing Ecobank.',
+        footerContact: 'Contact us at {{email}} or {{phone}} if you want to reach out or report something.',
+        footerLaunching: 'Our app will be launching soon on Play Store and App Store.',
     },
     fr: {
         // Navbar
@@ -366,6 +374,14 @@ export const translations = {
         completionStatus: 'Statut d\'achèvement',
         completionSent: '✓ Demande d\'achèvement envoyée! Un message de confirmation a été envoyé au client.',
         requesting: 'Demande en cours...',
+        // Home page / footer
+        homeHeadline: 'Trouvez votre prochaine opportunité',
+        homeSubtext: 'Découvrez des milliers d\'offres d\'emploi et connectez-vous avec des employeurs de premier plan',
+        exploreJobs: 'Explorer les emplois',
+        footerIntro: 'Bienvenue sur GoArtisans – connectez-vous avec des opportunités et des artisans qualifiés dans votre région.',
+        footerLocation: 'Nous sommes situés à Assigame en face d\'Ecobank.',
+        footerContact: 'Contactez-nous à {{email}} ou {{phone}} si vous souhaitez nous joindre ou signaler quelque chose.',
+        footerLaunching: 'Notre application sera bientôt lancée sur le Play Store et l\'App Store.',
 
         // Decline
         decline: 'Refuser',
