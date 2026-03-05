@@ -1,6 +1,7 @@
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import { LanguageProvider } from '@/context/LanguageContext'
+import { Analytics } from '@vercel/analytics/react'
 
 export const metadata = {
     title: 'GoArtisans - Job Seeking Platform',
@@ -18,6 +19,7 @@ export default function RootLayout({ children }) {
                     <Navbar />
                     {children}
                 </LanguageProvider>
+                <Analytics />
             </body>
         </html>
     )

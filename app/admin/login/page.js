@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import adminClient from '@/lib/adminClient'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminLoginPage() {
     const router = useRouter()
@@ -15,12 +15,30 @@ export default function AdminLoginPage() {
 
     useEffect(() => {
         // Check if already logged in as admin
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
-        if (token) {
-            router.push('/admin/dashboard')
-        } else {
-            setIsChecking(false)
+        const checkAdminAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                // Check if user is admin (you can customize this logic)
+                const { data: userProfile } = await supabase
+                    .from('users')
+                    .select('user_type, email')
+                    .eq('email', session.user.email)
+                    .single()
+
+                // For now, consider admin@example.com as admin, or you can add an is_admin field
+                if (userProfile?.email === 'admin@example.com' || userProfile?.user_type === 'admin') {
+                    localStorage.setItem('adminUser', JSON.stringify(userProfile))
+                    router.push('/admin/dashboard')
+                } else {
+                    await supabase.auth.signOut()
+                    setIsChecking(false)
+                }
+            } else {
+                setIsChecking(false)
+            }
         }
+
+        checkAdminAuth()
     }, [router])
 
     const handleChange = (e) => {
@@ -33,15 +51,38 @@ export default function AdminLoginPage() {
         setError('')
 
         try {
-            const response = await adminClient.login(formData.email, formData.password)
-            adminClient.setToken(response.token)
-            localStorage.setItem('adminUser', JSON.stringify(response.user))
-            router.push('/admin/dashboard')
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password
+            })
+
+            if (error) {
+                setError(error.message)
+                setLoading(false)
+                return
+            }
+
+            if (data.user) {
+                // Check if user is admin
+                const { data: userProfile } = await supabase
+                    .from('users')
+                    .select('user_type, email, first_name, last_name')
+                    .eq('email', data.user.email)
+                    .single()
+
+                // For now, consider admin@example.com as admin, or you can add an is_admin field
+                if (userProfile?.email === 'admin@example.com' || userProfile?.user_type === 'admin') {
+                    localStorage.setItem('adminUser', JSON.stringify(userProfile))
+                    router.push('/admin/dashboard')
+                } else {
+                    setError('Access denied. Admin privileges required.')
+                    await supabase.auth.signOut()
+                }
+            }
         } catch (err) {
-            setError(err.message || 'Login failed')
-        } finally {
-            setLoading(false)
+            setError('An unexpected error occurred')
         }
+        setLoading(false)
     }
 
     if (isChecking) {

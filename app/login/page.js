@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import axios from 'axios'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function LoginPage() {
     const router = useRouter()
@@ -15,27 +15,29 @@ export default function LoginPage() {
 
     useEffect(() => {
         // Check if user is already logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                // Get user profile to check role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('email', session.user.email)
+                    .single()
 
-        if (token && userData) {
-            try {
-                const user = JSON.parse(userData)
-                // Redirect logged-in users to their profile
-                if (user.userType === 'worker') {
+                if (profile?.user_type === 'worker') {
                     router.push('/worker-profile')
-                } else if (user.userType === 'client') {
+                } else if (profile?.user_type === 'client') {
                     router.push('/client-profile')
                 } else {
                     router.push('/choose-role')
                 }
-            } catch (e) {
-                console.error('Error parsing user data:', e)
+            } else {
                 setIsChecking(false)
             }
-        } else {
-            setIsChecking(false)
         }
+
+        checkUser()
     }, [router])
 
     const handleChange = (e) => {
@@ -46,35 +48,61 @@ export default function LoginPage() {
         e.preventDefault()
         setLoading(true)
         setError('')
-        try {
-            const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`,
-                formData
-            )
-            localStorage.setItem('token', response.data.token)
-            localStorage.setItem('user', JSON.stringify(response.data.user))
 
-            // Redirect based on user role
-            if (response.data.user.userType === 'worker') {
-                router.push('/worker-profile')
-            } else if (response.data.user.userType === 'client') {
-                router.push('/client-profile')
-            } else {
-                // No role assigned yet, show role selection
-                router.push('/choose-role')
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: formData.email,
+                password: formData.password
+            })
+
+            if (error) {
+                setError(error.message)
+                setLoading(false)
+                return
+            }
+
+            if (data.user) {
+                // Get user profile to check role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('email', data.user.email)
+                    .single()
+
+                // Redirect based on user role
+                if (profile?.user_type === 'worker') {
+                    router.push('/worker-profile')
+                } else if (profile?.user_type === 'client') {
+                    router.push('/client-profile')
+                } else {
+                    router.push('/choose-role')
+                }
             }
         } catch (err) {
-            setError(err.response?.data?.error || 'Login failed')
+            setError('An unexpected error occurred')
         }
         setLoading(false)
+    }
+
+    const handleGoogleLogin = async () => {
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth-success`
+                }
+            })
+            if (error) {
+                setError(error.message)
+            }
+        } catch (err) {
+            setError('Failed to initiate Google login')
+        }
     }
 
     if (isChecking) {
         return <div className="min-h-screen flex items-center justify-center">Loading...</div>
     }
-
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-    const handleGoogleLogin = () => { window.location.href = `${baseUrl}/api/auth/google` }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">

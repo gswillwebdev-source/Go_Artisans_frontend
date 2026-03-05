@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export function useAuth(options = {}) {
     const { requiredRole = null, redirectToLogin = true, redirectLoggedInTo = null } = options
@@ -14,57 +15,39 @@ export function useAuth(options = {}) {
     })
 
     useEffect(() => {
-        const checkAuth = () => {
-            try {
-                const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-                const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        // Get initial session
+        const getInitialSession = async () => {
+            const { data: { session }, error } = await supabase.auth.getSession()
 
-                const isLoggedIn = !!token
-                const user = userData ? JSON.parse(userData) : null
+            if (error) {
+                console.error('Error getting session:', error)
+                setAuthState({
+                    isLoggedIn: false,
+                    user: null,
+                    isLoading: false,
+                    isChecking: false
+                })
+                return
+            }
 
-                // Check if user is authenticated
-                if (!isLoggedIn) {
-                    if (redirectToLogin) {
-                        // This is a protected page, redirect to login
-                        router.push('/login')
-                        return
-                    }
-                    setAuthState({
-                        isLoggedIn: false,
-                        user: null,
-                        isLoading: false,
-                        isChecking: false
-                    })
-                    return
+            if (session?.user) {
+                // Get user profile from database
+                const { data: profile, error: profileError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', session.user.email)
+                    .single()
+
+                if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "not found"
+                    console.error('Error fetching user profile:', profileError)
                 }
 
-                // User is logged in
-                // Check if they need to choose a role
-                if (!user?.userType) {
-                    router.push('/choose-role')
-                    return
-                }
-
-                // Check for role requirement
-                if (requiredRole && user.userType !== requiredRole) {
-                    if (user.userType === 'worker') {
-                        router.push('/worker-profile')
-                    } else if (user.userType === 'client') {
-                        router.push('/client-profile')
-                    } else {
-                        router.push('/choose-role')
-                    }
-                    return
-                }
-
-                // If logged in user is on a login/register page, redirect them
-                if (redirectLoggedInTo) {
-                    if (user.userType === 'worker') {
-                        router.push('/worker-profile')
-                    } else if (user.userType === 'client') {
-                        router.push('/client-profile')
-                    }
-                    return
+                const user = profile || {
+                    id: session.user.id,
+                    email: session.user.email,
+                    first_name: session.user.user_metadata?.first_name || '',
+                    last_name: session.user.user_metadata?.last_name || '',
+                    user_type: session.user.user_metadata?.user_type || null
                 }
 
                 setAuthState({
@@ -73,8 +56,35 @@ export function useAuth(options = {}) {
                     isLoading: false,
                     isChecking: false
                 })
-            } catch (e) {
-                console.error('Auth check error:', e)
+
+                // Check if they need to choose a role
+                if (!user?.user_type) {
+                    router.push('/choose-role')
+                    return
+                }
+
+                // Check for role requirement
+                if (requiredRole && user.user_type !== requiredRole) {
+                    if (user.user_type === 'worker') {
+                        router.push('/worker-profile')
+                    } else if (user.user_type === 'client') {
+                        router.push('/client-profile')
+                    } else {
+                        router.push('/choose-role')
+                    }
+                    return
+                }
+
+                // Redirect logged in users if specified
+                if (redirectLoggedInTo) {
+                    router.push(redirectLoggedInTo)
+                    return
+                }
+            } else {
+                if (redirectToLogin) {
+                    router.push('/login')
+                    return
+                }
                 setAuthState({
                     isLoggedIn: false,
                     user: null,
@@ -84,11 +94,80 @@ export function useAuth(options = {}) {
             }
         }
 
-        checkAuth()
-        // Set up storage listener for auth changes
-        window.addEventListener('storage', checkAuth)
-        return () => window.removeEventListener('storage', checkAuth)
-    }, [router, redirectToLogin, requiredRole, redirectLoggedInTo])
+        getInitialSession()
+
+        // Listen for auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+            async (event, session) => {
+                if (event === 'SIGNED_IN' && session?.user) {
+                    // Get user profile from database
+                    const { data: profile, error: profileError } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('email', session.user.email)
+                        .single()
+
+                    if (profileError && profileError.code !== 'PGRST116') {
+                        console.error('Error fetching user profile:', profileError)
+                    }
+
+                    const user = profile || {
+                        id: session.user.id,
+                        email: session.user.email,
+                        first_name: session.user.user_metadata?.first_name || '',
+                        last_name: session.user.user_metadata?.last_name || '',
+                        user_type: session.user.user_metadata?.user_type || null
+                    }
+
+                    setAuthState({
+                        isLoggedIn: true,
+                        user,
+                        isLoading: false,
+                        isChecking: false
+                    })
+
+                    // Check if they need to choose a role
+                    if (!user?.user_type) {
+                        router.push('/choose-role')
+                        return
+                    }
+
+                    // Check for role requirement
+                    if (requiredRole && user.user_type !== requiredRole) {
+                        if (user.user_type === 'worker') {
+                            router.push('/worker-profile')
+                        } else if (user.user_type === 'client') {
+                            router.push('/client-profile')
+                        } else {
+                            router.push('/choose-role')
+                        }
+                        return
+                    }
+
+                    // Redirect logged in users if specified
+                    if (redirectLoggedInTo) {
+                        router.push(redirectLoggedInTo)
+                        return
+                    }
+                } else if (event === 'SIGNED_OUT') {
+                    setAuthState({
+                        isLoggedIn: false,
+                        user: null,
+                        isLoading: false,
+                        isChecking: false
+                    })
+
+                    if (redirectToLogin) {
+                        router.push('/login')
+                    }
+                }
+            }
+        )
+
+        return () => {
+            subscription.unsubscribe()
+        }
+    }, [router, requiredRole, redirectToLogin, redirectLoggedInTo])
 
     return authState
 }

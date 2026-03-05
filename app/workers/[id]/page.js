@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import axios from 'axios'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 
 export default function WorkerProfilePage() {
@@ -17,10 +17,35 @@ export default function WorkerProfilePage() {
         async function fetchWorker() {
             try {
                 setLoading(true)
-                const response = await axios.get(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/users/worker/${workerId}`
-                )
-                setWorker(response.data.worker)
+
+                const { data: workerData, error } = await supabase
+                    .from('users')
+                    .select(`
+                        id,
+                        first_name,
+                        last_name,
+                        email,
+                        phone_number,
+                        user_type,
+                        job_title,
+                        location,
+                        bio,
+                        years_experience,
+                        services,
+                        portfolio,
+                        completed_jobs,
+                        rating,
+                        created_at
+                    `)
+                    .eq('id', workerId)
+                    .eq('user_type', 'worker')
+                    .single()
+
+                if (error) {
+                    throw error
+                }
+
+                setWorker(workerData)
             } catch (err) {
                 console.error('Failed to fetch worker:', err)
                 setError('Failed to load worker profile')

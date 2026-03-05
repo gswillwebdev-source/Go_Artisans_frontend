@@ -1,13 +1,11 @@
 'use client'
 
-export const dynamic = "force-dynamic";
-
-import { useState, useEffect } from 'react'
-import axios from 'axios'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const token = searchParams.get('token')
@@ -42,16 +40,20 @@ export default function ResetPasswordPage() {
         setLoading(true)
 
         try {
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/reset-password`,
-                { token, newPassword }
-            )
-            setSuccess(true)
-            setTimeout(() => {
-                router.push('/login')
-            }, 2000)
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword
+            })
+
+            if (error) {
+                setError(error.message)
+            } else {
+                setSuccess(true)
+                setTimeout(() => {
+                    router.push('/login')
+                }, 2000)
+            }
         } catch (err) {
-            setError(err.response?.data?.error || 'Password reset failed')
+            setError('Password reset failed')
         } finally {
             setLoading(false)
         }
@@ -121,5 +123,19 @@ export default function ResetPasswordPage() {
                 </p>
             </div>
         </div>
+    )
+}
+
+export default function ResetPasswordPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Loading...</h1>
+                </div>
+            </div>
+        }>
+            <ResetPasswordContent />
+        </Suspense>
     )
 }

@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import AdminReviewsManagement from '@/components/AdminReviewsManagement';
 
 export default function AdminReviewsPage() {
@@ -10,17 +11,37 @@ export default function AdminReviewsPage() {
     const [isChecking, setIsChecking] = useState(true);
 
     useEffect(() => {
-        // Check if admin is logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
-        if (!token) {
-            router.push('/admin/login');
-            return;
-        }
-        setIsChecking(false);
+        checkAdminAuth();
     }, [router]);
 
-    const handleLogout = () => {
-        localStorage.removeItem('adminToken');
+    const checkAdminAuth = async () => {
+        try {
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error || !user) {
+                router.push('/admin/login');
+                return;
+            }
+
+            // Check if user is admin
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('user_type')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || userData?.user_type !== 'admin') {
+                router.push('/admin/login');
+                return;
+            }
+
+            setIsChecking(false);
+        } catch (err) {
+            router.push('/admin/login');
+        }
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
         router.push('/admin/login');
     };
 

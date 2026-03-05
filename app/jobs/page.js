@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { supabase } from '@/lib/supabase'
 import JobCard from '@/components/JobCard'
 import SearchBar from '@/components/SearchBar'
 import { useLanguage } from '@/context/LanguageContext'
@@ -18,18 +18,44 @@ export default function JobsPage() {
     const [isLoggedIn, setIsLoggedIn] = useState(false)
 
     useEffect(() => {
-        // Check login state
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        setIsLoggedIn(!!token)
+        // Check login state using Supabase
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            setIsLoggedIn(!!session)
+        }
 
+        checkAuth()
         fetchJobs()
     }, [])
 
     const fetchJobs = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/jobs`)
-            setJobs(response.data.jobs)
+            const { data: jobsData, error } = await supabase
+                .from('jobs')
+                .select(`
+                    id,
+                    title,
+                    description,
+                    budget,
+                    location,
+                    category,
+                    status,
+                    created_at,
+                    client:client_id (
+                        id,
+                        first_name,
+                        last_name
+                    )
+                `)
+                .eq('status', 'active')
+                .order('created_at', { ascending: false })
+
+            if (error) {
+                throw error
+            }
+
+            setJobs(jobsData || [])
         } catch (err) {
             console.error(t('failedToFetchJobs'), err)
         } finally {
@@ -40,15 +66,44 @@ export default function JobsPage() {
     const handleSearch = async (searchFilters) => {
         try {
             setLoading(true)
-            const params = new URLSearchParams()
-            if (searchFilters.keyword) params.append('keyword', searchFilters.keyword)
-            if (searchFilters.location) params.append('location', searchFilters.location)
-            if (searchFilters.jobType) params.append('jobType', searchFilters.jobType)
 
-            const response = await axios.get(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/jobs/search?${params.toString()}`
-            )
-            setJobs(response.data.jobs)
+            let query = supabase
+                .from('jobs')
+                .select(`
+                    id,
+                    title,
+                    description,
+                    budget,
+                    location,
+                    category,
+                    status,
+                    created_at,
+                    client:client_id (
+                        id,
+                        first_name,
+                        last_name
+                    )
+                `)
+                .eq('status', 'active')
+
+            // Apply filters
+            if (searchFilters.keyword) {
+                query = query.or(`title.ilike.%${searchFilters.keyword}%,description.ilike.%${searchFilters.keyword}%`)
+            }
+            if (searchFilters.location) {
+                query = query.ilike('location', `%${searchFilters.location}%`)
+            }
+            if (searchFilters.jobType) {
+                query = query.eq('category', searchFilters.jobType)
+            }
+
+            const { data: jobsData, error } = await query.order('created_at', { ascending: false })
+
+            if (error) {
+                throw error
+            }
+
+            setJobs(jobsData || [])
         } catch (err) {
             console.error(t('searchFailed'), err)
         } finally {

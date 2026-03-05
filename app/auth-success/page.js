@@ -1,11 +1,10 @@
 'use client'
 
-export const dynamic = "force-dynamic";
-
+import { Suspense } from 'react'
 import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function AuthSuccessPage() {
+function AuthSuccessContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
 
@@ -46,5 +45,19 @@ export default function AuthSuccessPage() {
                 <p className="text-gray-600">Please wait while we complete your login.</p>
             </div>
         </div>
+    )
+}
+
+export default function AuthSuccessPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold mb-4">Loading...</h2>
+                </div>
+            </div>
+        }>
+            <AuthSuccessContent />
+        </Suspense>
     )
 }

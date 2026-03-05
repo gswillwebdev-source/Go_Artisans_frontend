@@ -1,14 +1,12 @@
 'use client'
 
-export const dynamic = "force-dynamic";
-
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import adminClient from '@/lib/adminClient'
+import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
 
-export default function AdminUsersPage() {
+function AdminUsersContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [users, setUsers] = useState([])
@@ -42,12 +40,26 @@ export default function AdminUsersPage() {
 
     useEffect(() => {
         // Check if admin is logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
-        if (!token) {
-            router.push('/admin/login')
-            return
+        const checkAdminAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                const { data: userProfile } = await supabase
+                    .from('users')
+                    .select('user_type, email')
+                    .eq('email', session.user.email)
+                    .single()
+
+                if (userProfile?.email === 'admin@example.com' || userProfile?.user_type === 'admin') {
+                    setIsChecking(false)
+                } else {
+                    router.push('/admin/login')
+                }
+            } else {
+                router.push('/admin/login')
+            }
         }
-        setIsChecking(false)
+
+        checkAdminAuth()
     }, [router])
 
     useEffect(() => {
@@ -60,19 +72,42 @@ export default function AdminUsersPage() {
         try {
             setLoading(true)
             setError('')
-            const data = await adminClient.getUsers(userType, currentPage, 10)
-            setUsers(data.users)
-            setPagination(data.pagination)
+
+            let query = supabase
+                .from('users')
+                .select('*', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range((currentPage - 1) * 10, currentPage * 10 - 1)
+
+            if (userType !== 'all') {
+                query = query.eq('user_type', userType)
+            }
+
+            const { data, error, count } = await query
+
+            if (error) {
+                throw error
+            }
+
+            setUsers(data || [])
+            setPagination({
+                currentPage,
+                totalPages: Math.ceil(count / 10),
+                totalUsers: count,
+                hasNext: currentPage * 10 < count,
+                hasPrev: currentPage > 1
+            })
         } catch (err) {
-            setError(err.message || 'Failed to load users')
+            setError('Failed to load users')
             console.error('Error fetching users:', err)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleLogout = () => {
-        adminClient.logout()
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
+        localStorage.removeItem('adminUser')
         router.push('/admin/login')
     }
 
@@ -82,19 +117,60 @@ export default function AdminUsersPage() {
         setFormError('')
 
         try {
-            await adminClient.addUser(formData)
-            setFormData({
-                email: '',
-                firstName: '',
-                lastName: '',
-                phoneNumber: '',
-                userType: 'worker',
-                password: ''
+            // Create auth user
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        phone_number: formData.phoneNumber,
+                    }
+                }
             })
-            setShowAddModal(false)
-            await fetchUsers()
+
+            if (authError) {
+                // Handle rate limiting specifically
+                if (authError.status === 429) {
+                    throw new Error('Too many signup attempts. Please wait a few minutes before trying again.')
+                }
+                throw authError
+            }
+
+            if (authData.user) {
+                // Create user profile
+                const { error: profileError } = await supabase
+                    .from('users')
+                    .insert({
+                        id: authData.user.id,
+                        email: formData.email,
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        phone_number: formData.phoneNumber,
+                        user_type: formData.userType,
+                        created_at: new Date().toISOString()
+                    })
+
+                if (profileError) {
+                    throw profileError
+                }
+
+                setFormData({
+                    email: '',
+                    firstName: '',
+                    lastName: '',
+                    phoneNumber: '',
+                    userType: 'worker',
+                    password: ''
+                })
+                setShowAddModal(false)
+                await fetchUsers()
+                setSuccessMessage('User created successfully')
+                setShowSuccessModal(true)
+            }
         } catch (err) {
-            setFormError(err.message || 'Failed to add user')
+            setFormError(err.message || 'Failed to create user')
         } finally {
             setFormLoading(false)
         }
@@ -113,7 +189,16 @@ export default function AdminUsersPage() {
 
         setSuspensionLoading(true)
         try {
-            await adminClient.suspendUser(suspendModal.userId, suspensionReason)
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    is_suspended: true,
+                    suspension_reason: suspensionReason
+                })
+                .eq('id', suspendModal.userId)
+
+            if (error) throw error
+
             setSuspendModal({ show: false, userId: null, userName: '' })
             setSuspensionReason('')
             setSuccessMessage(`${suspendModal.userName} has been suspended successfully`)
@@ -129,7 +214,16 @@ export default function AdminUsersPage() {
 
     const handleUnsuspend = async (userId, userName) => {
         try {
-            await adminClient.unsuspendUser(userId)
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    is_suspended: false,
+                    suspension_reason: null
+                })
+                .eq('id', userId)
+
+            if (error) throw error
+
             setSuccessMessage(`${userName} has been unsuspended successfully`)
             setShowSuccessModal(true)
             await fetchUsers()
@@ -147,9 +241,13 @@ export default function AdminUsersPage() {
 
     const handleConfirmDelete = async () => {
         try {
-            await adminClient.deleteUser(deleteUserId)
-            setShowDeleteModal(false)
-            setDeleteUserId(null)
+            const { error } = await supabase
+                .from('users')
+                .delete()
+                .eq('id', deleteUserId)
+
+            if (error) throw error
+
             setDeleteUserName('')
             setSuccessMessage(`${deleteUserName} has been deleted successfully`)
             setShowSuccessModal(true)
@@ -163,9 +261,13 @@ export default function AdminUsersPage() {
 
     const handleVerificationToggle = async (userId, currentStatus, userName) => {
         try {
-            await adminClient.updateVerification(userId, !currentStatus)
-            const newStatus = !currentStatus ? 'verified' : 'unverified'
-            setSuccessMessage(`${userName} marked as ${newStatus}`)
+            const { error } = await supabase
+                .from('users')
+                .update({ email_verified: !currentStatus })
+                .eq('id', userId)
+
+            if (error) throw error
+
             setShowSuccessModal(true)
             await fetchUsers()
         } catch (err) {
@@ -541,5 +643,19 @@ export default function AdminUsersPage() {
                 onConfirm={() => setShowErrorModal(false)}
             />
         </div>
+    )
+}
+
+export default function AdminUsersPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-7xl mx-auto p-6">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-8">Loading Users...</h1>
+                </div>
+            </div>
+        }>
+            <AdminUsersContent />
+        </Suspense>
     )
 }

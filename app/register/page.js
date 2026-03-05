@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import axios from 'axios'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function RegisterPage() {
     const router = useRouter()
@@ -23,27 +23,29 @@ export default function RegisterPage() {
 
     useEffect(() => {
         // Check if user is already logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                // Get user profile to check role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('email', session.user.email)
+                    .single()
 
-        if (token && userData) {
-            try {
-                const user = JSON.parse(userData)
-                // Redirect logged-in users to their profile
-                if (user.userType === 'worker') {
+                if (profile?.user_type === 'worker') {
                     router.push('/worker-profile')
-                } else if (user.userType === 'client') {
+                } else if (profile?.user_type === 'client') {
                     router.push('/client-profile')
                 } else {
                     router.push('/choose-role')
                 }
-            } catch (e) {
-                console.error('Error parsing user data:', e)
+            } else {
                 setIsChecking(false)
             }
-        } else {
-            setIsChecking(false)
         }
+
+        checkUser()
     }, [router])
 
     const handleChange = (e) => {
@@ -70,17 +72,62 @@ export default function RegisterPage() {
         e.preventDefault()
         setLoading(true)
         setError('')
+
         try {
-            const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`,
-                formData
-            )
-            localStorage.setItem('token', response.data.token)
-            localStorage.setItem('user', JSON.stringify(response.data.user))
-            // Redirect to email verification
-            router.push('/verify-email')
+            // Sign up with Supabase Auth
+            const { data, error } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        phone_number: formData.phoneNumber,
+                    }
+                }
+            })
+
+            if (error) {
+                // Handle rate limiting specifically
+                if (error.status === 429) {
+                    setError('Too many signup attempts. Please wait a few minutes before trying again.')
+                } else {
+                    setError(error.message)
+                }
+                setLoading(false)
+                return
+            }
+
+            if (data.user) {
+                // Create user profile in database
+                const { error: profileError } = await supabase
+                    .from('users')
+                    .insert({
+                        id: data.user.id,
+                        email: formData.email,
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        phone_number: formData.phoneNumber,
+                        user_type: null, // Will be set in choose-role page
+                        created_at: new Date().toISOString()
+                    })
+
+                if (profileError) {
+                    console.error('Error creating user profile:', profileError)
+                    setError('Account created but profile setup failed. Please contact support.')
+                    setLoading(false)
+                    return
+                }
+
+                // Success - redirect to email verification or choose role
+                if (data.user.email_confirmed_at) {
+                    router.push('/choose-role')
+                } else {
+                    router.push('/verify-email')
+                }
+            }
         } catch (err) {
-            setError(err.response?.data?.error || 'Registration failed')
+            setError('An unexpected error occurred during registration')
         }
         setLoading(false)
     }
@@ -89,8 +136,21 @@ export default function RegisterPage() {
         return <div className="min-h-screen flex items-center justify-center">Loading...</div>
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-    const handleGoogleSignUp = () => { window.location.href = `${baseUrl}/api/auth/google` }
+    const handleGoogleSignUp = async () => {
+        try {
+            const { error } = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: `${window.location.origin}/auth-success`
+                }
+            })
+            if (error) {
+                setError(error.message)
+            }
+        } catch (err) {
+            setError('Failed to initiate Google sign up')
+        }
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">

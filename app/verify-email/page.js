@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import axios from 'axios'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function VerifyEmailPage() {
     const router = useRouter()
@@ -18,13 +18,24 @@ export default function VerifyEmailPage() {
     const [resendCooldown, setResendCooldown] = useState(0)
 
     useEffect(() => {
-        // Check if user is logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        if (!token) {
-            router.push('/login')
-        } else {
+        // Check if user is logged in and email is verified
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session?.user) {
+                router.push('/login')
+                return
+            }
+
+            // Check if email is already verified
+            if (session.user.email_confirmed_at) {
+                router.push('/choose-role')
+                return
+            }
+
             setIsChecking(false)
         }
+
+        checkUser()
     }, [router])
 
     // Handle resend cooldown timer
@@ -43,26 +54,19 @@ export default function VerifyEmailPage() {
         setResendSuccess(false)
 
         try {
-            const token = localStorage.getItem('token')
-            await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/resend-verification-email`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    }
-                }
-            ).then(res => {
-                if (!res.ok) throw new Error('Failed to resend code')
-                return res.json()
+            const { error } = await supabase.auth.resend({
+                type: 'signup',
+                email: (await supabase.auth.getUser()).data.user?.email
             })
 
-            setResendSuccess(true)
-            setResendCooldown(60)
-            setTimeout(() => setResendSuccess(false), 3000)
+            if (error) {
+                setResendError(error.message)
+            } else {
+                setResendSuccess(true)
+                setResendCooldown(60) // 60 second cooldown
+            }
         } catch (err) {
-            setResendError(err.message || 'Failed to resend verification code')
+            setResendError('Failed to resend verification email')
         } finally {
             setResendLoading(false)
         }
@@ -74,18 +78,21 @@ export default function VerifyEmailPage() {
         setError('')
 
         try {
-            const token = localStorage.getItem('token')
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/verify-email`,
-                { verificationCode: code },
-                { headers: { Authorization: `Bearer ${token}` } }
-            )
-            setSuccess(true)
-            setTimeout(() => {
-                router.push('/choose-role')
-            }, 2000)
+            // Refresh the session to check if email is now verified
+            const { data: { session }, error } = await supabase.auth.getSession()
+
+            if (error) {
+                setError(error.message)
+            } else if (session?.user.email_confirmed_at) {
+                setSuccess(true)
+                setTimeout(() => {
+                    router.push('/choose-role')
+                }, 2000)
+            } else {
+                setError('Email not yet verified. Please check your email and click the verification link.')
+            }
         } catch (err) {
-            setError(err.response?.data?.error || 'Verification failed')
+            setError('Verification check failed')
         } finally {
             setLoading(false)
         }

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { supabase } from '@/lib/supabase'
 
 export default function WorkerRatingsDisplay({ workerId }) {
     const [ratings, setRatings] = useState([])
@@ -21,15 +21,35 @@ export default function WorkerRatingsDisplay({ workerId }) {
 
                 setLoading(true)
                 setError('')
-                const response = await axios.get(
-                    `${process.env.NEXT_PUBLIC_API_URL}/api/completion/users/${workerId}/ratings/worker`
-                )
-                const ratingsData = Array.isArray(response.data) ? response.data : []
 
-                if (ratingsData.length > 0) {
-                    setRatings(ratingsData)
+                const { data: ratingsData, error } = await supabase
+                    .from('reviews')
+                    .select(`
+                        id,
+                        rating,
+                        comment,
+                        created_at,
+                        rater_type,
+                        client:client_id (
+                            id,
+                            first_name,
+                            last_name
+                        )
+                    `)
+                    .eq('worker_id', workerId)
+                    .eq('rater_type', 'client')
+                    .order('created_at', { ascending: false })
+
+                if (error) {
+                    throw error
+                }
+
+                const ratings = Array.isArray(ratingsData) ? ratingsData : []
+
+                if (ratings.length > 0) {
+                    setRatings(ratings)
                     const avgRating = (
-                        ratingsData.reduce((sum, r) => sum + r.rating, 0) / ratingsData.length
+                        ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
                     ).toFixed(2)
                     setAverageRating(parseFloat(avgRating))
                 } else {

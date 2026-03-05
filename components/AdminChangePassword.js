@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminChangePassword() {
     const router = useRouter();
@@ -47,25 +48,13 @@ export default function AdminChangePassword() {
 
         try {
             setLoading(true);
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-            const response = await fetch(`${apiUrl}/api/admin/change-password`, {
-                method: 'PATCH',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-                },
-                body: JSON.stringify({
-                    currentPassword,
-                    newPassword,
-                    confirmPassword
-                })
+            // For admin password changes, we'll use Supabase auth
+            // Note: This assumes the admin is authenticated via Supabase
+            const { error } = await supabase.auth.updateUser({
+                password: newPassword
             });
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to update password');
-            }
+            if (error) throw error;
 
             // Success - show confirmation modal
             setCurrentPassword('');

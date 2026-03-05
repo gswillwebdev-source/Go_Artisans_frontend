@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 import AdminChangePassword from '@/components/AdminChangePassword';
 
 export default function AdminSettingsPage() {
@@ -11,17 +12,37 @@ export default function AdminSettingsPage() {
     const [activeTab, setActiveTab] = useState('password');
 
     useEffect(() => {
-        // Check if admin is logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
-        if (!token) {
-            router.push('/admin/login');
-            return;
-        }
-        setIsChecking(false);
+        checkAdminAuth();
     }, [router]);
 
-    const handleLogout = () => {
-        localStorage.removeItem('adminToken');
+    const checkAdminAuth = async () => {
+        try {
+            const { data: { user }, error } = await supabase.auth.getUser();
+            if (error || !user) {
+                router.push('/admin/login');
+                return;
+            }
+
+            // Check if user is admin
+            const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('user_type')
+                .eq('id', user.id)
+                .single();
+
+            if (userError || userData?.user_type !== 'admin') {
+                router.push('/admin/login');
+                return;
+            }
+
+            setIsChecking(false);
+        } catch (err) {
+            router.push('/admin/login');
+        }
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
         router.push('/admin/login');
     };
 
@@ -75,8 +96,8 @@ export default function AdminSettingsPage() {
                         <button
                             onClick={() => setActiveTab('password')}
                             className={`px-6 py-3 font-medium border-b-2 transition ${activeTab === 'password'
-                                    ? 'border-red-600 text-red-600'
-                                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                                ? 'border-red-600 text-red-600'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
                                 }`}
                         >
                             Change Password

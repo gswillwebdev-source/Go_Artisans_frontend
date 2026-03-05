@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import adminClient from '@/lib/adminClient'
+import { supabase } from '@/lib/supabase'
 
 export default function AdminDashboardPage() {
     const router = useRouter()
@@ -14,12 +14,26 @@ export default function AdminDashboardPage() {
 
     useEffect(() => {
         // Check if admin is logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
-        if (!token) {
-            router.push('/admin/login')
-            return
+        const checkAdminAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                const { data: userProfile } = await supabase
+                    .from('users')
+                    .select('user_type, email')
+                    .eq('email', session.user.email)
+                    .single()
+
+                if (userProfile?.email === 'admin@example.com' || userProfile?.user_type === 'admin') {
+                    setIsChecking(false)
+                } else {
+                    router.push('/admin/login')
+                }
+            } else {
+                router.push('/admin/login')
+            }
         }
-        setIsChecking(false)
+
+        checkAdminAuth()
     }, [router])
 
     useEffect(() => {
@@ -32,18 +46,41 @@ export default function AdminDashboardPage() {
         try {
             setLoading(true)
             setError('')
-            const data = await adminClient.getDashboardStats()
-            setStats(data)
+
+            // Get stats from Supabase
+            const [usersResult, jobsResult, applicationsResult, reviewsResult] = await Promise.all([
+                supabase.from('users').select('id, user_type', { count: 'exact' }),
+                supabase.from('jobs').select('id, status', { count: 'exact' }),
+                supabase.from('applications').select('id, status', { count: 'exact' }),
+                supabase.from('reviews').select('id, rating', { count: 'exact' })
+            ])
+
+            const stats = {
+                totalUsers: usersResult.count || 0,
+                totalClients: usersResult.data?.filter(u => u.user_type === 'client').length || 0,
+                totalWorkers: usersResult.data?.filter(u => u.user_type === 'worker').length || 0,
+                totalJobs: jobsResult.count || 0,
+                activeJobs: jobsResult.data?.filter(j => j.status === 'active').length || 0,
+                totalApplications: applicationsResult.count || 0,
+                pendingApplications: applicationsResult.data?.filter(a => a.status === 'pending').length || 0,
+                totalReviews: reviewsResult.count || 0,
+                averageRating: reviewsResult.data?.length > 0
+                    ? (reviewsResult.data.reduce((sum, r) => sum + r.rating, 0) / reviewsResult.data.length).toFixed(1)
+                    : 0
+            }
+
+            setStats(stats)
         } catch (err) {
-            setError(err.message || 'Failed to load statistics')
+            setError('Failed to load statistics')
             console.error('Error fetching stats:', err)
         } finally {
             setLoading(false)
         }
     }
 
-    const handleLogout = () => {
-        adminClient.logout()
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
+        localStorage.removeItem('adminUser')
         router.push('/admin/login')
     }
 

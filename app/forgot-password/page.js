@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import axios from 'axios'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 export default function ForgotPasswordPage() {
     const router = useRouter()
@@ -16,27 +16,29 @@ export default function ForgotPasswordPage() {
 
     useEffect(() => {
         // Check if user is already logged in
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                // Get user profile to check role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('email', session.user.email)
+                    .single()
 
-        if (token && userData) {
-            try {
-                const user = JSON.parse(userData)
-                // Redirect logged-in users to their profile
-                if (user.userType === 'worker') {
+                if (profile?.user_type === 'worker') {
                     router.push('/worker-profile')
-                } else if (user.userType === 'client') {
+                } else if (profile?.user_type === 'client') {
                     router.push('/client-profile')
                 } else {
                     router.push('/choose-role')
                 }
-            } catch (e) {
-                console.error('Error parsing user data:', e)
+            } else {
                 setIsChecking(false)
             }
-        } else {
-            setIsChecking(false)
         }
+
+        checkUser()
     }, [router])
 
     const handleRequestReset = async (e) => {
@@ -45,14 +47,18 @@ export default function ForgotPasswordPage() {
         setError('')
         setSuccess('')
         try {
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/auth/forgot-password`,
-                { email }
-            )
-            setSuccess('We sent you an email with a password reset link. Please check your inbox (and spam folder).')
-            setStep(2)
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            })
+
+            if (error) {
+                setError(error.message)
+            } else {
+                setSuccess('We sent you an email with a password reset link. Please check your inbox (and spam folder).')
+                setStep(2)
+            }
         } catch (err) {
-            setError(err.response?.data?.error || 'Failed to process reset request')
+            setError('Failed to process reset request')
         }
         setLoading(false)
     }
