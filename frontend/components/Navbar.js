@@ -91,28 +91,31 @@ export default function Navbar() {
                     </Link>
 
                     {/* Navigation Links - Center */}
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center space-x-2">
                         {isHydrated && authState.isLoggedIn && (
                             <>
-                                {authState.user?.userType === 'client' ? (
-                                    <>
-                                        <Link
-                                            href="/browse-workers"
-                                            className={getLinkClasses('/browse-workers')}
-                                        >
-                                            {t('browseWorkers')}
-                                        </Link>
-                                    </>
-                                ) : authState.user?.userType === 'worker' ? (
-                                    <>
-                                        <Link
-                                            href="/jobs"
-                                            className={getLinkClasses('/jobs')}
-                                        >
-                                            {t('jobs')}
-                                        </Link>
-                                    </>
+                                {authState.user?.user_type === 'client' ? (
+                                    <Link
+                                        href="/browse-workers"
+                                        className={getLinkClasses('/browse-workers')}
+                                    >
+                                        {t('browseWorkers')}
+                                    </Link>
+                                ) : authState.user?.user_type === 'worker' ? (
+                                    <Link
+                                        href="/jobs"
+                                        className={getLinkClasses('/jobs')}
+                                    >
+                                        📋 {t('browseJobs')}
+                                    </Link>
                                 ) : null}
+
+                                <Link
+                                    href={authState.user?.user_type === 'worker' ? '/worker-profile' : '/client-profile'}
+                                    className={getLinkClasses(authState.user?.user_type === 'worker' ? '/worker-profile' : '/client-profile')}
+                                >
+                                    👤 {t('profile')}
+                                </Link>
                             </>
                         )}
                     </div>
@@ -151,37 +154,33 @@ export default function Navbar() {
                             )}
                         </div>
 
+                        {/* Auth Buttons */}
                         {isHydrated ? (
                             authState.isLoggedIn ? (
-                                <>
-                                    <Link
-                                        href={authState.user?.userType === 'worker' ? '/worker-profile' : authState.user?.userType === 'client' ? '/client-profile' : '/profile'}
-                                        className={getLinkClasses(authState.user?.userType === 'worker' ? '/worker-profile' : authState.user?.userType === 'client' ? '/client-profile' : '/profile')}
-                                    >
-                                        {t('profile')}
-                                    </Link>
+                                <div className="flex items-center space-x-2 pl-3 border-l border-gray-300">
+                                    {/* Logout Button */}
                                     <button
                                         onClick={handleLogout}
-                                        className="transition px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50"
+                                        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50 transition border border-red-300 hover:border-red-500"
                                     >
-                                        {t('logout')}
+                                        🚪 {t('logout')}
                                     </button>
-                                </>
+                                </div>
                             ) : (
-                                <>
+                                <div className="flex items-center space-x-2 pl-3 border-l border-gray-300">
                                     <Link
                                         href="/login"
-                                        className={getLinkClasses('/login')}
+                                        className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
                                     >
                                         {t('login')}
                                     </Link>
                                     <Link
                                         href="/register"
-                                        className="px-4 py-2 rounded-lg text-white text-sm font-medium bg-indigo-600 hover:bg-indigo-700 transition"
+                                        className="px-4 py-2 rounded-lg text-white text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 transition"
                                     >
                                         {t('register')}
                                     </Link>
-                                </>
+                                </div>
                             )
                         ) : (
                             <div className="h-8 w-24 bg-gray-200 rounded animate-pulse"></div>
