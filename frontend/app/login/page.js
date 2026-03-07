@@ -18,11 +18,11 @@ export default function LoginPage() {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (session?.user) {
-                // Get user profile to check role
+                // Get user profile to check role - use ID for faster query
                 const { data: profile } = await supabase
                     .from('users')
                     .select('user_type')
-                    .eq('email', session.user.email)
+                    .eq('id', session.user.id)
                     .single()
 
                 if (profile?.user_type === 'worker') {
@@ -62,11 +62,11 @@ export default function LoginPage() {
             }
 
             if (data.user) {
-                // Get user profile to check role
+                // Get user profile to check role - use ID for faster query
                 const { data: profile } = await supabase
                     .from('users')
                     .select('user_type')
-                    .eq('email', data.user.email)
+                    .eq('id', data.user.id)
                     .single()
 
                 // Redirect based on user role

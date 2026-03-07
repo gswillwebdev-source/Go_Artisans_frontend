@@ -10,28 +10,28 @@ export default function WorkerCard({ worker }) {
         <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
             {/* Profile Picture */}
             <div className="mb-4 flex justify-center">
-                {worker.profilePicture ? (
+                {worker.profile_picture ? (
                     <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200">
                         <img
-                            src={worker.profilePicture}
-                            alt={`${worker.firstName} ${worker.lastName}`}
+                            src={worker.profile_picture}
+                            alt={`${worker.first_name} ${worker.last_name}`}
                             className="w-full h-full object-cover"
                         />
                     </div>
                 ) : (
                     <div className="w-32 h-32 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-4xl">
-                        {worker.firstName?.charAt(0)}{worker.lastName?.charAt(0)}
+                        {worker.first_name?.charAt(0)}{worker.last_name?.charAt(0)}
                     </div>
                 )}
             </div>
 
             {/* Worker Info */}
             <h3 className="text-xl font-bold text-gray-900 mb-1 text-center">
-                {worker.firstName} {worker.lastName}
+                {worker.first_name} {worker.last_name}
             </h3>
 
             <p className="text-indigo-600 font-semibold text-center mb-3">
-                {worker.jobTitle || 'No title specified'}
+                {worker.job_title || 'No title specified'}
             </p>
 
             <div className="space-y-2 mb-4 text-center">
@@ -39,10 +39,10 @@ export default function WorkerCard({ worker }) {
                     <span className="font-medium">📍</span>
                     <span className="ml-2">{worker.location || 'Location not specified'}</span>
                 </div>
-                {worker.yearsExperience > 0 && (
+                {worker.years_experience > 0 && (
                     <div className="flex items-center justify-center text-gray-600 text-sm">
                         <span className="font-medium">⏱️</span>
-                        <span className="ml-2">{worker.yearsExperience} years experience</span>
+                        <span className="ml-2">{worker.years_experience} years experience</span>
                     </div>
                 )}
                 {worker.rating > 0 && (

@@ -35,7 +35,7 @@ const completionClient = {
     async getCompletionStatus(jobId) {
         const { data, error } = await supabase
             .from('completions')
-            .select('*')
+            .select('id,job_id,worker_id,status,confirmed_at,declined_at,decline_reason')
             .eq('job_id', jobId)
             .single();
 
@@ -84,30 +84,46 @@ const completionClient = {
         // Get completion details to know who to rate
         const { data: completion, error: completionError } = await supabase
             .from('completions')
-            .select('*, jobs(*)')
+            .select('*, jobs!completions_job_id_fkey(posted_by)')
             .eq('id', completionId)
             .single();
 
         if (completionError) throw completionError;
 
-        // Determine who is rating whom
-        const reviewerId = user.id;
-        const revieweeId = completion.jobs.posted_by === user.id ? completion.worker_id : completion.jobs.posted_by;
+        // Determine who is rating whom and their role
+        const isClient = completion.jobs.posted_by === user.id;
+        const isWorker = completion.worker_id === user.id;
 
-        const { data, error } = await supabase
+        let data, error;
+
+        if (isClient) {
+            // Client is rating worker
+            data = { client_id: user.id, worker_id: completion.worker_id };
+            error = null;
+        } else if (isWorker) {
+            // Worker is rating client
+            data = { worker_id: user.id, client_id: completion.jobs.posted_by };
+            error = null;
+        } else {
+            throw new Error('Not authorized to rate this completion');
+        }
+
+        const raterType = isClient ? 'client' : 'worker';
+
+        const { data: insertedData, error: insertError } = await supabase
             .from('reviews')
             .insert([{
-                reviewer_id: reviewerId,
-                reviewee_id: revieweeId,
-                completion_id: completionId,
+                ...data,
+                job_id: completion.job_id,
                 rating,
-                review
+                comment: review,
+                rater_type: raterType
             }])
             .select()
             .single();
 
-        if (error) throw error;
-        return data;
+        if (insertError) throw insertError;
+        return insertedData;
     },
 
     // Check if current user has already rated
@@ -115,11 +131,20 @@ const completionClient = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return false;
 
+        // Get completion to know which job
+        const { data: completion, error: compError } = await supabase
+            .from('completions')
+            .select('job_id')
+            .eq('id', completionId)
+            .single();
+
+        if (compError) return false;
+
         const { data, error } = await supabase
             .from('reviews')
             .select('id')
-            .eq('completion_id', completionId)
-            .eq('reviewer_id', user.id)
+            .eq('job_id', completion.job_id)
+            .or(`worker_id.eq.${user.id},client_id.eq.${user.id}`)
             .single();
 
         if (error && error.code !== 'PGRST116') throw error; // PGRST116 is "not found"
@@ -132,12 +157,16 @@ const completionClient = {
             .from('reviews')
             .select(`
                 *,
-                reviewer:users!reviews_reviewer_id_fkey (
+                client:client_id (
+                    first_name,
+                    last_name
+                ),
+                worker:worker_id (
                     first_name,
                     last_name
                 )
             `)
-            .eq('reviewee_id', userId)
+            .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -150,17 +179,14 @@ const completionClient = {
             .from('reviews')
             .select(`
                 *,
-                reviewer:users!reviews_reviewer_id_fkey (
+                client:client_id (
                     first_name,
                     last_name
                 ),
-                completions (
-                    jobs (
-                        title
-                    )
-                )
+                jobs!reviews_job_id_fkey(title)
             `)
-            .eq('reviewee_id', userId)
+            .eq('worker_id', userId)
+            .eq('rater_type', 'client')
             .order('created_at', { ascending: false });
 
         if (error) throw error;

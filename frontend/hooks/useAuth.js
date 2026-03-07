@@ -31,23 +31,68 @@ export function useAuth(options = {}) {
             }
 
             if (session?.user) {
-                // Get user profile from database
-                const { data: profile, error: profileError } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('email', session.user.email)
-                    .single()
+                // Get user profile from database (only essential fields, use indexed id lookup)
+                const profilePromise = Promise.race([
+                    supabase
+                        .from('users')
+                        .select('id,email,first_name,last_name,phone_number,user_type')
+                        .eq('id', session.user.id)
+                        .single(),
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+                    )
+                ])
 
-                if (profileError && profileError.code !== 'PGRST116') { // PGRST116 is "not found"
-                    console.error('Error fetching user profile:', profileError)
+                let profileResult
+                try {
+                    profileResult = await profilePromise
+                } catch (err) {
+                    if (err.message === 'Profile fetch timeout') {
+                        console.warn('Profile fetch timed out, using metadata')
+                    } else {
+                        console.error('Error fetching user profile:', err)
+                    }
+                    profileResult = { data: null, error: err }
                 }
 
-                const user = profile || {
-                    id: session.user.id,
-                    email: session.user.email,
-                    first_name: session.user.user_metadata?.first_name || '',
-                    last_name: session.user.user_metadata?.last_name || '',
-                    user_type: session.user.user_metadata?.user_type || null
+                const { data: profile, error: profileError } = profileResult
+
+                if (profileError && profileError.code !== 'PGRST116') {
+                    console.warn('Profile fetch error (non-fatal):', profileError.message)
+                }
+
+                let user = profile
+
+                // if profile doesn't exist (new signup) create it in background after page renders
+                if (!user) {
+                    user = {
+                        id: session.user.id,
+                        email: session.user.email,
+                        first_name: session.user.user_metadata?.first_name || session.user.user_metadata?.name?.split(' ')[0] || '',
+                        last_name: session.user.user_metadata?.last_name || session.user.user_metadata?.name?.split(' ').slice(1).join(' ') || '',
+                        phone_number: session.user.user_metadata?.phone_number || null,
+                        user_type: session.user.user_metadata?.user_type || null
+                    }
+
+                    // Create profile in background, completely non-blocking
+                    setTimeout(() => {
+                        supabase
+                            .from('users')
+                            .insert({
+                                id: session.user.id,
+                                email: session.user.email,
+                                first_name: user.first_name,
+                                last_name: user.last_name,
+                                phone_number: user.phone_number,
+                                user_type: user.user_type
+                            })
+                            .then(() => {
+                                // Profile created successfully (silently)
+                            })
+                            .catch(() => {
+                                // Silently fail - profile might already exist
+                            })
+                    }, 5000)
                 }
 
                 setAuthState({
@@ -100,11 +145,11 @@ export function useAuth(options = {}) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 if (event === 'SIGNED_IN' && session?.user) {
-                    // Get user profile from database
+                    // Get user profile from database using user ID for faster query
                     const { data: profile, error: profileError } = await supabase
                         .from('users')
                         .select('*')
-                        .eq('email', session.user.email)
+                        .eq('id', session.user.id)
                         .single()
 
                     if (profileError && profileError.code !== 'PGRST116') {

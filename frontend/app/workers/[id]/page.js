@@ -33,6 +33,7 @@ export default function WorkerProfilePage() {
                         years_experience,
                         services,
                         portfolio,
+                        profile_picture,
                         completed_jobs,
                         rating,
                         created_at
@@ -94,17 +95,17 @@ export default function WorkerProfilePage() {
                     <div className="flex flex-col md:flex-row gap-8 mb-8">
                         {/* Profile Picture */}
                         <div>
-                            {worker.profilePicture ? (
+                            {worker.profile_picture ? (
                                 <div className="w-48 h-48 rounded-lg overflow-hidden bg-gray-200">
                                     <img
-                                        src={worker.profilePicture}
-                                        alt={`${worker.firstName} ${worker.lastName}`}
+                                        src={worker.profile_picture}
+                                        alt={`${worker.first_name} ${worker.last_name}`}
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
                             ) : (
                                 <div className="w-48 h-48 rounded-lg bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-6xl">
-                                    {worker.firstName?.charAt(0)}{worker.lastName?.charAt(0)}
+                                    {worker.first_name?.charAt(0)}{worker.last_name?.charAt(0)}
                                 </div>
                             )}
                         </div>
@@ -112,10 +113,10 @@ export default function WorkerProfilePage() {
                         {/* Worker Info */}
                         <div className="flex-1">
                             <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                                {worker.firstName} {worker.lastName}
+                                {worker.first_name} {worker.last_name}
                             </h1>
                             <p className="text-2xl text-indigo-600 font-semibold mb-4">
-                                {worker.jobTitle || 'No title specified'}
+                                {worker.job_title || 'No title specified'}
                             </p>
 
                             <div className="space-y-3 text-gray-600">
@@ -125,16 +126,16 @@ export default function WorkerProfilePage() {
                                         <span>{worker.location}</span>
                                     </div>
                                 )}
-                                {worker.yearsExperience > 0 && (
+                                {worker.years_experience > 0 && (
                                     <div className="flex items-center">
                                         <span className="text-xl mr-3">⏱️</span>
-                                        <span>{worker.yearsExperience} years of experience</span>
+                                        <span>{worker.years_experience} years of experience</span>
                                     </div>
                                 )}
-                                {worker.completedJobs > 0 && (
+                                {worker.completed_jobs > 0 && (
                                     <div className="flex items-center">
                                         <span className="text-xl mr-3">✅</span>
-                                        <span>{worker.completedJobs} jobs completed</span>
+                                        <span>{worker.completed_jobs} jobs completed</span>
                                     </div>
                                 )}
                                 {worker.rating > 0 && (
@@ -152,9 +153,9 @@ export default function WorkerProfilePage() {
                             </div>
 
                             {/* Contact Button */}
-                            {worker.phoneNumber ? (
+                            {worker.phone_number ? (
                                 <a
-                                    href={`https://wa.me/${worker.phoneNumber.replace(/\D/g, '')}?text=Hello%20${worker.firstName},%20I%20am%20interested%20in%20your%20services.`}
+                                    href={`https://wa.me/${worker.phone_number.replace(/\D/g, '')}?text=Hello%20${worker.first_name},%20I%20am%20interested%20in%20your%20services.`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="mt-6 bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 font-medium transition inline-flex items-center gap-2"

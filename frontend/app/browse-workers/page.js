@@ -1,13 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
 import WorkerSearchBar from '@/components/WorkerSearchBar'
 
 export default function BrowseWorkersPage() {
     const { t } = useLanguage()
+    const { user, isLoading: authLoading } = useAuth()
     const [workers, setWorkers] = useState([])
     const [loading, setLoading] = useState(true)
     const [filters, setFilters] = useState({
@@ -15,33 +17,24 @@ export default function BrowseWorkersPage() {
         location: '',
         jobType: '',
     })
-    const [isLoggedIn, setIsLoggedIn] = useState(false)
-    const [userType, setUserType] = useState(null)
 
     useEffect(() => {
-        // Check auth state
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
-
-        setIsLoggedIn(!!token)
-
-        if (userData) {
-            try {
-                const user = JSON.parse(userData)
-                setUserType(user.userType)
-            } catch (e) {
-                console.error('Failed to parse user data:', e)
-            }
+        if (!authLoading) {
+            fetchWorkers()
         }
-
-        fetchWorkers()
-    }, [])
+    }, [authLoading])
 
     const fetchWorkers = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/users/search/workers`)
-            setWorkers(response.data.workers)
+            const { data: workersData, error } = await supabase
+                .from('users')
+                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating')
+                .eq('user_type', 'worker')
+
+            if (error) throw error
+
+            setWorkers(workersData || [])
         } catch (err) {
             console.error('Failed to fetch workers:', err)
         } finally {
@@ -52,15 +45,22 @@ export default function BrowseWorkersPage() {
     const handleSearch = async (searchFilters) => {
         try {
             setLoading(true)
-            const params = new URLSearchParams()
-            if (searchFilters.keyword) params.append('keyword', searchFilters.keyword)
-            if (searchFilters.location) params.append('location', searchFilters.location)
-            if (searchFilters.jobType) params.append('jobType', searchFilters.jobType)
+            let query = supabase
+                .from('users')
+                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating')
+                .eq('user_type', 'worker')
 
-            const response = await axios.get(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/users/search/workers?${params.toString()}`
-            )
-            setWorkers(response.data.workers)
+            if (searchFilters.keyword) {
+                query = query.or(`job_title.ilike.%${searchFilters.keyword}%,bio.ilike.%${searchFilters.keyword}%`)
+            }
+            if (searchFilters.location) {
+                query = query.ilike('location', `%${searchFilters.location}%`)
+            }
+
+            const { data, error } = await query
+
+            if (error) throw error
+            setWorkers(data || [])
         } catch (err) {
             console.error('Search failed:', err)
         } finally {

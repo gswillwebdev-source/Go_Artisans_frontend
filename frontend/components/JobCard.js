@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import apiClient from '@/lib/apiClient'
+import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSaved: initialIsSaved = false }) {
@@ -21,28 +21,40 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
         try {
             setIsApplying(true)
             setError(null)
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
-            if (!token) {
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) {
                 router.push('/register?redirect=/jobs/' + job.id)
                 return
             }
 
-            apiClient.setToken(token)
-            const response = await apiClient.applyForJob(job.id, {})
+            // Insert application directly into Supabase
+            const { data, error: insertError } = await supabase
+                .from('applications')
+                .insert([{
+                    job_id: job.id,
+                    worker_id: user.id,
+                    status: 'pending'
+                }])
+                .select()
 
-            if (response.status === 201) {
+            if (insertError) {
+                if (insertError.message?.includes('duplicate') || insertError.message?.includes('UNIQUE')) {
+                    setHasApplied(true)
+                    setError(t('alreadyApplied'))
+                } else {
+                    throw insertError
+                }
+            } else {
                 setHasApplied(true)
                 if (onApplicationSuccess) {
                     onApplicationSuccess()
                 }
             }
         } catch (err) {
-            if (err.response?.status === 400 && err.response?.data?.error?.includes('already applied')) {
-                setHasApplied(true)
-            } else {
-                setError(err.response?.data?.error || t('applicationFailed'))
-            }
+            setError(err.message || t('applicationFailed'))
         } finally {
             setIsApplying(false)
         }
@@ -52,28 +64,20 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
         try {
             setIsSaving(true)
             setError(null)
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
 
-            if (!token) {
+            // Get current user
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) {
                 router.push('/register?redirect=/jobs/' + job.id)
                 return
             }
 
-            apiClient.setToken(token)
-
-            if (isSaved) {
-                await apiClient.unsaveJob(job.id)
-                setIsSaved(false)
-            } else {
-                await apiClient.saveJob(job.id)
-                setIsSaved(true)
-            }
-
-            if (onSaveToggle) {
-                onSaveToggle(job.id, !isSaved)
-            }
+            // Note: Save/unsave functionality requires a 'saved_jobs' table
+            // For now, we'll show a message that this feature needs implementation
+            setError('Save job feature coming soon!')
         } catch (err) {
-            setError(err.response?.data?.error || t('saveFailed'))
+            setError(err.message || t('saveFailed'))
         } finally {
             setIsSaving(false)
         }

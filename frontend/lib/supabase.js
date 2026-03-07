@@ -58,7 +58,7 @@ export const db = {
         getAll: async () => {
             const { data, error } = await supabase
                 .from('users')
-                .select('*')
+                .select('id,email,first_name,last_name,phone_number,user_type,is_worker,rating,completed_jobs,job_title,location,bio,created_at')
                 .order('created_at', { ascending: false })
             return { data, error }
         },
@@ -66,7 +66,7 @@ export const db = {
         getById: async (id) => {
             const { data, error } = await supabase
                 .from('users')
-                .select('*')
+                .select('id,email,first_name,last_name,phone_number,user_type,is_worker,rating,completed_jobs,job_title,location,bio,portfolio,profile_picture,services,years_experience,created_at')
                 .eq('id', id)
                 .single()
             return { data, error }
@@ -97,13 +97,13 @@ export const db = {
             let query = supabase
                 .from('jobs')
                 .select(`
-          *,
-          users!jobs_posted_by_fkey (
-            first_name,
-            last_name,
-            email
-          )
-        `)
+                    id,title,description,budget,location,job_type,salary,status,client_id,created_at,
+                    users!jobs_posted_by_fkey (
+                        first_name,
+                        last_name,
+                        email
+                    )
+                `)
                 .order('created_at', { ascending: false })
                 .range(offset, offset + limit - 1)
 
@@ -125,14 +125,16 @@ export const db = {
             const { data, error } = await supabase
                 .from('jobs')
                 .select(`
-          *,
-          users!jobs_posted_by_fkey (
-            first_name,
-            last_name,
-            email,
-            phone_number
-          )
-        `)
+                    id,title,description,budget,location,job_type,salary,status,client_id,created_at,updated_at,
+                    users!jobs_posted_by_fkey (
+                        id,
+                        first_name,
+                        last_name,
+                        email,
+                        phone_number,
+                        rating
+                    )
+                `)
                 .eq('id', id)
                 .single()
             return { data, error }

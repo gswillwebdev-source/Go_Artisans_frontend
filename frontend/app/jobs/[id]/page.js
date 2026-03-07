@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import axios from 'axios'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobDetailsPage() {
@@ -14,70 +14,133 @@ export default function JobDetailsPage() {
     const [client, setClient] = useState(null)
     const [loading, setLoading] = useState(true)
     const [applying, setApplying] = useState(false)
-    const [token, setToken] = useState(null)
+    const [user, setUser] = useState(null)
+    const [error, setError] = useState(null)
+    const [appliedAlready, setAppliedAlready] = useState(false)
 
     useEffect(() => {
-        const tkn = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-        setToken(tkn)
+        const checkAuth = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            setUser(session?.user || null)
+        }
+        checkAuth()
     }, [])
 
     useEffect(() => {
         if (params?.id) {
             fetchJob()
         }
-    }, [params?.id])
+    }, [params?.id, user])
 
     const fetchJob = async () => {
         try {
             setLoading(true)
-            const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/api/jobs/${params.id}`)
-            const jobData = response.data.job
-            setJob(jobData)
+            setError(null)
 
-            // Fetch client info if job has posted_by
-            if (jobData.posted_by) {
-                try {
-                    const clientResponse = await axios.get(
-                        `${process.env.NEXT_PUBLIC_API_URL}/api/users/worker/${jobData.posted_by}`
+            // Fetch job with client info
+            const { data: jobData, error: jobError } = await supabase
+                .from('jobs')
+                .select(`
+                    id,
+                    title,
+                    description,
+                    budget,
+                    salary,
+                    location,
+                    job_type,
+                    category,
+                    status,
+                    created_at,
+                    client:client_id (
+                        id,
+                        first_name,
+                        last_name,
+                        email,
+                        phone_number,
+                        location,
+                        rating,
+                        completed_jobs
                     )
-                    setClient(clientResponse.data.worker)
-                } catch (err) {
-                    console.error('Failed to fetch client info:', err)
-                }
+                `)
+                .eq('id', params.id)
+                .single()
+
+            if (jobError) throw jobError
+            if (!jobData) {
+                setError(`${t('jobNotFound')}`)
+                setJob(null)
+                setClient(null)
+                return
+            }
+
+            setJob(jobData)
+            setClient(jobData.client)
+
+            // Check if user has already applied
+            if (user) {
+                const { data: existingApplication } = await supabase
+                    .from('applications')
+                    .select('id')
+                    .eq('job_id', params.id)
+                    .eq('worker_id', user.id)
+                    .single()
+
+                setAppliedAlready(!!existingApplication)
             }
         } catch (err) {
             console.error('Failed to fetch job:', err)
+            setError(`${t('failedToFetchJobs')}`)
         } finally {
             setLoading(false)
         }
     }
 
     const handleApply = async () => {
-        if (!token) {
-            // Redirect to register page instead of login
-            router.push('/register?redirect=/jobs/' + params.id)
+        if (!user) {
+            router.push(`/login?redirect=/jobs/${params.id}`)
+            return
+        }
+
+        if (appliedAlready) {
+            setError('You have already applied for this job')
             return
         }
 
         try {
             setApplying(true)
-            await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/api/applications`,
-                { jobId: params.id },
-                { headers: { Authorization: `Bearer ${token}` } }
-            )
-            alert(t('applicationSubmitted'))
-            // Redirect to worker profile to see updated applied jobs count
+            setError(null)
+
+            const { error: applicationError } = await supabase
+                .from('applications')
+                .insert({
+                    job_id: params.id,
+                    worker_id: user.id,
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                })
+
+            if (applicationError) throw applicationError
+
+            setAppliedAlready(true)
+            alert(`${t('applicationSubmitted')}`)
             router.push('/worker-profile')
         } catch (err) {
-            alert(err.response?.data?.error || t('applicationFailed'))
+            console.error('Failed to apply:', err)
+            setError(err.message || `${t('applicationFailed')}`)
         } finally {
             setApplying(false)
         }
     }
 
     if (loading) return <div className="min-h-screen flex items-center justify-center">{t('loading')}</div>
-    if (!job) return <div className="min-h-screen flex items-center justify-center">{t('jobNotFound')}</div>
+    if (!job) return (
+        <div className="min-h-screen flex items-center justify-center">
+            <div className="text-center">
+                <p className="text-red-600 font-semibold mb-4">{error || t('jobNotFound')}</p>
+                <Link href="/jobs" className="text-indigo-600 hover:underline">{t('backToJobs')}</Link>
+            </div>
+        </div>
+    )
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -122,7 +185,7 @@ export default function JobDetailsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <p className="text-sm text-gray-600 mb-1">{t('clientName')}</p>
-                                    <p className="font-semibold text-lg">{client.firstName} {client.lastName}</p>
+                                    <p className="font-semibold text-lg">{client.first_name} {client.last_name}</p>
                                 </div>
                                 {client.email && (
                                     <div>
@@ -130,10 +193,10 @@ export default function JobDetailsPage() {
                                         <p className="font-medium text-indigo-600">{client.email}</p>
                                     </div>
                                 )}
-                                {client.phoneNumber && (
+                                {client.phone_number && (
                                     <div>
                                         <p className="text-sm text-gray-600 mb-1">Téléphone</p>
-                                        <p className="font-medium">{client.phoneNumber}</p>
+                                        <p className="font-medium">{client.phone_number}</p>
                                     </div>
                                 )}
                                 {client.location && (
@@ -148,17 +211,23 @@ export default function JobDetailsPage() {
                                         <p className="font-medium">⭐ {client.rating.toFixed(1)} / 5.0</p>
                                     </div>
                                 )}
-                                {client.completedJobs > 0 && (
+                                {client.completed_jobs > 0 && (
                                     <div>
                                         <p className="text-sm text-gray-600 mb-1">{t('jobsPosted')}</p>
-                                        <p className="font-medium">{client.completedJobs} jobs</p>
+                                        <p className="font-medium">{client.completed_jobs} jobs</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {!token && (
+                    {error && (
+                        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                            <p className="text-red-700">{error}</p>
+                        </div>
+                    )}
+
+                    {!user && (
                         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <p className="text-blue-700 font-medium mb-4">{t('loginToApply')}</p>
                             <div className="flex gap-3">
@@ -178,13 +247,19 @@ export default function JobDetailsPage() {
                         </div>
                     )}
 
-                    <button
-                        onClick={handleApply}
-                        disabled={applying || !token}
-                        className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-semibold text-lg transition"
-                    >
-                        {applying ? t('applying') : t('applyNow')}
-                    </button>
+                    {user && (
+                        <button
+                            onClick={handleApply}
+                            disabled={applying || appliedAlready}
+                            className={`w-full py-3 rounded-lg font-semibold text-lg transition ${
+                                appliedAlready
+                                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            } ${applying ? 'opacity-50' : ''}`}
+                        >
+                            {appliedAlready ? '✓ Already Applied' : (applying ? `${t('applying')}...` : `${t('applyNow')}`)}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -3,62 +3,44 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import apiClient from '@/lib/apiClient'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
 
 export default function ChooseRolePage() {
     const router = useRouter()
-    const [user, setUser] = useState(null)
+    const { user, isLoading: authLoading } = useAuth()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
-    const [isChecking, setIsChecking] = useState(true)
-    const [isRedirecting, setIsRedirecting] = useState(false)
 
     useEffect(() => {
-        const checkAndRedirect = async () => {
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-            const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+        if (authLoading) return
 
-            if (!token) {
-                router.push('/login')
-                return
-            }
-
-            if (userData) {
-                try {
-                    const parsedUser = JSON.parse(userData)
-                    setUser(parsedUser)
-                    apiClient.setToken(token)
-
-                    // If user already has a role, redirect immediately and don't render this page
-                    if (parsedUser.userType === 'worker') {
-                        setIsRedirecting(true)
-                        router.push('/worker-profile')
-                        return
-                    } else if (parsedUser.userType === 'client') {
-                        setIsRedirecting(true)
-                        router.push('/client-profile')
-                        return
-                    }
-                } catch (e) {
-                    console.error('Error parsing user data:', e)
-                }
-            }
-
-            setIsChecking(false)
+        if (!user) {
+            // useAuth will redirect to login
+            return
         }
 
-        checkAndRedirect()
-    }, [router])
+        // If user already has a role, redirect
+        if (user.user_type === 'worker') {
+            router.push('/worker-profile')
+            return
+        } else if (user.user_type === 'client') {
+            router.push('/client-profile')
+            return
+        }
+    }, [user, authLoading, router])
 
     const handleWorkerChoice = async () => {
         setLoading(true)
         setError(null)
         try {
-            const res = await apiClient.updateUserRole('worker')
-            let updatedUser = res.data.user || res.data
-            // backend now returns isWorker but fallback to userType check
-            updatedUser.isWorker = updatedUser.isWorker ?? (updatedUser.userType === 'worker')
-            localStorage.setItem('user', JSON.stringify(updatedUser))
+            const { error } = await supabase
+                .from('users')
+                .update({ user_type: 'worker' })
+                .eq('id', user.id)
+
+            if (error) throw error
+
             router.push('/worker-profile')
         } catch (err) {
             console.error('Failed to set role:', err)
@@ -71,10 +53,13 @@ export default function ChooseRolePage() {
         setLoading(true)
         setError(null)
         try {
-            const res = await apiClient.updateUserRole('client')
-            let updatedUser = res.data.user || res.data
-            updatedUser.isWorker = updatedUser.isWorker ?? false
-            localStorage.setItem('user', JSON.stringify(updatedUser))
+            const { error } = await supabase
+                .from('users')
+                .update({ user_type: 'client' })
+                .eq('id', user.id)
+
+            if (error) throw error
+
             router.push('/client-profile')
         } catch (err) {
             console.error('Failed to set role:', err)
@@ -83,13 +68,13 @@ export default function ChooseRolePage() {
         }
     }
 
-    if (isChecking || !user || isRedirecting) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    if (authLoading || !user) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
                 <h1 className="text-4xl font-bold text-gray-900 mb-2 text-center">Welcome to GoArtisans</h1>
-                <p className="text-gray-600 text-center mb-4">Hi {user.firstName}! 👋</p>
+                <p className="text-gray-600 text-center mb-4">Hi {user.first_name}! 👋</p>
                 <p className="text-gray-600 text-center mb-8">What are you looking to do?</p>
 
                 {error && (

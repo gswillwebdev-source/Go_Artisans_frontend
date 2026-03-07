@@ -26,11 +26,11 @@ export default function RegisterPage() {
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (session?.user) {
-                // Get user profile to check role
+                // Get user profile to check role - use ID for faster query
                 const { data: profile } = await supabase
                     .from('users')
                     .select('user_type')
-                    .eq('email', session.user.email)
+                    .eq('id', session.user.id)
                     .single()
 
                 if (profile?.user_type === 'worker') {
@@ -99,27 +99,12 @@ export default function RegisterPage() {
             }
 
             if (data.user) {
-                // Create user profile in database
-                const { error: profileError } = await supabase
-                    .from('users')
-                    .insert({
-                        id: data.user.id,
-                        email: formData.email,
-                        first_name: formData.firstName,
-                        last_name: formData.lastName,
-                        phone_number: formData.phoneNumber,
-                        user_type: null, // Will be set in choose-role page
-                        created_at: new Date().toISOString()
-                    })
+                // On signup we don't create the profile here because
+                // the user might not yet have an active session (email
+                // verification required). Instead the profile will be
+                // auto-created the next time the user logs in via useAuth.
 
-                if (profileError) {
-                    console.error('Error creating user profile:', profileError)
-                    setError('Account created but profile setup failed. Please contact support.')
-                    setLoading(false)
-                    return
-                }
-
-                // Success - redirect to email verification or choose role
+                // Redirect based on confirmation status
                 if (data.user.email_confirmed_at) {
                     router.push('/choose-role')
                 } else {
