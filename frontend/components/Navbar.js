@@ -1,69 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
-
-// Initialize auth state from localStorage
-const getInitialAuthState = () => {
-    if (typeof window === 'undefined') {
-        return { isLoggedIn: false, user: null }
-    }
-
-    const token = localStorage.getItem('token')
-    const userData = localStorage.getItem('user')
-
-    try {
-        return {
-            isLoggedIn: !!token,
-            user: userData ? JSON.parse(userData) : null
-        }
-    } catch (e) {
-        console.error('Failed to parse user data:', e)
-        return { isLoggedIn: false, user: null }
-    }
-}
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
 
 export default function Navbar() {
-    const [authState, setAuthState] = useState(getInitialAuthState())
-    const [isHydrated, setIsHydrated] = useState(false)
+    const { user, isLoading: authLoading } = useAuth({ redirectToLogin: false })
     const router = useRouter()
     const pathname = usePathname()
     const { language, changeLanguage, t } = useLanguage()
     const [languageDropdown, setLanguageDropdown] = useState(false)
 
-    // Ensure we're hydrated on client side
-    useEffect(() => {
-        setIsHydrated(true)
-    }, [])
-
-    useEffect(() => {
-        const checkAuth = () => {
-            const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-            const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null
-
-            try {
-                setAuthState({
-                    isLoggedIn: !!token,
-                    user: userData ? JSON.parse(userData) : null
-                })
-            } catch (e) {
-                console.error('Failed to parse user data:', e)
-                setAuthState({ isLoggedIn: false, user: null })
-            }
-        }
-
-        // Listen for storage changes (when user logs in from another tab/window)
-        window.addEventListener('storage', checkAuth)
-
-        return () => window.removeEventListener('storage', checkAuth)
-    }, [])
-
-    const handleLogout = () => {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        setAuthState({ isLoggedIn: false, user: null })
+    const handleLogout = async () => {
+        await supabase.auth.signOut()
         router.push('/login')
     }
 
@@ -92,16 +44,16 @@ export default function Navbar() {
 
                     {/* Navigation Links - Center */}
                     <div className="flex items-center space-x-2">
-                        {isHydrated && authState.isLoggedIn && (
+                        {!authLoading && user && (
                             <>
-                                {authState.user?.user_type === 'client' ? (
+                                {user.user_type === 'client' ? (
                                     <Link
                                         href="/browse-workers"
                                         className={getLinkClasses('/browse-workers')}
                                     >
                                         {t('browseWorkers')}
                                     </Link>
-                                ) : authState.user?.user_type === 'worker' ? (
+                                ) : user.user_type === 'worker' ? (
                                     <Link
                                         href="/jobs"
                                         className={getLinkClasses('/jobs')}
@@ -111,8 +63,8 @@ export default function Navbar() {
                                 ) : null}
 
                                 <Link
-                                    href={authState.user?.user_type === 'worker' ? '/worker-profile' : '/client-profile'}
-                                    className={getLinkClasses(authState.user?.user_type === 'worker' ? '/worker-profile' : '/client-profile')}
+                                    href={user.user_type === 'worker' ? '/worker-profile' : '/client-profile'}
+                                    className={getLinkClasses(user.user_type === 'worker' ? '/worker-profile' : '/client-profile')}
                                 >
                                     👤 {t('profile')}
                                 </Link>
@@ -155,8 +107,8 @@ export default function Navbar() {
                         </div>
 
                         {/* Auth Buttons */}
-                        {isHydrated ? (
-                            authState.isLoggedIn ? (
+                        {!authLoading ? (
+                            user ? (
                                 <div className="flex items-center space-x-2 pl-3 border-l border-gray-300">
                                     {/* Logout Button */}
                                     <button
