@@ -53,6 +53,8 @@ export default function WorkerProfilePage() {
     const [showRatingModal, setShowRatingModal] = useState(false)
     const [ratingCompletionId, setRatingCompletionId] = useState(null)
     const [completionSuccess, setCompletionSuccess] = useState('')
+    const [isAvailabilityToggling, setIsAvailabilityToggling] = useState(false)
+    const [availabilityError, setAvailabilityError] = useState('')
     const timeoutsRef = useRef([])
 
     // Cleanup all timeouts on unmount
@@ -98,7 +100,7 @@ export default function WorkerProfilePage() {
                     // Profile information with gallery/portfolio
                     supabase
                         .from('users')
-                        .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs')
+                        .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active')
                         .eq('id', user.id)
                         .single(),
 
@@ -405,6 +407,31 @@ export default function WorkerProfilePage() {
         }
     }
 
+    const handleToggleAvailability = async () => {
+        setIsAvailabilityToggling(true)
+        setAvailabilityError('')
+
+        try {
+            const newAvailabilityStatus = !profile.is_active
+
+            const { data, error } = await supabase
+                .from('users')
+                .update({ is_active: newAvailabilityStatus })
+                .eq('id', user.id)
+                .select()
+                .single()
+
+            if (error) throw error
+
+            setProfile(data)
+        } catch (err) {
+            console.error('Failed to update availability status', err)
+            setAvailabilityError(err.message || 'Failed to update availability status')
+        } finally {
+            setIsAvailabilityToggling(false)
+        }
+    }
+
     const handleVerifyEmail = async (e) => {
         e.preventDefault()
         setVerifyingEmail(true)
@@ -540,12 +567,25 @@ export default function WorkerProfilePage() {
                             <p className="text-gray-600 mt-1">{t('buildProfessional')}</p>
                         </div>
                         {!isEditing && (
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-                            >
-                                {t('editProfile')}
-                            </button>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                >
+                                    {t('editProfile')}
+                                </button>
+                                <button
+                                    onClick={handleToggleAvailability}
+                                    disabled={isAvailabilityToggling}
+                                    className={`px-4 py-2 rounded-lg font-semibold transition ${
+                                        profile?.is_active
+                                            ? 'bg-green-600 text-white hover:bg-green-700'
+                                            : 'bg-red-600 text-white hover:bg-red-700'
+                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                >
+                                    {isAvailabilityToggling ? `${t('loading')}...` : (profile?.is_active ? '✓ Active' : '✗ Inactive')}
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -564,6 +604,12 @@ export default function WorkerProfilePage() {
                     {updateError && (
                         <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
                             {updateError}
+                        </div>
+                    )}
+
+                    {availabilityError && (
+                        <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
+                            {availabilityError}
                         </div>
                     )}
 

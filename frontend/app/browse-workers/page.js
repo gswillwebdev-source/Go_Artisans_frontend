@@ -29,8 +29,9 @@ export default function BrowseWorkersPage() {
             setLoading(true)
             const { data: workersData, error } = await supabase
                 .from('users')
-                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating')
+                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating,is_active')
                 .eq('user_type', 'worker')
+                .eq('is_active', true)
 
             if (error) throw error
 
@@ -47,8 +48,9 @@ export default function BrowseWorkersPage() {
             setLoading(true)
             let query = supabase
                 .from('users')
-                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating')
+                .select('id,first_name,last_name,email,phone_number,job_title,location,bio,years_experience,profile_picture,rating,is_active')
                 .eq('user_type', 'worker')
+                .eq('is_active', true)
 
             if (searchFilters.keyword) {
                 query = query.or(`job_title.ilike.%${searchFilters.keyword}%,bio.ilike.%${searchFilters.keyword}%`)

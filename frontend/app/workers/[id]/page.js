@@ -36,6 +36,7 @@ export default function WorkerProfilePage() {
                         profile_picture,
                         completed_jobs,
                         rating,
+                        is_active,
                         created_at
                     `)
                     .eq('id', workerId)
@@ -118,6 +119,17 @@ export default function WorkerProfilePage() {
                             <p className="text-2xl text-indigo-600 font-semibold mb-4">
                                 {worker.job_title || 'No title specified'}
                             </p>
+
+                            {/* Availability Status */}
+                            <div className="mb-4">
+                                <span className={`inline-block px-4 py-2 rounded-full font-semibold text-sm ${
+                                    worker.is_active
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                    {worker.is_active ? '✓ Available for work' : '✗ Currently busy'}
+                                </span>
+                            </div>
 
                             <div className="space-y-3 text-gray-600">
                                 {worker.location && (

@@ -8,6 +8,17 @@ export default function WorkerCard({ worker }) {
 
     return (
         <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
+            {/* Active Status Badge */}
+            <div className="flex justify-end mb-2">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                    worker.is_active
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-800'
+                }`}>
+                    {worker.is_active ? '✓ Available' : '✗ Busy'}
+                </span>
+            </div>
+
             {/* Profile Picture */}
             <div className="mb-4 flex justify-center">
                 {worker.profile_picture ? (
