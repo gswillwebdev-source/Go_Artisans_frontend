@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS public.completions (
     completion_date TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()),
     notes TEXT,
     status VARCHAR(50) DEFAULT 'completed',
+    confirmed_at TIMESTAMP WITH TIME ZONE,
+    declined_at TIMESTAMP WITH TIME ZONE,
+    decline_reason TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 

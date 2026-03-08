@@ -6,6 +6,16 @@ const completionClient = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
+        // Get client_id from the job first
+        const { data: job, error: jobError } = await supabase
+            .from('jobs')
+            .select('client_id')
+            .eq('id', jobId)
+            .single();
+
+        if (jobError) throw jobError;
+        if (!job) throw new Error('Job not found');
+
         // Check if completion already exists
         const { data: existing } = await supabase
             .from('completions')
@@ -22,7 +32,8 @@ const completionClient = {
             .insert([{
                 job_id: jobId,
                 worker_id: user.id,
-                status: 'pending'
+                client_id: job.client_id,
+                status: 'completed'
             }])
             .select()
             .single();
@@ -81,44 +92,47 @@ const completionClient = {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
 
-        // Get completion details to know who to rate
+        // Get completion details including client_id
         const { data: completion, error: completionError } = await supabase
             .from('completions')
-            .select('*, jobs!completions_job_id_fkey(posted_by)')
+            .select('job_id,worker_id,client_id')
             .eq('id', completionId)
             .single();
 
         if (completionError) throw completionError;
+        if (!completion) throw new Error('Completion not found');
 
         // Determine who is rating whom and their role
-        const isClient = completion.jobs.posted_by === user.id;
+        const isClient = completion.client_id === user.id;
         const isWorker = completion.worker_id === user.id;
 
-        let data, error;
-
-        if (isClient) {
-            // Client is rating worker
-            data = { client_id: user.id, worker_id: completion.worker_id };
-            error = null;
-        } else if (isWorker) {
-            // Worker is rating client
-            data = { worker_id: user.id, client_id: completion.jobs.posted_by };
-            error = null;
-        } else {
+        if (!isClient && !isWorker) {
             throw new Error('Not authorized to rate this completion');
         }
 
         const raterType = isClient ? 'client' : 'worker';
 
+        // Prepare rating data
+        let ratingData = {
+            job_id: completion.job_id,
+            rating,
+            comment: review,
+            rater_type: raterType
+        };
+
+        if (isClient) {
+            // Client is rating worker
+            ratingData.client_id = user.id;
+            ratingData.worker_id = completion.worker_id;
+        } else {
+            // Worker is rating client
+            ratingData.worker_id = user.id;
+            ratingData.client_id = completion.client_id;
+        }
+
         const { data: insertedData, error: insertError } = await supabase
             .from('reviews')
-            .insert([{
-                ...data,
-                job_id: completion.job_id,
-                rating,
-                comment: review,
-                rater_type: raterType
-            }])
+            .insert([ratingData])
             .select()
             .single();
 

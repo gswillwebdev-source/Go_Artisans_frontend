@@ -130,10 +130,11 @@ export default function ClientProfilePage() {
                         .eq('rater_type', 'worker')
                         .order('created_at', { ascending: false }),
 
-                    // Applications for client's jobs
+                    // Applications for client's jobs (with worker details)
                     supabase
                         .from('applications')
-                        .select('id,job_id,worker_id,status,proposed_price,message,created_at')
+                        .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
+                            worker:worker_id(id,first_name,last_name,email,phone_number)`)
                         .order('created_at', { ascending: false })
                         .limit(100)
                 ])
@@ -220,11 +221,18 @@ export default function ClientProfilePage() {
                 // Handle applicants data (optional)
                 const applicantsMap = {}
                 if (applicantsRes.data && !applicantsRes.error) {
-                    applicantsRes.data.forEach(applicant => {
-                        if (!applicantsMap[applicant.job_id]) {
-                            applicantsMap[applicant.job_id] = []
+                    applicantsRes.data.forEach(application => {
+                        if (!applicantsMap[application.job_id]) {
+                            applicantsMap[application.job_id] = []
                         }
-                        applicantsMap[applicant.job_id].push(applicant)
+                        // Flatten worker details for easier access
+                        applicantsMap[application.job_id].push({
+                            ...application,
+                            first_name: application.worker?.first_name,
+                            last_name: application.worker?.last_name,
+                            email: application.worker?.email,
+                            phone_number: application.worker?.phone_number
+                        })
                     })
                 }
                 setJobApplicants(applicantsMap)
