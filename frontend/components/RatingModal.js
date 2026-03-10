@@ -52,31 +52,31 @@ export default function RatingModal({
     }
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl p-4 sm:p-8 max-w-2xl w-full my-8">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                     {t('rateWorker')}
                 </h2>
 
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-blue-900">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                    <p className="text-xs sm:text-sm text-blue-900">
                         <strong>{t('whyRate')}</strong> Your feedback helps workers improve and helps other clients make informed decisions. Please be honest and fair in your assessment.
                     </p>
                 </div>
 
                 {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded mb-4 text-xs sm:text-sm">
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                     {/* Rating Stars */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-4">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-3 sm:mb-4">
                             {t('rating')}
                         </label>
-                        <div className="flex gap-2 mb-4">
+                        <div className="flex gap-2 sm:gap-3 mb-3 sm:mb-4">
                             {[1, 2, 3, 4, 5].map((star) => (
                                 <button
                                     key={star}
@@ -84,10 +84,10 @@ export default function RatingModal({
                                     onClick={() => setRating(star)}
                                     onMouseEnter={() => setHoverRating(star)}
                                     onMouseLeave={() => setHoverRating(0)}
-                                    className="transition-transform hover:scale-110"
+                                    className="transition-transform hover:scale-110 p-1"
                                 >
                                     <svg
-                                        className={`w-10 h-10 cursor-pointer ${star <= (hoverRating || rating)
+                                        className={`w-8 h-8 sm:w-10 sm:h-10 cursor-pointer ${star <= (hoverRating || rating)
                                             ? 'text-yellow-400 fill-yellow-400'
                                             : 'text-gray-300'
                                             }`}
@@ -101,7 +101,7 @@ export default function RatingModal({
                         </div>
 
                         {(hoverRating || rating) > 0 && (
-                            <p className="text-sm text-gray-600 italic">
+                            <p className="text-xs sm:text-sm text-gray-600 italic">
                                 {ratingExplanations[hoverRating || rating]}
                             </p>
                         )}
@@ -109,7 +109,7 @@ export default function RatingModal({
 
                     {/* Review Text */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                             {t('review')} (Optional)
                         </label>
                         <textarea
@@ -117,29 +117,39 @@ export default function RatingModal({
                             onChange={(e) => setReview(e.target.value)}
                             placeholder="Share your experience working with this worker..."
                             maxLength={500}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent resize-none"
-                            rows={4}
+                            className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent resize-none text-xs sm:text-sm"
+                            rows={3}
                         />
-                        <p className="text-xs text-gray-500 mt-2">
+                        <p className="text-xs text-gray-500 mt-1 sm:mt-2">
                             {review.length}/500 characters
                         </p>
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex gap-4 justify-end">
+                    <div className="flex gap-2 sm:gap-4 justify-end pt-2 sm:pt-4">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition"
+                            disabled={loading}
+                            className="px-3 sm:px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition text-xs sm:text-sm font-medium"
                         >
                             Maybe Later
                         </button>
                         <button
                             type="submit"
                             disabled={loading || rating === 0}
-                            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+                            className="px-3 sm:px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition text-xs sm:text-sm font-medium flex items-center gap-2"
                         >
-                            {loading ? t('submitting') : t('submitRating')}
+                            {loading ? (
+                                <>
+                                    <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    <span className="hidden sm:inline">{t('submitting')}</span>
+                                </>
+                            ) : (
+                                <>
+                                    ✓ <span className="hidden sm:inline">{t('submitRating')}</span> <span className="sm:hidden">Submit</span>
+                                </>
+                            )}
                         </button>
                     </div>
                 </form>

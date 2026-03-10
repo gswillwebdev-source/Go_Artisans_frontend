@@ -313,6 +313,107 @@ export default function ClientProfilePage() {
         }
     }, [emailResendCooldown])
 
+    // Real-time subscription for completions
+    useEffect(() => {
+        if (!user?.id || !loading) return
+
+        // Subscribe to completions changes for this client
+        const completionsSubscription = supabase
+            .channel(`completions-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'completions',
+                    filter: `client_id=eq.${user.id}`
+                },
+                async (payload) => {
+                    // When a completion changes, refresh jobs with completions
+                    try {
+                        const { data: jobsData } = await supabase
+                            .from('jobs')
+                            .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
+                            .eq('client_id', user.id)
+                            .order('created_at', { ascending: false })
+
+                        const { data: completionsData } = await supabase
+                            .from('completions')
+                            .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
+                            .eq('client_id', user.id)
+                            .order('created_at', { ascending: false })
+
+                        if (jobsData && completionsData) {
+                            const jobsWithCompletions = jobsData.map(job => ({
+                                ...job,
+                                completions: completionsData.filter(c => c.job_id === job.id)
+                            }))
+                            setJobs(jobsWithCompletions)
+                        }
+                    } catch (err) {
+                        console.error('Error refreshing completions:', err)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            completionsSubscription?.unsubscribe()
+        }
+    }, [user?.id, loading])
+
+    // Real-time subscription for job applicants
+    useEffect(() => {
+        if (!user?.id || loading) return
+
+        // Subscribe to application changes
+        const applicationsSubscription = supabase
+            .channel(`applications-${user.id}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'applications'
+                },
+                async (payload) => {
+                    // When applications change, refresh applicants
+                    try {
+                        const { data: applicationsData } = await supabase
+                            .from('applications')
+                            .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
+                                worker:worker_id(id,first_name,last_name,email,phone_number)`)
+                            .order('created_at', { ascending: false })
+                            .limit(100)
+
+                        if (applicationsData) {
+                            const applicantsMap = {}
+                            applicationsData.forEach(application => {
+                                if (!applicantsMap[application.job_id]) {
+                                    applicantsMap[application.job_id] = []
+                                }
+                                applicantsMap[application.job_id].push({
+                                    ...application,
+                                    first_name: application.worker?.first_name,
+                                    last_name: application.worker?.last_name,
+                                    email: application.worker?.email,
+                                    phone_number: application.worker?.phone_number
+                                })
+                            })
+                            setJobApplicants(applicantsMap)
+                        }
+                    } catch (err) {
+                        console.error('Error refreshing applications:', err)
+                    }
+                }
+            )
+            .subscribe()
+
+        return () => {
+            applicationsSubscription?.unsubscribe()
+        }
+    }, [user?.id, loading])
+
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target
         setFormData({
