@@ -796,7 +796,10 @@ export default function ClientProfilePage() {
                                         {t('verifySixDigitCode').replace('{{email}}', profile.email)}
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
+                                        <label htmlFor="email-verification-code" className="sr-only">Verification Code</label>
                                         <input
+                                            id="email-verification-code"
+                                            name="verification-code"
                                             type="text"
                                             value={emailVerificationCode}
                                             onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -804,6 +807,7 @@ export default function ClientProfilePage() {
                                             maxLength="6"
                                             className="w-32 px-3 py-2 border border-yellow-300 rounded text-center text-lg tracking-widest font-mono"
                                             required
+                                            aria-label="Email verification code"
                                         />
                                         <button
                                             type="submit"

@@ -255,6 +255,10 @@ export const translations = {
         unauthorizedMsg: 'Unauthorized. Please login again.',
         serverErrorMsg: 'Server error. Please try again later.',
         completionSentSuccess: '✓ Completion request sent! A confirmation message has been sent to the client. They will review and confirm or request changes.',
+        confirming: 'Confirming...',
+        processing: 'Processing...',
+        jobCompletionConfirmed: 'Job completion has been confirmed. Thank you!',
+        jobCompletionDeclined: 'Job completion has been declined.',
         // Home page / footer
         homeHeadline: 'Find Your Next Opportunity',
         homeSubtext: 'Discover thousands of job listings and connect with top employers',
@@ -527,5 +531,9 @@ export const translations = {
         unauthorizedMsg: 'Non autorisé. Veuillez vous connecter à nouveau.',
         serverErrorMsg: 'Erreur serveur. Veuillez réessayer plus tard.',
         completionSentSuccess: '✓ Demande de réalisation envoyée! Un message de confirmation a été envoyé au client. Il examinera et confirmera ou demandera des modifications.',
+        confirming: 'Confirmation...',
+        processing: 'Traitement...',
+        jobCompletionConfirmed: 'L\'achèvement du travail a été confirmé. Merci!',
+        jobCompletionDeclined: 'L\'achèvement du travail a été rejeté.',
     }
 }

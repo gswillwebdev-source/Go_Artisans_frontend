@@ -37,7 +37,7 @@ export default function CompletionRequest({
 
     return (
         <>
-            <div className={`border-2 rounded-lg p-4 sm:p-6 transition-all ${
+            <div className={`border-2 rounded-lg p-3 sm:p-6 transition-all overflow-hidden ${
                 isPending
                     ? 'border-yellow-300 bg-yellow-50'
                     : isConfirmed
@@ -78,47 +78,59 @@ export default function CompletionRequest({
 
                 {/* Action Section - Only show for pending */}
                 {isPending && (
-                    <div className="bg-white p-3 sm:p-4 rounded border border-yellow-200">
-                        <p className="text-xs sm:text-sm text-gray-700 mb-3 sm:mb-4">
+                    <div className="bg-white p-3 sm:p-4 rounded border border-yellow-200 mt-4">
+                        <p className="text-xs sm:text-sm text-gray-700 mb-4">
                             <strong>{t('whyRateEachOther')}</strong> {t('ratingHelpWorkers')}
                         </p>
-                        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full">
                             <button
                                 onClick={handleConfirmClick}
                                 disabled={isProcessing}
-                                className={`py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+                                type="button"
+                                title="Confirm completion"
+                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                     isProcessing
-                                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                                        : 'bg-green-600 text-white hover:bg-green-700 active:scale-95'
+                                        ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
+                                        : 'bg-green-600 text-white hover:bg-green-700 active:scale-95 shadow hover:shadow-md'
                                 }`}
                                 aria-busy={isProcessing}
                             >
                                 {isProcessing ? (
-                                    <span className="flex items-center justify-center gap-1">
+                                    <>
                                         <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                         <span className="hidden sm:inline">{t('confirming')}</span>
-                                    </span>
+                                    </>
                                 ) : (
-                                    <span>✓ {t('confirmCompleted')}</span>
+                                    <>
+                                        <span>✓</span>
+                                        <span className="hidden xs:inline">{t('confirmCompleted')}</span>
+                                        <span className="xs:hidden">Confirm</span>
+                                    </>
                                 )}
                             </button>
                             <button
                                 onClick={handleDeclineClick}
                                 disabled={isProcessing}
-                                className={`py-2 sm:py-2.5 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all ${
+                                type="button"
+                                title="Decline completion"
+                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
                                     isProcessing
-                                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                                        : 'bg-red-600 text-white hover:bg-red-700 active:scale-95'
+                                        ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
+                                        : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow hover:shadow-md'
                                 }`}
                                 aria-busy={isProcessing}
                             >
                                 {isProcessing ? (
-                                    <span className="flex items-center justify-center gap-1">
+                                    <>
                                         <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                         <span className="hidden sm:inline">{t('processing')}</span>
-                                    </span>
+                                    </>
                                 ) : (
-                                    <span>✕ {t('decline')}</span>
+                                    <>
+                                        <span>✕</span>
+                                        <span className="hidden xs:inline">{t('decline')}</span>
+                                        <span className="xs:hidden">Decline</span>
+                                    </>
                                 )}
                             </button>
                         </div>
