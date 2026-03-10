@@ -315,7 +315,7 @@ export default function ClientProfilePage() {
 
     // Real-time subscription for completions
     useEffect(() => {
-        if (!user?.id || !loading) return
+        if (!user?.id || loading) return
 
         // Subscribe to completions changes for this client
         const completionsSubscription = supabase
@@ -695,11 +695,20 @@ export default function ClientProfilePage() {
     const handleDeclineSubmit = async () => {
         // Find the job by searching through jobs with this completion
         const job = jobs.find(j => j.completions && j.completions.some(c => c.id === declineCompletionId))
-        if (job) {
+        if (job && declineCompletionId) {
             try {
-                // Update the jobs state with the new completion status
+                // Fetch the updated completion data with decline reason from database
+                const { data: updatedCompletion, error } = await supabase
+                    .from('completions')
+                    .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
+                    .eq('id', declineCompletionId)
+                    .single()
+
+                if (error) throw error
+
+                // Update the jobs state with the updated completion data
                 const updatedCompletions = job.completions.map(c =>
-                    c.id === declineCompletionId ? { ...c, status: 'declined' } : c
+                    c.id === declineCompletionId ? updatedCompletion : c
                 )
                 setJobs(prev => prev.map(j => j.id === job.id ? { ...j, completions: updatedCompletions } : j))
             } catch (err) {
@@ -1476,19 +1485,33 @@ export default function ClientProfilePage() {
             <RatingModal
                 completionId={ratingCompletionId}
                 isOpen={showRatingModal}
-                onClose={() => setShowRatingModal(false)}
+                onClose={() => {
+                    setShowRatingModal(false)
+                    setRatingCompletionId(null)
+                }}
                 onSuccess={() => {
-                    // Reload completion status
+                    // Refetch completion data with updated rating info
                     if (ratingCompletionId) {
                         const job = jobs.find(j => j.completions && j.completions.some(c => c.id === ratingCompletionId))
                         if (job) {
-                            // Completion status is already updated, just refresh the page data
-                            const updatedCompletion = job.completions.find(c => c.id === ratingCompletionId)
-                            if (updatedCompletion) {
-                                setJobs(prev => prev.map(j => j.id === job.id ? job : j))
-                            }
+                            supabase
+                                .from('completions')
+                                .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
+                                .eq('id', ratingCompletionId)
+                                .single()
+                                .then(({ data: updatedCompletion, error }) => {
+                                    if (!error && updatedCompletion) {
+                                        const updatedCompletions = job.completions.map(c =>
+                                            c.id === ratingCompletionId ? updatedCompletion : c
+                                        )
+                                        setJobs(prev => prev.map(j => j.id === job.id ? { ...j, completions: updatedCompletions } : j))
+                                    }
+                                })
+                                .catch(err => console.error('Error refreshing rating:', err))
                         }
                     }
+                    setShowRatingModal(false)
+                    setRatingCompletionId(null)
                 }}
                 isWorker={false}
             />
@@ -1497,7 +1520,10 @@ export default function ClientProfilePage() {
             <DeclineReasonModal
                 completionId={declineCompletionId}
                 isOpen={showDeclineModal}
-                onClose={() => setShowDeclineModal(false)}
+                onClose={() => {
+                    setShowDeclineModal(false)
+                    setDeclineCompletionId(null)
+                }}
                 onSuccess={handleDeclineSubmit}
             />
         </div>
