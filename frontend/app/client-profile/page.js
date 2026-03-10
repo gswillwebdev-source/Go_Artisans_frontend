@@ -8,6 +8,7 @@ import completionClient from '@/lib/completionClient'
 import RatingModal from '@/components/RatingModal'
 import DeclineReasonModal from '@/components/DeclineReasonModal'
 import RatingsDisplay from '@/components/RatingsDisplay'
+import CompletionRequest from '@/components/CompletionRequest'
 import { useLanguage } from '@/context/LanguageContext'
 import { togoLocations, handworks } from '@/lib/togoData'
 
@@ -59,12 +60,12 @@ export default function ClientProfilePage() {
     const [emailVerificationError, setEmailVerificationError] = useState('')
     const [emailResendLoading, setEmailResendLoading] = useState(false)
     const [emailResendCooldown, setEmailResendCooldown] = useState(0)
-    const [completionStatus, setCompletionStatus] = useState({})
     const [showRatingModal, setShowRatingModal] = useState(false)
     const [ratingCompletionId, setRatingCompletionId] = useState(null)
     const [showDeclineModal, setShowDeclineModal] = useState(false)
     const [declineCompletionId, setDeclineCompletionId] = useState(null)
     const [updatingAppId, setUpdatingAppId] = useState(null)
+    const [processingCompletionId, setProcessingCompletionId] = useState(null)
     const timeoutsRef = useRef([])
 
     // Cleanup all timeouts on unmount
@@ -565,6 +566,7 @@ export default function ClientProfilePage() {
 
     const handleConfirmCompletion = async (completionId) => {
         try {
+            setProcessingCompletionId(completionId)
             await completionClient.confirmCompletion(completionId)
             // Find the job by searching through jobs with this completion
             const job = jobs.find(j => j.completions && j.completions.some(c => c.id === completionId))
@@ -584,12 +586,9 @@ export default function ClientProfilePage() {
             setUpdateError(err.message || 'Failed to confirm completion')
             const id2 = setTimeout(() => setUpdateError(null), 3000)
             timeoutsRef.current.push(id2)
+        } finally {
+            setProcessingCompletionId(null)
         }
-    }
-
-    const handleDeclineCompletion = (completionId) => {
-        setDeclineCompletionId(completionId)
-        setShowDeclineModal(true)
     }
 
     const handleDeclineSubmit = async () => {
@@ -605,21 +604,6 @@ export default function ClientProfilePage() {
             } catch (err) {
                 console.error('Failed to refresh completion status:', err)
             }
-        }
-    }
-
-    const loadCompletionStatus = async (jobId) => {
-        try {
-            const response = await completionClient.getCompletionStatus(jobId)
-            const status = response.data || response
-            if (status && status.id) {
-                setCompletionStatus(prev => ({
-                    ...prev,
-                    [jobId]: status
-                }))
-            }
-        } catch (err) {
-            console.error('Failed to load completion status:', err)
         }
     }
 
@@ -922,61 +906,30 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Completion Requests Section */}
-                        <div className="bg-white shadow rounded-lg p-8 mb-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('activeProjectsCompletion')}</h2>
+                        <div className="bg-white shadow rounded-lg p-4 sm:p-8 mb-8">
+                            <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">{t('activeProjectsCompletion')}</h2>
 
                             {jobs.filter(job => job.completions && job.completions.length > 0).length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="text-4xl mb-4">🔄</div>
-                                    <p className="text-gray-600">{t('noActiveProjectsCompletion')}</p>
+                                <div className="text-center py-8 sm:py-12">
+                                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🔄</div>
+                                    <p className="text-gray-600 text-sm sm:text-base">{t('noActiveProjectsCompletion')}</p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="space-y-3 sm:space-y-4">
                                     {jobs.filter(job => job.completions && job.completions.length > 0).map(job => {
                                         const completion = job.completions[0]
-
                                         return (
-                                            <div key={job.id} className="border-2 border-yellow-300 rounded-lg p-4 bg-yellow-50">
-                                                <div className="flex justify-between items-start mb-4">
-                                                    <div>
-                                                        <h3 className="font-semibold text-gray-900">{job.title}</h3>
-                                                        <p className="text-sm text-gray-600 mt-1">
-                                                            {completion.status === 'pending' ? `⏳ ${t('workerCompletedAwaiting')}` : completion.status === 'confirmed' ? `✓ ${t('confirmed')}` : `✕ ${t('declined')}`}
-                                                        </p>
-                                                    </div>
-                                                    {completion.status === 'pending' && (
-                                                        <span className="px-3 py-1 bg-yellow-200 text-yellow-900 rounded-full text-xs font-medium animate-pulse">{t('needsReview')}</span>
-                                                    )}
-                                                    {completion.status === 'confirmed' && (
-                                                        <span className="px-3 py-1 bg-green-200 text-green-900 rounded-full text-xs font-medium">{t('confirmed')}</span>
-                                                    )}
-                                                    {completion.status === 'declined' && (
-                                                        <span className="px-3 py-1 bg-red-200 text-red-900 rounded-full text-xs font-medium">{t('declined')}</span>
-                                                    )}
-                                                </div>
-
-                                                {completion.status === 'pending' && (
-                                                    <div className="bg-white p-4 rounded mb-4 border border-yellow-200">
-                                                        <p className="text-sm text-gray-700 mb-4">
-                                                            <strong>{t('whyRateEachOther')}</strong> {t('ratingHelpWorkers')}
-                                                        </p>
-                                                        <div className="flex gap-3">
-                                                            <button
-                                                                onClick={() => handleConfirmCompletion(completion.id)}
-                                                                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition font-medium"
-                                                            >
-                                                                ✓ {t('confirmCompleted')}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleDeclineCompletion(completion.id)}
-                                                                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium"
-                                                            >
-                                                                ✕ {t('decline')}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <CompletionRequest
+                                                key={completion.id}
+                                                job={job}
+                                                completion={completion}
+                                                onConfirm={handleConfirmCompletion}
+                                                onDecline={() => {
+                                                    setDeclineCompletionId(completion.id)
+                                                    setShowDeclineModal(true)
+                                                }}
+                                                isProcessing={processingCompletionId === completion.id}
+                                            />
                                         )
                                     })}
                                 </div>
@@ -1426,9 +1379,13 @@ export default function ClientProfilePage() {
                 onSuccess={() => {
                     // Reload completion status
                     if (ratingCompletionId) {
-                        const jobId = Object.keys(completionStatus).find(key => completionStatus[key].id === ratingCompletionId)
-                        if (jobId) {
-                            loadCompletionStatus(jobId)
+                        const job = jobs.find(j => j.completions && j.completions.some(c => c.id === ratingCompletionId))
+                        if (job) {
+                            // Completion status is already updated, just refresh the page data
+                            const updatedCompletion = job.completions.find(c => c.id === ratingCompletionId)
+                            if (updatedCompletion) {
+                                setJobs(prev => prev.map(j => j.id === job.id ? job : j))
+                            }
                         }
                     }
                 }}
