@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
+import { supabase } from '@/lib/supabase'
 
 export default function Home() {
   const router = useRouter()
@@ -10,10 +11,33 @@ export default function Home() {
   const [isChecking, setIsChecking] = useState(true)
 
   useEffect(() => {
-    // Only show home page - no auto-login from localStorage
-    // Users must explicitly log in via the login page
-    setIsChecking(false)
-  }, [])
+    const handleOAuthCallbackFallback = async () => {
+      const hash = window.location.hash
+
+      if (hash && hash.length > 1) {
+        const params = new URLSearchParams(hash.substring(1))
+        const hasOAuthTokens = params.has('access_token') || params.has('refresh_token') || params.has('code')
+        const authError = params.get('error_description') || params.get('error')
+
+        if (authError) {
+          router.replace(`/login?error=${encodeURIComponent(authError)}`)
+          return
+        }
+
+        if (hasOAuthTokens) {
+          // Ensure Supabase processes hash tokens before role-based redirecting.
+          await supabase.auth.getSession()
+          router.replace('/auth-success')
+          return
+        }
+      }
+
+      // Only show home page when not in an auth callback flow.
+      setIsChecking(false)
+    }
+
+    handleOAuthCallbackFallback()
+  }, [router])
 
   if (isChecking) {
     return <div className="min-h-screen flex items-center justify-center">Loading...</div>
