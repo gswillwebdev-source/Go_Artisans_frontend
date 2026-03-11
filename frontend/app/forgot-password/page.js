@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
 import { useHydrated } from '@/hooks/useHydrated'
 import { supabase } from '@/lib/supabase'
+import { getResetPasswordRedirectUrl } from '@/lib/authRedirect'
 
 export default function ForgotPasswordPage() {
     const router = useRouter()
@@ -50,7 +51,7 @@ export default function ForgotPasswordPage() {
         setError('')
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`,
+                redirectTo: getResetPasswordRedirectUrl(),
             })
 
             if (error) {

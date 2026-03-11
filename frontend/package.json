@@ -3,9 +3,9 @@
     "version": "1.0.0",
     "description": "Job seeking platform - Next.js frontend",
     "scripts": {
-        "dev": "next dev",
-        "build": "next build",
-        "vercel-build": "next build",
+        "dev": "next dev --webpack",
+        "build": "next build --webpack",
+        "vercel-build": "next build --webpack",
         "start": "next start",
         "lint": "next lint"
     },
