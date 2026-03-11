@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getAuthSuccessRedirectUrl } from '@/lib/authRedirect'
 
 export default function RegisterPage() {
     const router = useRouter()
@@ -126,7 +127,7 @@ export default function RegisterPage() {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth-success`
+                    redirectTo: getAuthSuccessRedirectUrl()
                 }
             })
             if (error) {
