@@ -1,4 +1,11 @@
 {
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix frontend run start",
+    "vercel-build": "npm --prefix frontend run build",
+    "postinstall": "npm --prefix frontend install"
+  },
   "dependencies": {
     "next": "^16.2.0-canary.53",
     "nodemailer": "^8.0.1"
