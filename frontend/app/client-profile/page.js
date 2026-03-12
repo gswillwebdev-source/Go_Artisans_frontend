@@ -96,119 +96,38 @@ export default function ClientProfilePage() {
                 setError(null)
                 setTimeoutWarning(false)
 
-                // Show timeout warning after 20 seconds
+                // Show timeout warning if critical profile data is unusually slow.
                 warningTimeoutId = setTimeout(() => {
                     if (isMounted) setTimeoutWarning(true)
-                }, 20000)
+                }, 8000)
 
-                // Main timeout after 30 seconds
+                // Keep auth/profile bootstrap strict so user can retry quickly.
                 timeoutId = setTimeout(() => {
                     if (isMounted) {
                         setLoading(false)
                         setJobsLoading(false)
                         setError('Profile took too long to load. Please refresh the page.')
                     }
-                }, 30000)
+                }, 15000)
 
-                // Fetch all data in parallel for fast loading
-                const results = await Promise.allSettled([
-                    // Profile information
-                    supabase
-                        .from('users')
-                        .select('id,email,first_name,last_name,phone_number,location,bio,portfolio,rating,user_type,completed_jobs')
-                        .eq('id', user.id)
-                        .single(),
+                // 1) Load critical profile first so page can render quickly.
+                const { data: userData, error: profileError } = await supabase
+                    .from('users')
+                    .select('id,email,first_name,last_name,phone_number,location,bio,portfolio,rating,user_type,completed_jobs')
+                    .eq('id', user.id)
+                    .single()
 
-                    // Jobs posted by this client
-                    supabase
-                        .from('jobs')
-                        .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
-                        .eq('client_id', user.id)
-                        .order('created_at', { ascending: false }),
-
-                    // Completions for client's jobs
-                    supabase
-                        .from('completions')
-                        .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
-                        .eq('client_id', user.id)
-                        .order('created_at', { ascending: false }),
-
-                    // Ratings received from workers
-                    supabase
-                        .from('reviews')
-                        .select('id,rating,comment,created_at,rater_type,worker_id')
-                        .eq('client_id', user.id)
-                        .eq('rater_type', 'worker')
-                        .order('created_at', { ascending: false }),
-
-                    // Applications for client's jobs (with worker details)
-                    supabase
-                        .from('applications')
-                        .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
-                            worker:worker_id(id,first_name,last_name,email,phone_number)`)
-                        .order('created_at', { ascending: false })
-                        .limit(100)
-                ])
-
-                clearTimeout(timeoutId)
-                clearTimeout(warningTimeoutId)
+                if (profileError) {
+                    throw new Error(`Failed to fetch profile: ${profileError.message}`)
+                }
 
                 if (!isMounted) return
 
-                // Extract individual results from Promise.allSettled
-                let profileRes = { data: null, error: null }
-                let jobsRes = { data: null, error: null }
-                let completionsRes = { data: null, error: null }
-                let ratingsRes = { data: null, error: null }
-                let applicantsRes = { data: null, error: null }
-
-                if (results[0].status === 'fulfilled') {
-                    profileRes = results[0].value
-                } else {
-                    profileRes.error = results[0].reason
-                }
-
-                if (results[1].status === 'fulfilled') {
-                    jobsRes = results[1].value
-                } else {
-                    jobsRes.error = results[1].reason
-                }
-
-                if (results[2].status === 'fulfilled') {
-                    completionsRes = results[2].value
-                } else {
-                    completionsRes.error = results[2].reason
-                }
-
-                if (results[3].status === 'fulfilled') {
-                    ratingsRes = results[3].value
-                } else {
-                    ratingsRes.error = results[3].reason
-                }
-
-                if (results[4].status === 'fulfilled') {
-                    applicantsRes = results[4].value
-                } else {
-                    applicantsRes.error = results[4].reason
-                }
-
-                // Log any query errors for debugging
-                if (profileRes.error) console.error('Profile fetch error:', profileRes.error)
-                if (jobsRes.error) console.error('Jobs fetch error:', jobsRes.error)
-                if (completionsRes.error) console.error('Completions fetch error:', completionsRes.error)
-                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
-                if (applicantsRes.error) console.error('Applicants fetch error:', applicantsRes.error)
-
-                // Handle profile data (required)
-                if (profileRes.error) throw new Error(`Failed to fetch profile: ${profileRes.error.message}`)
-
-                const userData = profileRes.data
                 setProfile(userData)
                 if (userData.portfolio && userData.portfolio.length > 0) {
                     setProfilePicturePreview(userData.portfolio[0])
                 }
 
-                // Parse portfolio/gallery if it's a JSON string
                 let portfolioData = userData.portfolio || []
                 if (typeof portfolioData === 'string') {
                     try {
@@ -229,6 +148,57 @@ export default function ClientProfilePage() {
                     portfolio: portfolioData
                 })
 
+                clearTimeout(timeoutId)
+                clearTimeout(warningTimeoutId)
+                setLoading(false)
+                setTimeoutWarning(false)
+
+                // 2) Load secondary data in background.
+                const [jobsResult, completionsResult, ratingsResult] = await Promise.allSettled([
+                    supabase
+                        .from('jobs')
+                        .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
+                        .eq('client_id', user.id)
+                        .order('created_at', { ascending: false }),
+                    supabase
+                        .from('completions')
+                        .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
+                        .eq('client_id', user.id)
+                        .order('created_at', { ascending: false }),
+                    supabase
+                        .from('reviews')
+                        .select('id,rating,comment,created_at,rater_type,worker_id')
+                        .eq('client_id', user.id)
+                        .eq('rater_type', 'worker')
+                        .order('created_at', { ascending: false })
+                ])
+
+                let jobsRes = { data: null, error: null }
+                let completionsRes = { data: null, error: null }
+                let ratingsRes = { data: null, error: null }
+
+                if (jobsResult.status === 'fulfilled') {
+                    jobsRes = jobsResult.value
+                } else {
+                    jobsRes.error = jobsResult.reason
+                }
+
+                if (completionsResult.status === 'fulfilled') {
+                    completionsRes = completionsResult.value
+                } else {
+                    completionsRes.error = completionsResult.reason
+                }
+
+                if (ratingsResult.status === 'fulfilled') {
+                    ratingsRes = ratingsResult.value
+                } else {
+                    ratingsRes.error = ratingsResult.reason
+                }
+
+                if (jobsRes.error) console.error('Jobs fetch error:', jobsRes.error)
+                if (completionsRes.error) console.error('Completions fetch error:', completionsRes.error)
+                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
+
                 // Handle jobs data (optional) - match with completions
                 const jobsData = (jobsRes.data && !jobsRes.error) ? jobsRes.data : []
                 const completionsData = (completionsRes.data && !completionsRes.error) ? completionsRes.data : []
@@ -242,26 +212,40 @@ export default function ClientProfilePage() {
                 setJobs(jobsWithCompletions)
 
                 // Handle ratings data (optional)
-                const ratingsData = (ratingsRes.data && !ratingsRes.error) ? ratingsRes.data : []
                 // Ratings are handled by the RatingsDisplay component
 
-                // Handle applicants data (optional)
+                // Load applicants only for this client's jobs to avoid scanning the full table.
                 const applicantsMap = {}
-                if (applicantsRes.data && !applicantsRes.error) {
-                    applicantsRes.data.forEach(application => {
-                        if (!applicantsMap[application.job_id]) {
-                            applicantsMap[application.job_id] = []
-                        }
-                        // Flatten worker details for easier access
-                        applicantsMap[application.job_id].push({
-                            ...application,
-                            first_name: application.worker?.first_name,
-                            last_name: application.worker?.last_name,
-                            email: application.worker?.email,
-                            phone_number: application.worker?.phone_number
+                const jobIds = jobsData.map(job => job.id)
+                if (jobIds.length > 0) {
+                    const { data: applicationsData, error: applicantsError } = await supabase
+                        .from('applications')
+                        .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
+                            worker:worker_id(id,first_name,last_name,email,phone_number)`)
+                        .in('job_id', jobIds)
+                        .order('created_at', { ascending: false })
+                        .limit(200)
+
+                    if (applicantsError) {
+                        console.error('Applicants fetch error:', applicantsError)
+                    }
+
+                    if (applicationsData) {
+                        applicationsData.forEach(application => {
+                            if (!applicantsMap[application.job_id]) {
+                                applicantsMap[application.job_id] = []
+                            }
+                            applicantsMap[application.job_id].push({
+                                ...application,
+                                first_name: application.worker?.first_name,
+                                last_name: application.worker?.last_name,
+                                email: application.worker?.email,
+                                phone_number: application.worker?.phone_number
+                            })
                         })
-                    })
+                    }
                 }
+
                 setJobApplicants(applicantsMap)
             } catch (err) {
                 clearTimeout(timeoutId)
@@ -368,6 +352,8 @@ export default function ClientProfilePage() {
     useEffect(() => {
         if (!user?.id || loading) return
 
+        const jobIds = jobs.map(job => job.id)
+
         // Subscribe to application changes
         const applicationsSubscription = supabase
             .channel(`applications-${user.id}`)
@@ -381,12 +367,18 @@ export default function ClientProfilePage() {
                 async (payload) => {
                     // When applications change, refresh applicants
                     try {
+                        if (jobIds.length === 0) {
+                            setJobApplicants({})
+                            return
+                        }
+
                         const { data: applicationsData } = await supabase
                             .from('applications')
                             .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
                                 worker:worker_id(id,first_name,last_name,email,phone_number)`)
+                            .in('job_id', jobIds)
                             .order('created_at', { ascending: false })
-                            .limit(100)
+                            .limit(200)
 
                         if (applicationsData) {
                             const applicantsMap = {}
@@ -414,7 +406,7 @@ export default function ClientProfilePage() {
         return () => {
             applicationsSubscription?.unsubscribe()
         }
-    }, [user?.id, loading])
+    }, [user?.id, loading, jobs])
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target

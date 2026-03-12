@@ -79,112 +79,48 @@ export default function WorkerProfilePage() {
         async function fetchProfile() {
             try {
                 setLoading(true)
+                setJobsLoading(true)
                 setError(null)
                 setTimeoutWarning(false)
 
-                // Show timeout warning after 20 seconds
+                // Warn early if profile bootstrap is slow.
                 warningTimeoutId = setTimeout(() => {
                     if (isMounted) setTimeoutWarning(true)
-                }, 20000)
+                }, 8000)
 
-                // Main timeout after 30 seconds
+                // Keep initial profile fetch strict for better perceived performance.
                 timeoutId = setTimeout(() => {
                     if (isMounted) {
                         setLoading(false)
+                        setJobsLoading(false)
                         setError(t('profileTookTooLong'))
                     }
-                }, 30000)
+                }, 15000)
 
-                // Fetch all data in parallel for fast loading
-                const results = await Promise.allSettled([
-                    // Profile information with gallery/portfolio
-                    supabase
-                        .from('users')
-                        .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active')
-                        .eq('id', user.id)
-                        .single(),
+                // 1) Load only profile essentials first.
+                const { data: profileData, error: profileError } = await supabase
+                    .from('users')
+                    .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active')
+                    .eq('id', user.id)
+                    .single()
 
-                    // Applications (jobs worker has applied to)
-                    supabase
-                        .from('applications')
-                        .select('id,job_id,status,proposed_price,message,created_at')
-                        .eq('worker_id', user.id)
-                        .order('created_at', { ascending: false }),
+                if (profileError) {
+                    throw new Error(`Failed to fetch profile: ${profileError.message}`)
+                }
 
-                    // Ratings received from clients
-                    supabase
-                        .from('reviews')
-                        .select('id,rating,comment,created_at,rater_type,client_id')
-                        .eq('worker_id', user.id)
-                        .eq('rater_type', 'client')
-                        .order('created_at', { ascending: false }),
-
-                    // Active jobs available to apply to
-                    supabase
-                        .from('jobs')
-                        .select('id,title,description,budget,location,status,client_id,created_at')
-                        .eq('status', 'active')
-                        .limit(10)
-                ])
-
-                clearTimeout(timeoutId)
-                clearTimeout(warningTimeoutId)
-
-                // Check if still mounted before updating state
                 if (!isMounted) return
 
-                // Extract individual results from Promise.allSettled
-                let profileRes = { data: null, error: null }
-                let applicationsRes = { data: null, error: null }
-                let ratingsRes = { data: null, error: null }
-                let savedJobsRes = { data: null, error: null }
-
-                if (results[0].status === 'fulfilled') {
-                    profileRes = results[0].value
-                } else {
-                    profileRes.error = results[0].reason
-                }
-
-                if (results[1].status === 'fulfilled') {
-                    applicationsRes = results[1].value
-                } else {
-                    applicationsRes.error = results[1].reason
-                }
-
-                if (results[2].status === 'fulfilled') {
-                    ratingsRes = results[2].value
-                } else {
-                    ratingsRes.error = results[2].reason
-                }
-
-                if (results[3].status === 'fulfilled') {
-                    savedJobsRes = results[3].value
-                } else {
-                    savedJobsRes.error = results[3].reason
-                }
-
-                // Log any query errors for debugging
-                if (profileRes.error) console.error('Profile fetch error:', profileRes.error)
-                if (applicationsRes.error) console.error('Applications fetch error:', applicationsRes.error)
-                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
-                if (savedJobsRes.error) console.error('Saved jobs fetch error:', savedJobsRes.error)
-
-                // Handle profile data (required)
-                if (profileRes.error) throw new Error(`Failed to fetch profile: ${profileRes.error.message}`)
-                let userData = profileRes.data
-                // Ensure user_type is set
+                let userData = profileData
                 if (!userData.user_type) {
                     userData = { ...userData, user_type: 'worker' }
                 }
 
                 setProfile(userData)
 
-                // Set profile picture from gallery
                 if (userData.portfolio && userData.portfolio.length > 0) {
                     setProfilePicturePreview(userData.portfolio[0])
                 }
 
-                // Parse portfolio/gallery if it's a JSON string
                 let portfolioData = userData.portfolio || []
                 if (typeof portfolioData === 'string') {
                     try {
@@ -194,7 +130,6 @@ export default function WorkerProfilePage() {
                     }
                 }
 
-                // Parse services if it's a JSON string
                 let servicesData = userData.services || []
                 if (typeof servicesData === 'string') {
                     try {
@@ -218,6 +153,60 @@ export default function WorkerProfilePage() {
                     portfolio: portfolioData,
                     profilePicture: userData.portfolio && userData.portfolio.length > 0 ? userData.portfolio[0] : null
                 })
+
+                clearTimeout(timeoutId)
+                clearTimeout(warningTimeoutId)
+                setLoading(false)
+                setTimeoutWarning(false)
+
+                // 2) Defer secondary datasets to background fetch.
+                const [applicationsResult, ratingsResult, savedJobsResult] = await Promise.allSettled([
+                    supabase
+                        .from('applications')
+                        .select('id,job_id,status,proposed_price,message,created_at')
+                        .eq('worker_id', user.id)
+                        .order('created_at', { ascending: false }),
+                    supabase
+                        .from('reviews')
+                        .select('id,rating,comment,created_at,rater_type,client_id')
+                        .eq('worker_id', user.id)
+                        .eq('rater_type', 'client')
+                        .order('created_at', { ascending: false }),
+                    supabase
+                        .from('jobs')
+                        .select('id,title,description,budget,location,status,client_id,created_at')
+                        .eq('status', 'active')
+                        .limit(10)
+                ])
+
+                if (!isMounted) return
+
+                let applicationsRes = { data: null, error: null }
+                let ratingsRes = { data: null, error: null }
+                let savedJobsRes = { data: null, error: null }
+
+                if (applicationsResult.status === 'fulfilled') {
+                    applicationsRes = applicationsResult.value
+                } else {
+                    applicationsRes.error = applicationsResult.reason
+                }
+
+                if (ratingsResult.status === 'fulfilled') {
+                    ratingsRes = ratingsResult.value
+                } else {
+                    ratingsRes.error = ratingsResult.reason
+                }
+
+                if (savedJobsResult.status === 'fulfilled') {
+                    savedJobsRes = savedJobsResult.value
+                } else {
+                    savedJobsRes.error = savedJobsResult.reason
+                }
+
+                // Log any query errors for debugging
+                if (applicationsRes.error) console.error('Applications fetch error:', applicationsRes.error)
+                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
+                if (savedJobsRes.error) console.error('Saved jobs fetch error:', savedJobsRes.error)
 
                 // Handle applications/jobs data (optional)
                 let apps = (applicationsRes.data && !applicationsRes.error) ? applicationsRes.data : []
@@ -276,7 +265,10 @@ export default function WorkerProfilePage() {
                 setError(errorMessage)
                 setTimeoutWarning(false)
             } finally {
-                if (isMounted) setLoading(false)
+                if (isMounted) {
+                    setLoading(false)
+                    setJobsLoading(false)
+                }
             }
         }
 
