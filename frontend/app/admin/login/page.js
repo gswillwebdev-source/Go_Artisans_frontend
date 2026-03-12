@@ -21,8 +21,8 @@ export default function AdminLoginPage() {
                 // Check if user is admin
                 const { data: userProfile } = await supabase
                     .from('users')
-                    .select('user_type, email')
-                    .eq('email', session.user.email)
+                    .select('id, user_type, email, first_name, last_name')
+                    .eq('id', session.user.id)
                     .single()
 
                 // Allow access if user_type is 'admin'
@@ -45,20 +45,61 @@ export default function AdminLoginPage() {
         setFormData({ ...formData, [e.target.name]: e.target.value })
     }
 
+    const mapAuthError = (authError) => {
+        if (!authError) return 'Login failed. Please try again.'
+
+        const status = Number(authError.status || authError.code || 0)
+        const message = (authError.message || '').toLowerCase()
+
+        if (status >= 500) {
+            return 'Supabase auth is temporarily unavailable (server error). Please retry in a few seconds.'
+        }
+        if (message.includes('invalid login credentials')) {
+            return 'Invalid email or password.'
+        }
+        if (message.includes('email not confirmed')) {
+            return 'Please confirm your email before logging in.'
+        }
+
+        return authError.message || 'Login failed. Please try again.'
+    }
+
+    const signInWithRetry = async (email, password) => {
+        let lastError = null
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            const result = await supabase.auth.signInWithPassword({ email, password })
+            if (!result.error) return result
+
+            lastError = result.error
+            const status = Number(result.error.status || result.error.code || 0)
+
+            // Retry once for transient auth server failures.
+            if (status >= 500 && attempt < 2) {
+                await new Promise((resolve) => setTimeout(resolve, 700))
+                continue
+            }
+
+            return result
+        }
+
+        return { data: null, error: lastError }
+    }
+
     const handleSubmit = async (e) => {
         e.preventDefault()
         setLoading(true)
         setError('')
 
         try {
+            const email = formData.email.trim().toLowerCase()
+            const password = formData.password
+
             // First, sign in with email and password
-            const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-                email: formData.email,
-                password: formData.password
-            })
+            const { data: authData, error: authError } = await signInWithRetry(email, password)
 
             if (authError) {
-                setError(authError.message)
+                setError(mapAuthError(authError))
                 setLoading(false)
                 return
             }
@@ -68,11 +109,11 @@ export default function AdminLoginPage() {
                 const { data: userProfile, error: profileError } = await supabase
                     .from('users')
                     .select('id, user_type, email, first_name, last_name')
-                    .eq('email', authData.user.email)
+                    .eq('id', authData.user.id)
                     .single()
 
                 if (profileError) {
-                    setError('Failed to fetch user profile')
+                    setError('Login succeeded, but failed to load admin profile. Please try again.')
                     await supabase.auth.signOut()
                     setLoading(false)
                     return
