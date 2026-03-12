@@ -36,12 +36,18 @@ export default function ChooseRolePage() {
         try {
             const { error } = await supabase
                 .from('users')
-                .update({ user_type: 'worker' })
-                .eq('id', user.id)
+                .upsert({
+                    id: user.id,
+                    email: user.email,
+                    first_name: user.first_name || '',
+                    last_name: user.last_name || '',
+                    phone_number: user.phone_number || null,
+                    user_type: 'worker'
+                }, { onConflict: 'id' })
 
             if (error) throw error
 
-            router.push('/worker-profile')
+            router.replace('/worker-profile')
         } catch (err) {
             console.error('Failed to set role:', err)
             setError('Failed to set role. Please try again.')
@@ -55,12 +61,18 @@ export default function ChooseRolePage() {
         try {
             const { error } = await supabase
                 .from('users')
-                .update({ user_type: 'client' })
-                .eq('id', user.id)
+                .upsert({
+                    id: user.id,
+                    email: user.email,
+                    first_name: user.first_name || '',
+                    last_name: user.last_name || '',
+                    phone_number: user.phone_number || null,
+                    user_type: 'client'
+                }, { onConflict: 'id' })
 
             if (error) throw error
 
-            router.push('/client-profile')
+            router.replace('/client-profile')
         } catch (err) {
             console.error('Failed to set role:', err)
             setError('Failed to set role. Please try again.')

@@ -15,6 +15,61 @@ export function useAuth(options = {}) {
     })
 
     useEffect(() => {
+        const buildFallbackUser = (sessionUser) => ({
+            id: sessionUser.id,
+            email: sessionUser.email,
+            first_name: sessionUser.user_metadata?.first_name || sessionUser.user_metadata?.name?.split(' ')[0] || '',
+            last_name: sessionUser.user_metadata?.last_name || sessionUser.user_metadata?.name?.split(' ').slice(1).join(' ') || '',
+            phone_number: sessionUser.user_metadata?.phone_number || null,
+            user_type: sessionUser.user_metadata?.user_type || null
+        })
+
+        const ensureProfileExists = async (sessionUser, fallbackUser) => {
+            const { data, error } = await supabase
+                .from('users')
+                .upsert({
+                    id: sessionUser.id,
+                    email: sessionUser.email,
+                    first_name: fallbackUser.first_name,
+                    last_name: fallbackUser.last_name,
+                    phone_number: fallbackUser.phone_number,
+                    user_type: fallbackUser.user_type
+                }, { onConflict: 'id' })
+                .select('id,email,first_name,last_name,phone_number,user_type')
+                .single()
+
+            if (error) {
+                return fallbackUser
+            }
+
+            return data || fallbackUser
+        }
+
+        const routeForUser = (user) => {
+            if (!user?.user_type) {
+                router.replace('/choose-role')
+                return true
+            }
+
+            if (requiredRole && user.user_type !== requiredRole) {
+                if (user.user_type === 'worker') {
+                    router.replace('/worker-profile')
+                } else if (user.user_type === 'client') {
+                    router.replace('/client-profile')
+                } else {
+                    router.replace('/choose-role')
+                }
+                return true
+            }
+
+            if (redirectLoggedInTo) {
+                router.replace(redirectLoggedInTo)
+                return true
+            }
+
+            return false
+        }
+
         // Get initial session
         const getInitialSession = async () => {
             const { data: { session }, error } = await supabase.auth.getSession()
@@ -31,6 +86,8 @@ export function useAuth(options = {}) {
             }
 
             if (session?.user) {
+                const fallbackUser = buildFallbackUser(session.user)
+
                 // Get user profile from database (only essential fields, use indexed id lookup)
                 const profilePromise = Promise.race([
                     supabase
@@ -39,7 +96,7 @@ export function useAuth(options = {}) {
                         .eq('id', session.user.id)
                         .single(),
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+                        setTimeout(() => reject(new Error('Profile fetch timeout')), 2000)
                     )
                 ])
 
@@ -61,38 +118,11 @@ export function useAuth(options = {}) {
                     console.warn('Profile fetch error (non-fatal):', profileError.message)
                 }
 
-                let user = profile
+                let user = profile || fallbackUser
 
-                // if profile doesn't exist (new signup) create it in background after page renders
-                if (!user) {
-                    user = {
-                        id: session.user.id,
-                        email: session.user.email,
-                        first_name: session.user.user_metadata?.first_name || session.user.user_metadata?.name?.split(' ')[0] || '',
-                        last_name: session.user.user_metadata?.last_name || session.user.user_metadata?.name?.split(' ').slice(1).join(' ') || '',
-                        phone_number: session.user.user_metadata?.phone_number || null,
-                        user_type: session.user.user_metadata?.user_type || null
-                    }
-
-                    // Create profile in background, completely non-blocking
-                    setTimeout(() => {
-                        supabase
-                            .from('users')
-                            .insert({
-                                id: session.user.id,
-                                email: session.user.email,
-                                first_name: user.first_name,
-                                last_name: user.last_name,
-                                phone_number: user.phone_number,
-                                user_type: user.user_type
-                            })
-                            .then(() => {
-                                // Profile created successfully (silently)
-                            })
-                            .catch(() => {
-                                // Silently fail - profile might already exist
-                            })
-                    }, 5000)
+                // Ensure new users have a profile row immediately (no delayed insert).
+                if (!profile) {
+                    user = await ensureProfileExists(session.user, fallbackUser)
                 }
 
                 setAuthState({
@@ -102,32 +132,10 @@ export function useAuth(options = {}) {
                     isChecking: false
                 })
 
-                // Check if they need to choose a role
-                if (!user?.user_type) {
-                    router.push('/choose-role')
-                    return
-                }
-
-                // Check for role requirement
-                if (requiredRole && user.user_type !== requiredRole) {
-                    if (user.user_type === 'worker') {
-                        router.push('/worker-profile')
-                    } else if (user.user_type === 'client') {
-                        router.push('/client-profile')
-                    } else {
-                        router.push('/choose-role')
-                    }
-                    return
-                }
-
-                // Redirect logged in users if specified
-                if (redirectLoggedInTo) {
-                    router.push(redirectLoggedInTo)
-                    return
-                }
+                routeForUser(user)
             } else {
                 if (redirectToLogin) {
-                    router.push('/login')
+                    router.replace('/login')
                     return
                 }
                 setAuthState({
@@ -145,10 +153,12 @@ export function useAuth(options = {}) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 if (event === 'SIGNED_IN' && session?.user) {
+                    const fallbackUser = buildFallbackUser(session.user)
+
                     // Get user profile from database using user ID for faster query
                     const { data: profile, error: profileError } = await supabase
                         .from('users')
-                        .select('*')
+                        .select('id,email,first_name,last_name,phone_number,user_type')
                         .eq('id', session.user.id)
                         .single()
 
@@ -156,12 +166,10 @@ export function useAuth(options = {}) {
                         console.error('Error fetching user profile:', profileError)
                     }
 
-                    const user = profile || {
-                        id: session.user.id,
-                        email: session.user.email,
-                        first_name: session.user.user_metadata?.first_name || '',
-                        last_name: session.user.user_metadata?.last_name || '',
-                        user_type: session.user.user_metadata?.user_type || null
+                    let user = profile || fallbackUser
+
+                    if (!profile) {
+                        user = await ensureProfileExists(session.user, fallbackUser)
                     }
 
                     setAuthState({
@@ -171,29 +179,7 @@ export function useAuth(options = {}) {
                         isChecking: false
                     })
 
-                    // Check if they need to choose a role
-                    if (!user?.user_type) {
-                        router.push('/choose-role')
-                        return
-                    }
-
-                    // Check for role requirement
-                    if (requiredRole && user.user_type !== requiredRole) {
-                        if (user.user_type === 'worker') {
-                            router.push('/worker-profile')
-                        } else if (user.user_type === 'client') {
-                            router.push('/client-profile')
-                        } else {
-                            router.push('/choose-role')
-                        }
-                        return
-                    }
-
-                    // Redirect logged in users if specified
-                    if (redirectLoggedInTo) {
-                        router.push(redirectLoggedInTo)
-                        return
-                    }
+                    routeForUser(user)
                 } else if (event === 'SIGNED_OUT') {
                     setAuthState({
                         isLoggedIn: false,
@@ -203,7 +189,7 @@ export function useAuth(options = {}) {
                     })
 
                     if (redirectToLogin) {
-                        router.push('/login')
+                        router.replace('/login')
                     }
                 }
             }
