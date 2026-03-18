@@ -30,24 +30,86 @@ export default function ChooseRolePage() {
         }
     }, [user, authLoading, router])
 
-    const handleWorkerChoice = async () => {
+    const routeToRoleHome = (role) => {
+        if (role === 'worker') {
+            router.replace('/worker-profile')
+            return
+        }
+
+        if (role === 'client') {
+            router.replace('/client-profile')
+            return
+        }
+    }
+
+    const chooseRole = async (selectedRole) => {
         setLoading(true)
         setError(null)
+
         try {
-            const { error } = await supabase
+            const { data: currentProfile, error: currentProfileError } = await supabase
                 .from('users')
-                .upsert({
-                    id: user.id,
-                    email: user.email,
-                    first_name: user.first_name || '',
-                    last_name: user.last_name || '',
-                    phone_number: user.phone_number || null,
-                    user_type: 'worker'
-                }, { onConflict: 'id' })
+                .select('id,user_type')
+                .eq('id', user.id)
+                .single()
 
-            if (error) throw error
+            if (currentProfile?.user_type) {
+                routeToRoleHome(currentProfile.user_type)
+                return
+            }
 
-            router.replace('/worker-profile')
+            if (currentProfileError && currentProfileError.code !== 'PGRST116') {
+                throw currentProfileError
+            }
+
+            if (currentProfileError?.code === 'PGRST116') {
+                const { error: insertError } = await supabase
+                    .from('users')
+                    .insert({
+                        id: user.id,
+                        email: user.email,
+                        first_name: user.first_name || '',
+                        last_name: user.last_name || '',
+                        phone_number: user.phone_number || null,
+                        user_type: selectedRole
+                    })
+
+                if (insertError) throw insertError
+            } else {
+                const { data: updatedRole, error: updateError } = await supabase
+                    .from('users')
+                    .update({ user_type: selectedRole })
+                    .eq('id', user.id)
+                    .is('user_type', null)
+                    .select('user_type')
+                    .single()
+
+                if (updateError) {
+                    throw updateError
+                }
+
+                if (!updatedRole?.user_type) {
+                    const { data: freshProfile } = await supabase
+                        .from('users')
+                        .select('user_type')
+                        .eq('id', user.id)
+                        .single()
+
+                    if (freshProfile?.user_type) {
+                        routeToRoleHome(freshProfile.user_type)
+                        return
+                    }
+                }
+            }
+
+            // Keep auth metadata aligned so callback routes can resolve role even before profile read settles.
+            await supabase.auth.updateUser({
+                data: {
+                    user_type: selectedRole
+                }
+            })
+
+            routeToRoleHome(selectedRole)
         } catch (err) {
             console.error('Failed to set role:', err)
             setError('Failed to set role. Please try again.')
@@ -55,29 +117,12 @@ export default function ChooseRolePage() {
         }
     }
 
+    const handleWorkerChoice = async () => {
+        await chooseRole('worker')
+    }
+
     const handleClientChoice = async () => {
-        setLoading(true)
-        setError(null)
-        try {
-            const { error } = await supabase
-                .from('users')
-                .upsert({
-                    id: user.id,
-                    email: user.email,
-                    first_name: user.first_name || '',
-                    last_name: user.last_name || '',
-                    phone_number: user.phone_number || null,
-                    user_type: 'client'
-                }, { onConflict: 'id' })
-
-            if (error) throw error
-
-            router.replace('/client-profile')
-        } catch (err) {
-            console.error('Failed to set role:', err)
-            setError('Failed to set role. Please try again.')
-            setLoading(false)
-        }
+        await chooseRole('client')
     }
 
     if (authLoading || !user) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
@@ -127,7 +172,7 @@ export default function ChooseRolePage() {
 
                 <div className="mt-8 pt-8 border-t border-gray-200 text-center">
                     <p className="text-gray-600 text-sm">
-                        Not sure which one? You can always change this later in your profile settings.
+                        Choose carefully: your account role is locked after the first selection.
                     </p>
                 </div>
 

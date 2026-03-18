@@ -1,5 +1,6 @@
 import './globals.css'
 import Navbar from '@/components/Navbar'
+import UpdateNoticeBanner from '@/components/UpdateNoticeBanner'
 import { LanguageProvider } from '@/context/LanguageContext'
 import { Analytics } from '@vercel/analytics/react'
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }) {
             <body suppressHydrationWarning>
                 <LanguageProvider>
                     <Navbar />
+                    <UpdateNoticeBanner />
                     {children}
                 </LanguageProvider>
                 <Analytics />

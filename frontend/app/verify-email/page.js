@@ -7,7 +7,19 @@ import { supabase } from '@/lib/supabase'
 
 export default function VerifyEmailPage() {
     const router = useRouter()
-    const [code, setCode] = useState('')
+    const [targetEmail, setTargetEmail] = useState('')
+    const [emailInput, setEmailInput] = useState('')
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const emailFromQuery = params.get('email') || ''
+            const emailFromStorage = localStorage.getItem('pendingVerificationEmail') || ''
+            const resolved = emailFromQuery || emailFromStorage
+            setTargetEmail(emailFromQuery)
+            setEmailInput(resolved)
+        }
+    }, [])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
@@ -18,16 +30,16 @@ export default function VerifyEmailPage() {
     const [resendCooldown, setResendCooldown] = useState(0)
 
     useEffect(() => {
-        // Check if user is logged in and email is verified
+        // If there is a session and email is already verified, continue to role selection.
+        // If there is no session yet, keep this page visible so users can open confirmation email.
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession()
-            if (!session?.user) {
-                router.push('/login')
-                return
+
+            if (session?.user?.email && !emailInput) {
+                setEmailInput(session.user.email)
             }
 
-            // Check if email is already verified
-            if (session.user.email_confirmed_at) {
+            if (session?.user?.email_confirmed_at) {
                 router.push('/choose-role')
                 return
             }
@@ -54,17 +66,39 @@ export default function VerifyEmailPage() {
         setResendSuccess(false)
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
+            // New signups may not have a session yet, so resend by explicit email.
+            const emailToUse = emailInput?.trim() || targetEmail?.trim()
+            if (!emailToUse) {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (user?.email) {
+                    setEmailInput(user.email)
+                    const { error } = await supabase.auth.resend({
+                        type: 'signup',
+                        email: user.email
+                    })
 
-            if (!user?.email) {
-                setResendError('Could not find your email address')
+                    if (error) {
+                        setResendError(error.message)
+                    } else {
+                        setResendSuccess(true)
+                        setResendCooldown(60)
+                    }
+                    setResendLoading(false)
+                    return
+                }
+
+                setResendError('Could not find your email address. Please type it above, then resend.')
                 setResendLoading(false)
                 return
             }
 
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('pendingVerificationEmail', emailToUse)
+            }
+
             const { error } = await supabase.auth.resend({
                 type: 'signup',
-                email: user.email
+                email: emailToUse
             })
 
             if (error) {
@@ -92,6 +126,14 @@ export default function VerifyEmailPage() {
             if (error) {
                 setError(error.message)
             } else if (session?.user.email_confirmed_at) {
+                await supabase
+                    .from('users')
+                    .update({ email_verified: true })
+                    .eq('id', session.user.id)
+
+                if (typeof window !== 'undefined') {
+                    localStorage.removeItem('pendingVerificationEmail')
+                }
                 setSuccess(true)
                 setTimeout(() => {
                     router.push('/choose-role')
@@ -114,7 +156,22 @@ export default function VerifyEmailPage() {
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
             <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Verify Your Email</h1>
-                <p className="text-gray-600 mb-8">We sent a 6-digit code to your email address</p>
+                <p className="text-gray-600 mb-8">
+                    {targetEmail
+                        ? `We sent a verification email to ${targetEmail}. Click the link, then you will be routed to choose your role.`
+                        : 'We sent a verification email. Click the link, then you will be routed to choose your role.'}
+                </p>
+
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email address</label>
+                    <input
+                        type="email"
+                        value={emailInput}
+                        onChange={(e) => setEmailInput(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                    />
+                </div>
 
                 {error && (
                     <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm border border-red-200">
@@ -135,31 +192,17 @@ export default function VerifyEmailPage() {
                 {success && <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm">Email verified successfully! Redirecting...</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
-                        <input
-                            type="text"
-                            value={code}
-                            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            maxLength="6"
-                            placeholder="000000"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent text-center text-2xl letter-spacing tracking-widest font-mono"
-                            required
-                        />
-                        <p className="text-xs text-gray-500 mt-2">Enter the 6-digit code from your email</p>
-                    </div>
-
                     <button
                         type="submit"
-                        disabled={loading || code.length !== 6}
+                        disabled={loading}
                         className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
                     >
-                        {loading ? 'Verifying...' : 'Verify Email'}
+                        {loading ? 'Checking...' : 'I clicked the verification link'}
                     </button>
                 </form>
 
                 <div className="text-center border-t border-gray-200 pt-6">
-                    <p className="text-gray-700 text-sm font-medium mb-4">Need a new code?</p>
+                    <p className="text-gray-700 text-sm font-medium mb-4">Need a new verification email?</p>
                     {resendSuccess && (
                         <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4 text-sm border border-green-200">
                             ✓ Verification code sent! Check your email.
@@ -175,10 +218,10 @@ export default function VerifyEmailPage() {
                         disabled={resendLoading || resendCooldown > 0}
                         className="w-full bg-blue-50 text-blue-600 hover:bg-blue-100 py-2 px-4 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition border border-blue-200"
                     >
-                        {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : resendLoading ? 'Sending...' : 'Resend Verification Code'}
+                        {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : resendLoading ? 'Sending...' : 'Resend Verification Email'}
                     </button>
                     <p className="text-gray-500 text-xs mt-3">
-                        The code expires after 15 minutes. Click above to request a new one.
+                        Open your inbox and click the link in the latest verification email.
                     </p>
                 </div>
             </div>

@@ -80,6 +80,7 @@ export default function RegisterPage() {
                 email: formData.email,
                 password: formData.password,
                 options: {
+                    emailRedirectTo: getAuthSuccessRedirectUrl(),
                     data: {
                         first_name: formData.firstName,
                         last_name: formData.lastName,
@@ -89,6 +90,13 @@ export default function RegisterPage() {
             })
 
             if (error) {
+                const normalized = (error.message || '').toLowerCase()
+                if (normalized.includes('already registered') || normalized.includes('already exists')) {
+                    router.push(`/login?emailExists=1&email=${encodeURIComponent(formData.email)}`)
+                    setLoading(false)
+                    return
+                }
+
                 // Handle rate limiting specifically
                 if (error.status === 429) {
                     setError('Too many signup attempts. Please wait a few minutes before trying again.')
@@ -100,16 +108,26 @@ export default function RegisterPage() {
             }
 
             if (data.user) {
-                // On signup we don't create the profile here because
-                // the user might not yet have an active session (email
-                // verification required). Instead the profile will be
-                // auto-created the next time the user logs in via useAuth.
-
-                // Redirect based on confirmation status
-                if (data.user.email_confirmed_at) {
+                // If Supabase issued a session immediately, go directly to role selection.
+                if (data.session?.user) {
                     router.push('/choose-role')
                 } else {
-                    router.push('/verify-email')
+                    if (typeof window !== 'undefined') {
+                        localStorage.setItem('pendingVerificationEmail', formData.email)
+                    }
+
+                    const { error: resendError } = await supabase.auth.resend({
+                        type: 'signup',
+                        email: formData.email
+                    })
+
+                    if (resendError && resendError.status !== 429) {
+                        setError(`Account created but verification email could not be sent: ${resendError.message}`)
+                        setLoading(false)
+                        return
+                    }
+
+                    router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`)
                 }
             }
         } catch (err) {
@@ -140,14 +158,14 @@ export default function RegisterPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+            <div className="bg-white rounded-lg shadow-xl p-5 sm:p-8 w-full max-w-md">
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">GoArtisans</h1>
                 <p className="text-gray-600 mb-8">Create your account</p>
 
                 {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-4 mb-6">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
                             <input

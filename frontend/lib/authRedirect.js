@@ -15,15 +15,12 @@ function isLocalUrl(value) {
 
 function getPreferredBaseUrl() {
     const configuredSiteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL)
-    if (configuredSiteUrl && !isLocalUrl(configuredSiteUrl)) {
+    if (configuredSiteUrl) {
         return configuredSiteUrl
     }
 
-    if (typeof window !== 'undefined') {
-        const currentOrigin = normalizeUrl(window.location.origin)
-        if (currentOrigin && !isLocalUrl(currentOrigin)) {
-            return currentOrigin
-        }
+    if (typeof window !== 'undefined' && isLocalUrl(window.location.origin)) {
+        return normalizeUrl(window.location.origin)
     }
 
     return DEFAULT_SITE_URL

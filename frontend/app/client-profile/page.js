@@ -10,7 +10,34 @@ import DeclineReasonModal from '@/components/DeclineReasonModal'
 import RatingsDisplay from '@/components/RatingsDisplay'
 import CompletionRequest from '@/components/CompletionRequest'
 import { useLanguage } from '@/context/LanguageContext'
-import { togoLocations, handworks } from '@/lib/togoData'
+import { togoLocations } from '@/lib/togoData'
+
+function normalizeClientProfile(rawProfile, fallbackEmail = '') {
+    const firstName = rawProfile?.first_name ?? rawProfile?.firstName ?? ''
+    const lastName = rawProfile?.last_name ?? rawProfile?.lastName ?? ''
+    const phoneNumber = rawProfile?.phone_number ?? rawProfile?.phoneNumber ?? ''
+    const email = rawProfile?.email || fallbackEmail || ''
+    const profilePicture =
+        rawProfile?.profile_picture
+        || rawProfile?.profilePicture
+        || (Array.isArray(rawProfile?.portfolio) && rawProfile.portfolio.length > 0 ? rawProfile.portfolio[0] : null)
+
+    return {
+        ...(rawProfile || {}),
+        email,
+        first_name: firstName,
+        firstName,
+        last_name: lastName,
+        lastName,
+        phone_number: phoneNumber,
+        phoneNumber,
+        location: rawProfile?.location || '',
+        bio: rawProfile?.bio || '',
+        profile_picture: profilePicture,
+        profilePicture,
+        email_verified: Boolean(rawProfile?.email_verified ?? rawProfile?.emailVerified)
+    }
+}
 
 export default function ClientProfilePage() {
     const { t } = useLanguage()
@@ -26,15 +53,12 @@ export default function ClientProfilePage() {
         phoneNumber: '',
         location: '',
         bio: '',
-        profilePicture: null,
-        portfolio: []
+        profilePicture: null
     })
     const [updateLoading, setUpdateLoading] = useState(false)
     const [updateError, setUpdateError] = useState(null)
     const [updateSuccess, setUpdateSuccess] = useState(false)
     const [profilePicturePreview, setProfilePicturePreview] = useState(null)
-    const [portfolioFiles, setPortfolioFiles] = useState([])
-    const [newPortfolioImages, setNewPortfolioImages] = useState([])
 
     // Job posting states
     const [jobs, setJobs] = useState([])
@@ -57,7 +81,6 @@ export default function ClientProfilePage() {
     const [applicationOperationError, setApplicationOperationError] = useState(null)
     const [completionOperationError, setCompletionOperationError] = useState(null)
     const [showApplicants, setShowApplicants] = useState(true)
-    const [emailVerificationCode, setEmailVerificationCode] = useState('')
     const [verifyingEmail, setVerifyingEmail] = useState(false)
     const [emailVerificationError, setEmailVerificationError] = useState('')
     const [emailResendLoading, setEmailResendLoading] = useState(false)
@@ -69,6 +92,7 @@ export default function ClientProfilePage() {
     const [updatingAppId, setUpdatingAppId] = useState(null)
     const [processingCompletionId, setProcessingCompletionId] = useState(null)
     const timeoutsRef = useRef([])
+    const PROFILE_SAVE_TIMEOUT_MS = 120000
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -110,143 +134,166 @@ export default function ClientProfilePage() {
                     }
                 }, 15000)
 
-                // 1) Load critical profile first so page can render quickly.
-                const { data: userData, error: profileError } = await supabase
-                    .from('users')
-                    .select('id,email,first_name,last_name,phone_number,location,bio,portfolio,rating,user_type,completed_jobs')
-                    .eq('id', user.id)
-                    .single()
+                // Load full profile payload in one RPC so page data is complete at first paint.
+                let payload = null
+                let payloadError = null
 
-                if (profileError) {
-                    throw new Error(`Failed to fetch profile: ${profileError.message}`)
+                try {
+                    const rpcResult = await Promise.race([
+                        supabase.rpc('get_client_profile_payload'),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('RPC_TIMEOUT')), 7000)
+                        )
+                    ])
+                    payload = rpcResult?.data || null
+                    payloadError = rpcResult?.error || null
+                } catch (rpcErr) {
+                    payloadError = rpcErr
+                }
+
+                let resolvedPayload = payload
+                if (payloadError) {
+                    const missingEmailVerifiedColumn = /email_verified/i.test(payloadError.message || '')
+                        && /does not exist/i.test(payloadError.message || '')
+
+                    const rpcTimedOut = /RPC_TIMEOUT/i.test(payloadError.message || '')
+
+                    if (!missingEmailVerifiedColumn && !rpcTimedOut) {
+                        throw new Error(`Failed to fetch profile payload: ${payloadError.message}`)
+                    }
+
+                    // Backward-compatible fallback for databases that have not yet added users.email_verified.
+                    const [profileRes, jobsRes, completionsRes] = await Promise.all([
+                        supabase
+                            .from('users')
+                            .select('id,email,first_name,last_name,phone_number,location,bio,portfolio,profile_picture,rating,user_type,completed_jobs,created_at,updated_at')
+                            .eq('id', user.id)
+                            .single(),
+                        supabase
+                            .from('jobs')
+                            .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
+                            .eq('client_id', user.id)
+                            .order('created_at', { ascending: false }),
+                        supabase
+                            .from('completions')
+                            .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
+                            .eq('client_id', user.id)
+                            .order('created_at', { ascending: false })
+                    ])
+
+                    if (profileRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${profileRes.error.message}`)
+                    }
+
+                    if (jobsRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${jobsRes.error.message}`)
+                    }
+
+                    if (completionsRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${completionsRes.error.message}`)
+                    }
+
+                    // Re-query applications using actual job IDs after jobs load.
+                    const jobIds = (jobsRes.data || []).map(j => j.id)
+                    let applicationsData = []
+                    if (jobIds.length > 0) {
+                        const { data, error } = await supabase
+                            .from('applications')
+                            .select('id,job_id,worker_id,status,proposed_price,message,created_at,worker:worker_id(id,first_name,last_name,email,phone_number)')
+                            .in('job_id', jobIds)
+                            .order('created_at', { ascending: false })
+
+                        if (error) {
+                            throw new Error(`Failed to fetch profile payload: ${error.message}`)
+                        }
+                        applicationsData = data || []
+                    }
+
+                    resolvedPayload = {
+                        profile: {
+                            ...(profileRes.data || {}),
+                            email_verified: false
+                        },
+                        jobs: jobsRes.data || [],
+                        completions: completionsRes.data || [],
+                        applications: applicationsData
+                    }
                 }
 
                 if (!isMounted) return
 
-                setProfile(userData)
-                if (userData.portfolio && userData.portfolio.length > 0) {
-                    setProfilePicturePreview(userData.portfolio[0])
+                const userData = resolvedPayload?.profile
+                if (!userData) {
+                    throw new Error('Profile payload is missing user profile data')
                 }
 
-                let portfolioData = userData.portfolio || []
-                if (typeof portfolioData === 'string') {
-                    try {
-                        portfolioData = JSON.parse(portfolioData)
-                    } catch (e) {
-                        portfolioData = []
+                let hydratedUserData = userData
+                const rpcProfileMissingPicture =
+                    userData?.profile_picture === undefined
+                    && userData?.profilePicture === undefined
+
+                if (rpcProfileMissingPicture) {
+                    const { data: profilePictureData, error: profilePictureError } = await supabase
+                        .from('users')
+                        .select('profile_picture')
+                        .eq('id', user.id)
+                        .single()
+
+                    if (profilePictureError) {
+                        console.warn('Failed to hydrate client profile picture from users table:', profilePictureError.message)
+                    } else if (profilePictureData) {
+                        hydratedUserData = {
+                            ...userData,
+                            profile_picture: profilePictureData.profile_picture || null
+                        }
                     }
                 }
 
+                const normalizedUserData = normalizeClientProfile(hydratedUserData, user?.email)
+
+                const jobsData = Array.isArray(resolvedPayload?.jobs) ? resolvedPayload.jobs : []
+                const completionsData = Array.isArray(resolvedPayload?.completions) ? resolvedPayload.completions : []
+                const applicationsData = Array.isArray(resolvedPayload?.applications) ? resolvedPayload.applications : []
+
+                setProfile(normalizedUserData)
+                setProfilePicturePreview(normalizedUserData.profilePicture)
+
                 setFormData({
-                    firstName: userData.first_name || '',
-                    lastName: userData.last_name || '',
-                    email: userData.email || '',
-                    phoneNumber: userData.phone_number || '',
-                    location: userData.location || '',
-                    bio: userData.bio || '',
-                    profilePicture: userData.portfolio && userData.portfolio.length > 0 ? userData.portfolio[0] : null,
-                    portfolio: portfolioData
+                    firstName: normalizedUserData.firstName,
+                    lastName: normalizedUserData.lastName,
+                    email: normalizedUserData.email,
+                    phoneNumber: normalizedUserData.phoneNumber,
+                    location: normalizedUserData.location,
+                    bio: normalizedUserData.bio,
+                    profilePicture: normalizedUserData.profilePicture
                 })
 
-                clearTimeout(timeoutId)
-                clearTimeout(warningTimeoutId)
-                setLoading(false)
-                setTimeoutWarning(false)
-
-                // 2) Load secondary data in background.
-                const [jobsResult, completionsResult, ratingsResult] = await Promise.allSettled([
-                    supabase
-                        .from('jobs')
-                        .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
-                        .eq('client_id', user.id)
-                        .order('created_at', { ascending: false }),
-                    supabase
-                        .from('completions')
-                        .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
-                        .eq('client_id', user.id)
-                        .order('created_at', { ascending: false }),
-                    supabase
-                        .from('reviews')
-                        .select('id,rating,comment,created_at,rater_type,worker_id')
-                        .eq('client_id', user.id)
-                        .eq('rater_type', 'worker')
-                        .order('created_at', { ascending: false })
-                ])
-
-                let jobsRes = { data: null, error: null }
-                let completionsRes = { data: null, error: null }
-                let ratingsRes = { data: null, error: null }
-
-                if (jobsResult.status === 'fulfilled') {
-                    jobsRes = jobsResult.value
-                } else {
-                    jobsRes.error = jobsResult.reason
-                }
-
-                if (completionsResult.status === 'fulfilled') {
-                    completionsRes = completionsResult.value
-                } else {
-                    completionsRes.error = completionsResult.reason
-                }
-
-                if (ratingsResult.status === 'fulfilled') {
-                    ratingsRes = ratingsResult.value
-                } else {
-                    ratingsRes.error = ratingsResult.reason
-                }
-
-                if (jobsRes.error) console.error('Jobs fetch error:', jobsRes.error)
-                if (completionsRes.error) console.error('Completions fetch error:', completionsRes.error)
-                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
-
-                // Handle jobs data (optional) - match with completions
-                const jobsData = (jobsRes.data && !jobsRes.error) ? jobsRes.data : []
-                const completionsData = (completionsRes.data && !completionsRes.error) ? completionsRes.data : []
-
-                // Attach completions to jobs
                 const jobsWithCompletions = jobsData.map(job => ({
                     ...job,
                     completions: completionsData.filter(c => c.job_id === job.id)
                 }))
-
                 setJobs(jobsWithCompletions)
 
-                // Handle ratings data (optional)
-                // Ratings are handled by the RatingsDisplay component
-
-                // Load applicants only for this client's jobs to avoid scanning the full table.
                 const applicantsMap = {}
-                const jobIds = jobsData.map(job => job.id)
-                if (jobIds.length > 0) {
-                    const { data: applicationsData, error: applicantsError } = await supabase
-                        .from('applications')
-                        .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
-                            worker:worker_id(id,first_name,last_name,email,phone_number)`)
-                        .in('job_id', jobIds)
-                        .order('created_at', { ascending: false })
-                        .limit(200)
-
-                    if (applicantsError) {
-                        console.error('Applicants fetch error:', applicantsError)
+                applicationsData.forEach(application => {
+                    if (!applicantsMap[application.job_id]) {
+                        applicantsMap[application.job_id] = []
                     }
-
-                    if (applicationsData) {
-                        applicationsData.forEach(application => {
-                            if (!applicantsMap[application.job_id]) {
-                                applicantsMap[application.job_id] = []
-                            }
-                            applicantsMap[application.job_id].push({
-                                ...application,
-                                first_name: application.worker?.first_name,
-                                last_name: application.worker?.last_name,
-                                email: application.worker?.email,
-                                phone_number: application.worker?.phone_number
-                            })
-                        })
-                    }
-                }
-
+                    applicantsMap[application.job_id].push({
+                        ...application,
+                        first_name: application.worker?.first_name,
+                        last_name: application.worker?.last_name,
+                        email: application.worker?.email,
+                        phone_number: application.worker?.phone_number
+                    })
+                })
                 setJobApplicants(applicantsMap)
+
+                clearTimeout(timeoutId)
+                clearTimeout(warningTimeoutId)
+                setLoading(false)
+                setJobsLoading(false)
+                setTimeoutWarning(false)
             } catch (err) {
                 clearTimeout(timeoutId)
                 clearTimeout(warningTimeoutId)
@@ -287,7 +334,7 @@ export default function ClientProfilePage() {
             clearTimeout(timeoutId)
             clearTimeout(warningTimeoutId)
         }
-    }, [authLoading, user, t])
+    }, [authLoading, user])
 
     // Handle email resend cooldown timer
     useEffect(() => {
@@ -416,48 +463,53 @@ export default function ClientProfilePage() {
         })
     }
 
-    const handleProfilePictureChange = (e) => {
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+            if (file.size <= MAX_BYTES) {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result)
+                reader.readAsDataURL(file)
+                return
+            }
+            const img = new Image()
+            const url = URL.createObjectURL(file)
+            img.onload = () => {
+                URL.revokeObjectURL(url)
+                const scale = Math.sqrt(MAX_BYTES / file.size)
+                const canvas = document.createElement('canvas')
+                canvas.width = Math.round(img.width * scale)
+                canvas.height = Math.round(img.height * scale)
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+                let quality = 0.85
+                // base64 is ~4/3 raw bytes; loop down until encoded size fits 2 MB
+                let dataUrl = canvas.toDataURL('image/jpeg', quality)
+                while (dataUrl.length > MAX_BYTES * 1.37 && quality > 0.1) {
+                    quality = Math.max(0.1, quality - 0.15)
+                    dataUrl = canvas.toDataURL('image/jpeg', quality)
+                }
+                resolve(dataUrl)
+            }
+            img.onerror = () => {
+                URL.revokeObjectURL(url)
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result)
+                reader.readAsDataURL(file)
+            }
+            img.src = url
+        })
+    }
+
+    const handleProfilePictureChange = async (e) => {
         const file = e.target.files?.[0]
         if (file) {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                setProfilePicturePreview(reader.result)
-                setFormData({
-                    ...formData,
-                    profilePicture: reader.result
-                })
-            }
-            reader.readAsDataURL(file)
+            const dataUrl = await compressImage(file)
+            setProfilePicturePreview(dataUrl)
+            setFormData(prev => ({
+                ...prev,
+                profilePicture: dataUrl
+            }))
         }
-    }
-
-    const handlePortfolioChange = (e) => {
-        const files = Array.from(e.target.files || [])
-
-        files.forEach(file => {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                const dataUrl = reader.result
-                setFormData(prev => ({
-                    ...prev,
-                    portfolio: [...prev.portfolio, dataUrl]
-                }))
-                setNewPortfolioImages(prev => [...prev, {
-                    name: file.name,
-                    url: dataUrl,
-                    file: file
-                }])
-            }
-            reader.readAsDataURL(file)
-        })
-    }
-
-    const handleRemovePortfolio = (idx) => {
-        setFormData({
-            ...formData,
-            portfolio: formData.portfolio.filter((_, i) => i !== idx)
-        })
-        setNewPortfolioImages(newPortfolioImages.filter((_, i) => i !== idx))
     }
 
     const handleJobInputChange = (e) => {
@@ -587,39 +639,65 @@ export default function ClientProfilePage() {
         setUpdateSuccess(false)
 
         try {
-            // Portfolio data is already in the correct format (data URLs or strings)
-            const portfolioData = formData.portfolio.filter(p => p && typeof p === 'string')
+            const currentProfilePicture = profile?.profile_picture || profile?.profilePicture || null
+            const nextProfilePicture = formData.profilePicture || null
+            const hasProfilePictureChanged = nextProfilePicture !== currentProfilePicture
 
             const updatePayload = {
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 phone_number: formData.phoneNumber,
                 location: formData.location,
-                bio: formData.bio,
-                portfolio: portfolioData
+                bio: formData.bio
             }
 
-            const { data, error } = await supabase
+            if (hasProfilePictureChanged) {
+                updatePayload.profile_picture = nextProfilePicture
+            }
+
+            const saveController = new AbortController()
+            let saveTimeoutId
+
+            const saveRequest = supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
-                .select()
-                .single()
+                .abortSignal(saveController.signal)
+
+            const { error } = await Promise.race([
+                saveRequest,
+                new Promise((_, reject) => {
+                    saveTimeoutId = setTimeout(() => {
+                        saveController.abort()
+                        reject(new Error('SAVE_TIMEOUT'))
+                    }, PROFILE_SAVE_TIMEOUT_MS)
+                })
+            ])
+
+            clearTimeout(saveTimeoutId)
 
             if (error) throw error
 
-            const updatedUser = data
-            setProfile(updatedUser)
-            if (updatedUser.portfolio && updatedUser.portfolio.length > 0) {
-                setProfilePicturePreview(updatedUser.portfolio[0])
+            const updatedUser = {
+                ...(profile || {}),
+                ...updatePayload,
+                profile_picture: hasProfilePictureChanged ? nextProfilePicture : currentProfilePicture
             }
+
+            const normalizedUpdatedUser = normalizeClientProfile(updatedUser, profile?.email || user?.email)
+            setProfile(normalizedUpdatedUser)
+            setProfilePicturePreview(normalizedUpdatedUser.profilePicture)
             setIsEditing(false)
             setUpdateSuccess(true)
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to update profile', err)
-            setUpdateError(err.message || 'Failed to update profile')
+            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
+                setUpdateError('Profile save is taking too long. Please check your connection and try again.')
+            } else {
+                setUpdateError(err.message || 'Failed to update profile')
+            }
         } finally {
             setUpdateLoading(false)
         }
@@ -630,11 +708,27 @@ export default function ClientProfilePage() {
         setVerifyingEmail(true)
         setEmailVerificationError('')
         try {
-            // Email verification is handled by Supabase via email links
-            // This function is kept for compatibility but not used
-            setEmailVerificationError('Email verification is handled automatically via the link sent to your email.')
+            const { data: { session }, error } = await supabase.auth.getSession()
+            if (error) throw error
+
+            if (!session?.user?.email_confirmed_at) {
+                setEmailVerificationError('Email not verified yet. Please click the link in your verification email first.')
+                return
+            }
+
+            const { error: syncError } = await supabase
+                .from('users')
+                .update({ email_verified: true })
+                .eq('id', user.id)
+
+            if (syncError) throw syncError
+
+            setProfile(prev => ({ ...prev, email_verified: true }))
+            setUpdateSuccess(true)
+            const id = setTimeout(() => setUpdateSuccess(false), 3000)
+            timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Verification not available')
+            setEmailVerificationError(err.message || 'Verification status check failed')
         } finally {
             setVerifyingEmail(false)
         }
@@ -656,7 +750,7 @@ export default function ClientProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Failed to resend verification code')
+            setEmailVerificationError(err.message || 'Failed to resend verification email')
         } finally {
             setEmailResendLoading(false)
         }
@@ -874,33 +968,20 @@ export default function ClientProfilePage() {
                                 <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
                                     <p className="text-sm text-yellow-700 mb-4">
-                                        {t('verifySixDigitCode').replace('{{email}}', profile.email)}
+                                        Verification is link-based. Open the verification email sent to {profile.email}, click the link, then use the button below to refresh your status.
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
-                                        <label htmlFor="email-verification-code" className="sr-only">Verification Code</label>
-                                        <input
-                                            id="email-verification-code"
-                                            name="verification-code"
-                                            type="text"
-                                            value={emailVerificationCode}
-                                            onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                            placeholder="000000"
-                                            maxLength="6"
-                                            className="w-32 px-3 py-2 border border-yellow-300 rounded text-center text-lg tracking-widest font-mono"
-                                            required
-                                            aria-label="Email verification code"
-                                        />
                                         <button
                                             type="submit"
-                                            disabled={verifyingEmail || emailVerificationCode.length !== 6}
+                                            disabled={verifyingEmail}
                                             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
                                         >
-                                            {verifyingEmail ? t('verifying') : t('verifyButton')}
+                                            {verifyingEmail ? 'Checking...' : 'I clicked the verification link'}
                                         </button>
                                     </form>
                                     {emailVerificationError && (
                                         <div className="text-sm text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-200">
-                                            ❌ {emailVerificationError}
+                                            {emailVerificationError}
                                             {(emailVerificationError.toLowerCase().includes('expired') || emailVerificationError.toLowerCase().includes('invalid')) && (
                                                 <div className="mt-2 pt-2 border-t border-red-200">
                                                     <button
@@ -934,9 +1015,9 @@ export default function ClientProfilePage() {
                         <div className="bg-white shadow rounded-lg p-8">
                             <div className="flex items-center gap-6">
                                 <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
-                                    {profilePicturePreview || profile?.profilePicture ? (
+                                    {profilePicturePreview || profile?.profile_picture || profile?.profilePicture ? (
                                         <img
-                                            src={profilePicturePreview || profile?.profilePicture}
+                                            src={profilePicturePreview || profile?.profile_picture || profile?.profilePicture}
                                             alt="Profile"
                                             className="w-full h-full object-cover"
                                         />
@@ -989,36 +1070,6 @@ export default function ClientProfilePage() {
                                 <p className="text-gray-900 mt-2 whitespace-pre-wrap">
                                     {profile?.bio || t('notProvided')}
                                 </p>
-                            </div>
-                        </div>
-
-                        {/* Portfolio/Gallery Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('portfolio')}</h2>
-                            <div className="grid grid-cols-3 gap-4">
-                                {(profile?.portfolio || []).length === 0 ? (
-                                    <span className="text-gray-500">{t('noPortfolioImages')}</span>
-                                ) : (
-                                    (profile?.portfolio || []).map((img, idx) => {
-                                        // Handle both array of strings and array of objects
-                                        const imageUrl = typeof img === 'string' ? img : (img?.url || img?.name || '')
-                                        const isValidImage = imageUrl && (imageUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl))
-
-                                        return (
-                                            <div key={idx} className="bg-gray-100 h-40 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
-                                                {isValidImage ? (
-                                                    <img src={imageUrl} alt={t('portfolio')} className="w-full h-full object-cover" onError={(e) => {
-                                                        e.target.style.display = 'none'
-                                                        e.target.nextSibling.style.display = 'flex'
-                                                    }} />
-                                                ) : null}
-                                                <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm text-center p-2 bg-gray-50" style={{ display: isValidImage ? 'none' : 'flex' }}>
-                                                    {t('noImage')}
-                                                </div>
-                                            </div>
-                                        )
-                                    })
-                                )}
                             </div>
                         </div>
 
@@ -1347,9 +1398,9 @@ export default function ClientProfilePage() {
                             <h2 className="text-xl font-semibold mb-6">{t('profilePicture')}</h2>
                             <div className="flex items-center gap-6">
                                 <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden">
-                                    {profilePicturePreview || profile?.profilePicture ? (
+                                    {profilePicturePreview || profile?.profile_picture || profile?.profilePicture ? (
                                         <img
-                                            src={profilePicturePreview || profile?.profilePicture}
+                                            src={profilePicturePreview || profile?.profile_picture || profile?.profilePicture}
                                             alt="Profile"
                                             className="w-full h-full object-cover"
                                         />
@@ -1448,43 +1499,6 @@ export default function ClientProfilePage() {
                                 />
                                 <p className="text-xs text-gray-500 mt-2">{t('helpServiceProviders')}</p>
                             </div>
-                        </div>
-
-                        {/* Edit Portfolio Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('portfolio')}</h2>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">{t('uploadClearPhotosLabel')}</label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={handlePortfolioChange}
-                                    className="block text-sm text-gray-500 border border-gray-300 rounded px-3 py-2"
-                                />
-                                <p className="text-xs text-gray-500 mt-2">{t('uploadQualityHint')}</p>
-                            </div>
-
-                            {/* Portfolio Preview */}
-                            {formData.portfolio.length > 0 && (
-                                <div className="mt-6">
-                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Portfolio Images</h3>
-                                    <div className="grid grid-cols-3 gap-4">
-                                        {formData.portfolio.map((img, idx) => (
-                                            <div key={idx} className="relative bg-gray-100 h-32 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
-                                                <img src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover" />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemovePortfolio(idx)}
-                                                    className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                                                >
-                                                    ×
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Form Actions */}

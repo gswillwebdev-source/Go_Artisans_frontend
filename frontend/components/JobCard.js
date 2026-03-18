@@ -73,9 +73,29 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                 return
             }
 
-            // Note: Save/unsave functionality requires a 'saved_jobs' table
-            // For now, we'll show a message that this feature needs implementation
-            setError('Save job feature coming soon!')
+            if (isSaved) {
+                const { error: deleteError } = await supabase
+                    .from('saved_jobs')
+                    .delete()
+                    .eq('job_id', job.id)
+                    .eq('user_id', user.id)
+                if (deleteError) throw deleteError
+                setIsSaved(false)
+            } else {
+                const { error: insertError } = await supabase
+                    .from('saved_jobs')
+                    .insert([{ job_id: job.id, user_id: user.id }])
+                if (insertError) {
+                    if (insertError.message?.includes('duplicate') || insertError.message?.includes('UNIQUE')) {
+                        setIsSaved(true)
+                    } else {
+                        throw insertError
+                    }
+                } else {
+                    setIsSaved(true)
+                }
+            }
+            if (onSaveToggle) onSaveToggle(job.id, !isSaved)
         } catch (err) {
             setError(err.message || t('saveFailed'))
         } finally {

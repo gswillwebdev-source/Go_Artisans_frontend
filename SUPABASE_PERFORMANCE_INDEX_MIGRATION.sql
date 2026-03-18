@@ -21,13 +21,25 @@ ON public.jobs (status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_applications_job_status_created_at_desc
 ON public.applications (job_id, status, created_at DESC);
 
+-- Applications: client profile applicants list by job_id newest first (without status filter).
+CREATE INDEX IF NOT EXISTS idx_applications_job_created_at_desc
+ON public.applications (job_id, created_at DESC);
+
 -- Applications: worker profile reads by worker_id and status transitions.
 CREATE INDEX IF NOT EXISTS idx_applications_worker_status_created_at_desc
 ON public.applications (worker_id, status, created_at DESC);
 
+-- Applications: worker profile loads all applications by worker_id newest first.
+CREATE INDEX IF NOT EXISTS idx_applications_worker_created_at_desc
+ON public.applications (worker_id, created_at DESC);
+
 -- Completions: client profile reads by client_id newest first.
 CREATE INDEX IF NOT EXISTS idx_completions_client_created_at_desc
 ON public.completions (client_id, created_at DESC);
+
+-- Completions: worker-side completion history and RLS checks by worker_id.
+CREATE INDEX IF NOT EXISTS idx_completions_worker_created_at_desc
+ON public.completions (worker_id, created_at DESC);
 
 -- Completions: joins/filters on job lifecycle status.
 CREATE INDEX IF NOT EXISTS idx_completions_job_status_created_at_desc
@@ -62,11 +74,25 @@ ANALYZE public.reviews;
 --     'idx_jobs_client_created_at_desc',
 --     'idx_jobs_status_created_at_desc',
 --     'idx_applications_job_status_created_at_desc',
+--     'idx_applications_job_created_at_desc',
 --     'idx_applications_worker_status_created_at_desc',
+--     'idx_applications_worker_created_at_desc',
 --     'idx_completions_client_created_at_desc',
+--     'idx_completions_worker_created_at_desc',
 --     'idx_completions_job_status_created_at_desc',
 --     'idx_reviews_worker_rater_created_at_desc',
 --     'idx_reviews_client_rater_created_at_desc',
 --     'idx_users_type_active_created_at_desc'
+--   )
+-- ORDER BY indexname;
+
+-- Targeted worker refresh coverage check (optional):
+-- SELECT indexname
+-- FROM pg_indexes
+-- WHERE schemaname = 'public'
+--   AND indexname IN (
+--     'idx_applications_worker_created_at_desc',
+--     'idx_applications_worker_status_created_at_desc',
+--     'idx_completions_worker_created_at_desc'
 --   )
 -- ORDER BY indexname;

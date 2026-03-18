@@ -9,6 +9,74 @@ import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 import { togoLocations, handworks } from '@/lib/togoData'
 import { useLanguage } from '@/context/LanguageContext'
 
+function normalizeStringArray(value) {
+    if (Array.isArray(value)) {
+        return value.filter(item => item && typeof item === 'string')
+    }
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value)
+            return Array.isArray(parsed)
+                ? parsed.filter(item => item && typeof item === 'string')
+                : []
+        } catch {
+            return []
+        }
+    }
+
+    return []
+}
+
+function normalizeWorkerProfile(rawProfile, fallbackEmail = '') {
+    const portfolio = normalizeStringArray(rawProfile?.portfolio)
+    const services = normalizeStringArray(rawProfile?.services)
+
+    const firstName = rawProfile?.first_name ?? rawProfile?.firstName ?? ''
+    const lastName = rawProfile?.last_name ?? rawProfile?.lastName ?? ''
+    const phoneNumber = rawProfile?.phone_number ?? rawProfile?.phoneNumber ?? ''
+    const jobTitle = rawProfile?.job_title ?? rawProfile?.jobTitle ?? ''
+    const yearsExperience = rawProfile?.years_experience ?? rawProfile?.yearsExperience ?? 0
+    const email = rawProfile?.email || fallbackEmail || ''
+
+    const profilePicture =
+        rawProfile?.profile_picture
+        || rawProfile?.profilePicture
+        || (portfolio.length > 0 ? portfolio[0] : null)
+
+    const userType = rawProfile?.user_type || rawProfile?.userType || 'worker'
+    const emailVerified = Boolean(rawProfile?.email_verified ?? rawProfile?.emailVerified)
+    const isActive = Boolean(rawProfile?.is_active)
+
+    return {
+        ...(rawProfile || {}),
+        email,
+        first_name: firstName,
+        firstName,
+        last_name: lastName,
+        lastName,
+        phone_number: phoneNumber,
+        phoneNumber,
+        job_title: jobTitle,
+        jobTitle,
+        location: rawProfile?.location || '',
+        bio: rawProfile?.bio || '',
+        years_experience: yearsExperience,
+        yearsExperience,
+        services,
+        portfolio,
+        profile_picture: profilePicture,
+        profilePicture,
+        user_type: userType,
+        userType,
+        email_verified: emailVerified,
+        emailVerified,
+        is_active: isActive,
+        completed_jobs: rawProfile?.completed_jobs ?? rawProfile?.completedJobs ?? 0,
+        completedJobs: rawProfile?.completed_jobs ?? rawProfile?.completedJobs ?? 0
+    }
+}
+
 export default function WorkerProfilePage() {
     const { t } = useLanguage()
     const { user, isLoading: authLoading } = useAuth({ requiredRole: 'worker' })
@@ -43,7 +111,6 @@ export default function WorkerProfilePage() {
     const [pendingJobs, setPendingJobs] = useState([])
     const [ratings, setRatings] = useState([])  // ratings received from clients
     const [jobsLoading, setJobsLoading] = useState(false)
-    const [emailVerificationCode, setEmailVerificationCode] = useState('')
     const [verifyingEmail, setVerifyingEmail] = useState(false)
     const [emailVerificationError, setEmailVerificationError] = useState('')
     const [emailResendLoading, setEmailResendLoading] = useState(false)
@@ -53,9 +120,11 @@ export default function WorkerProfilePage() {
     const [showRatingModal, setShowRatingModal] = useState(false)
     const [ratingCompletionId, setRatingCompletionId] = useState(null)
     const [completionSuccess, setCompletionSuccess] = useState('')
+    const [confirmedCompletions, setConfirmedCompletions] = useState([])
     const [isAvailabilityToggling, setIsAvailabilityToggling] = useState(false)
     const [availabilityError, setAvailabilityError] = useState('')
     const timeoutsRef = useRef([])
+    const PROFILE_SAVE_TIMEOUT_MS = 120000
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -97,126 +166,166 @@ export default function WorkerProfilePage() {
                     }
                 }, 15000)
 
-                // 1) Load only profile essentials first.
-                const { data: profileData, error: profileError } = await supabase
-                    .from('users')
-                    .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active')
-                    .eq('id', user.id)
-                    .single()
+                const fetchSavedJobsForWorker = async (workerId) => {
+                    try {
+                        const { data, error } = await Promise.race([
+                            supabase
+                                .from('saved_jobs')
+                                .select('created_at,job:job_id(id,title,description,budget,location,status,client_id,created_at)')
+                                .eq('user_id', workerId)
+                                .order('created_at', { ascending: false }),
+                            new Promise((_, reject) =>
+                                setTimeout(() => reject(new Error('SAVED_JOBS_TIMEOUT')), 2500)
+                            )
+                        ])
 
-                if (profileError) {
-                    throw new Error(`Failed to fetch profile: ${profileError.message}`)
+                        if (error) {
+                            // Keep profile usable even when saved_jobs table is unavailable.
+                            console.warn('Failed to fetch saved jobs:', error.message)
+                            return []
+                        }
+
+                        return (data || [])
+                            .map(row => row.job)
+                            .filter(Boolean)
+                    } catch (savedJobsErr) {
+                        if (!/SAVED_JOBS_TIMEOUT/i.test(savedJobsErr?.message || '')) {
+                            console.warn('Saved jobs fetch skipped:', savedJobsErr?.message || savedJobsErr)
+                        }
+                        return []
+                    }
+                }
+
+                // Load full worker payload in one RPC so all page data arrives together.
+                let payload = null
+                let payloadError = null
+
+                try {
+                    const rpcResult = await Promise.race([
+                        supabase.rpc('get_worker_profile_payload'),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('RPC_TIMEOUT')), 7000)
+                        )
+                    ])
+                    payload = rpcResult?.data || null
+                    payloadError = rpcResult?.error || null
+                } catch (rpcErr) {
+                    payloadError = rpcErr
+                }
+
+                let resolvedPayload = payload
+                if (payloadError) {
+                    const missingEmailVerifiedColumn = /email_verified/i.test(payloadError.message || '')
+                        && /does not exist/i.test(payloadError.message || '')
+
+                    const rpcTimedOut = /RPC_TIMEOUT/i.test(payloadError.message || '')
+
+                    if (!missingEmailVerifiedColumn && !rpcTimedOut) {
+                        throw new Error(`Failed to fetch profile payload: ${payloadError.message}`)
+                    }
+
+                    // Backward-compatible fallback for databases that have not yet added users.email_verified.
+                    const [profileRes, applicationsRes, reviewsRes, savedJobsData] = await Promise.all([
+                        supabase
+                            .from('users')
+                            .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active,profile_picture,created_at,updated_at')
+                            .eq('id', user.id)
+                            .single(),
+                        supabase
+                            .from('applications')
+                            .select('id,job_id,status,proposed_price,message,created_at,job:job_id(id,title,description,budget,location,status,client_id,created_at)')
+                            .eq('worker_id', user.id)
+                            .order('created_at', { ascending: false }),
+                        supabase
+                            .from('reviews')
+                            .select('id,rating,comment,created_at,rater_type,client_id')
+                            .eq('worker_id', user.id)
+                            .eq('rater_type', 'client')
+                            .order('created_at', { ascending: false }),
+                        fetchSavedJobsForWorker(user.id)
+                    ])
+
+                    if (profileRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${profileRes.error.message}`)
+                    }
+                    if (applicationsRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${applicationsRes.error.message}`)
+                    }
+                    if (reviewsRes.error) {
+                        throw new Error(`Failed to fetch profile payload: ${reviewsRes.error.message}`)
+                    }
+                    resolvedPayload = {
+                        profile: {
+                            ...(profileRes.data || {}),
+                            email_verified: false
+                        },
+                        applications: applicationsRes.data || [],
+                        reviews: reviewsRes.data || [],
+                        saved_jobs: savedJobsData
+                    }
                 }
 
                 if (!isMounted) return
 
-                let userData = profileData
-                if (!userData.user_type) {
-                    userData = { ...userData, user_type: 'worker' }
+                let userData = resolvedPayload?.profile
+                if (!userData) {
+                    throw new Error('Profile payload is missing user profile data')
                 }
 
-                setProfile(userData)
+                let hydratedUserData = userData
+                const rpcProfileMissingPicture =
+                    userData?.profile_picture === undefined
+                    && userData?.profilePicture === undefined
 
-                if (userData.portfolio && userData.portfolio.length > 0) {
-                    setProfilePicturePreview(userData.portfolio[0])
-                }
+                if (rpcProfileMissingPicture) {
+                    const { data: profilePictureData, error: profilePictureError } = await supabase
+                        .from('users')
+                        .select('profile_picture')
+                        .eq('id', user.id)
+                        .single()
 
-                let portfolioData = userData.portfolio || []
-                if (typeof portfolioData === 'string') {
-                    try {
-                        portfolioData = JSON.parse(portfolioData)
-                    } catch (e) {
-                        portfolioData = []
+                    if (profilePictureError) {
+                        console.warn('Failed to hydrate worker profile picture from users table:', profilePictureError.message)
+                    } else if (profilePictureData) {
+                        hydratedUserData = {
+                            ...userData,
+                            profile_picture: profilePictureData.profile_picture || null
+                        }
                     }
                 }
 
-                let servicesData = userData.services || []
-                if (typeof servicesData === 'string') {
-                    try {
-                        servicesData = JSON.parse(servicesData)
-                    } catch (e) {
-                        servicesData = []
-                    }
+                const normalizedUserData = normalizeWorkerProfile(hydratedUserData, user?.email)
+
+                const applicationsData = Array.isArray(resolvedPayload?.applications) ? resolvedPayload.applications : []
+                const ratingsData = Array.isArray(resolvedPayload?.reviews) ? resolvedPayload.reviews : []
+                let savedJobsData = Array.isArray(resolvedPayload?.saved_jobs) ? resolvedPayload.saved_jobs : []
+                if (savedJobsData.length === 0) {
+                    savedJobsData = await fetchSavedJobsForWorker(user.id)
                 }
+
+                setProfile(normalizedUserData)
+                setProfilePicturePreview(normalizedUserData.profilePicture)
 
                 setFormData({
-                    email: userData.email || '',
-                    firstName: userData.first_name || '',
-                    lastName: userData.last_name || '',
-                    phoneNumber: userData.phone_number || '',
-                    isWorker: userData.user_type === 'worker' || false,
-                    jobTitle: userData.job_title || '',
-                    location: userData.location || '',
-                    bio: userData.bio || '',
-                    yearsExperience: userData.years_experience || 0,
-                    services: servicesData,
-                    portfolio: portfolioData,
-                    profilePicture: userData.portfolio && userData.portfolio.length > 0 ? userData.portfolio[0] : null
+                    email: normalizedUserData.email,
+                    firstName: normalizedUserData.firstName,
+                    lastName: normalizedUserData.lastName,
+                    phoneNumber: normalizedUserData.phoneNumber,
+                    isWorker: normalizedUserData.user_type === 'worker',
+                    jobTitle: normalizedUserData.jobTitle,
+                    location: normalizedUserData.location,
+                    bio: normalizedUserData.bio,
+                    yearsExperience: normalizedUserData.yearsExperience,
+                    services: normalizedUserData.services,
+                    portfolio: normalizedUserData.portfolio,
+                    profilePicture: normalizedUserData.profilePicture
                 })
 
-                clearTimeout(timeoutId)
-                clearTimeout(warningTimeoutId)
-                setLoading(false)
-                setTimeoutWarning(false)
-
-                // 2) Defer secondary datasets to background fetch.
-                const [applicationsResult, ratingsResult, savedJobsResult] = await Promise.allSettled([
-                    supabase
-                        .from('applications')
-                        .select('id,job_id,status,proposed_price,message,created_at')
-                        .eq('worker_id', user.id)
-                        .order('created_at', { ascending: false }),
-                    supabase
-                        .from('reviews')
-                        .select('id,rating,comment,created_at,rater_type,client_id')
-                        .eq('worker_id', user.id)
-                        .eq('rater_type', 'client')
-                        .order('created_at', { ascending: false }),
-                    supabase
-                        .from('jobs')
-                        .select('id,title,description,budget,location,status,client_id,created_at')
-                        .eq('status', 'active')
-                        .limit(10)
-                ])
-
-                if (!isMounted) return
-
-                let applicationsRes = { data: null, error: null }
-                let ratingsRes = { data: null, error: null }
-                let savedJobsRes = { data: null, error: null }
-
-                if (applicationsResult.status === 'fulfilled') {
-                    applicationsRes = applicationsResult.value
-                } else {
-                    applicationsRes.error = applicationsResult.reason
-                }
-
-                if (ratingsResult.status === 'fulfilled') {
-                    ratingsRes = ratingsResult.value
-                } else {
-                    ratingsRes.error = ratingsResult.reason
-                }
-
-                if (savedJobsResult.status === 'fulfilled') {
-                    savedJobsRes = savedJobsResult.value
-                } else {
-                    savedJobsRes.error = savedJobsResult.reason
-                }
-
-                // Log any query errors for debugging
-                if (applicationsRes.error) console.error('Applications fetch error:', applicationsRes.error)
-                if (ratingsRes.error) console.error('Ratings fetch error:', ratingsRes.error)
-                if (savedJobsRes.error) console.error('Saved jobs fetch error:', savedJobsRes.error)
-
-                // Handle applications/jobs data (optional)
-                let apps = (applicationsRes.data && !applicationsRes.error) ? applicationsRes.data : []
-                // Normalize job_id to id for easier access in the UI
-                apps = apps.map(app => ({
+                let apps = applicationsData.map(app => ({
                     ...app,
-                    id: app.job_id
+                    job: app.job || null
                 }))
 
-                // Categorize jobs by status
                 const applied = apps.filter(app => app.status === 'pending')
                 const accepted = apps.filter(app => app.status === 'accepted')
                 const finished = apps.filter(app => app.status === 'completed')
@@ -224,16 +333,37 @@ export default function WorkerProfilePage() {
                 setAppliedJobs(applied)
                 setPendingJobs(accepted)
                 setFinishedJobs(finished)
-
-                // Handle ratings data (optional)
-                const ratingsData = (ratingsRes.data && !ratingsRes.error) ? ratingsRes.data : []
                 setRatings(ratingsData)
+                setSavedJobs(savedJobsData)
 
-                // Handle saved jobs (optional)
-                const savedJobs = (savedJobsRes.data && !savedJobsRes.error) ? savedJobsRes.data : []
-                setSavedJobs(savedJobs)
-
+                clearTimeout(timeoutId)
+                clearTimeout(warningTimeoutId)
+                setLoading(false)
+                setJobsLoading(false)
                 setTimeoutWarning(false)
+
+                    // Load confirmed completions after initial paint so refresh is not blocked.
+                    ; (async () => {
+                        try {
+                            const completionsResult = await Promise.race([
+                                supabase
+                                    .from('completions')
+                                    .select('id,final_price,confirmed_at,job:job_id(id,title,location,budget)')
+                                    .eq('worker_id', user.id)
+                                    .eq('status', 'confirmed')
+                                    .order('confirmed_at', { ascending: false }),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('COMPLETIONS_TIMEOUT')), 2500))
+                            ])
+
+                            if (!isMounted) return
+                            const completionsData = completionsResult?.data || []
+                            setConfirmedCompletions(completionsData.filter(c => c.job))
+                        } catch (completionsErr) {
+                            if (!/COMPLETIONS_TIMEOUT/i.test(completionsErr?.message || '')) {
+                                console.warn('Failed to fetch confirmed completions:', completionsErr?.message || completionsErr)
+                            }
+                        }
+                    })()
 
             } catch (err) {
                 clearTimeout(timeoutId)
@@ -279,7 +409,8 @@ export default function WorkerProfilePage() {
             clearTimeout(timeoutId)
             clearTimeout(warningTimeoutId)
         }
-    }, [authLoading, user, t])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [authLoading, user])
 
     // Real-time subscription for application status changes
     useEffect(() => {
@@ -331,18 +462,52 @@ export default function WorkerProfilePage() {
         })
     }
 
-    const handleProfilePictureChange = (e) => {
+    const compressImage = (file) => {
+        return new Promise((resolve) => {
+            const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+            if (file.size <= MAX_BYTES) {
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result)
+                reader.readAsDataURL(file)
+                return
+            }
+            const img = new Image()
+            const url = URL.createObjectURL(file)
+            img.onload = () => {
+                URL.revokeObjectURL(url)
+                const scale = Math.sqrt(MAX_BYTES / file.size)
+                const canvas = document.createElement('canvas')
+                canvas.width = Math.round(img.width * scale)
+                canvas.height = Math.round(img.height * scale)
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+                let quality = 0.85
+                // base64 is ~4/3 raw bytes; loop down until encoded size fits 2 MB
+                let dataUrl = canvas.toDataURL('image/jpeg', quality)
+                while (dataUrl.length > MAX_BYTES * 1.37 && quality > 0.1) {
+                    quality = Math.max(0.1, quality - 0.15)
+                    dataUrl = canvas.toDataURL('image/jpeg', quality)
+                }
+                resolve(dataUrl)
+            }
+            img.onerror = () => {
+                URL.revokeObjectURL(url)
+                const reader = new FileReader()
+                reader.onloadend = () => resolve(reader.result)
+                reader.readAsDataURL(file)
+            }
+            img.src = url
+        })
+    }
+
+    const handleProfilePictureChange = async (e) => {
         const file = e.target.files?.[0]
         if (file) {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                setProfilePicturePreview(reader.result)
-                setFormData({
-                    ...formData,
-                    profilePicture: reader.result
-                })
-            }
-            reader.readAsDataURL(file)
+            const dataUrl = await compressImage(file)
+            setProfilePicturePreview(dataUrl)
+            setFormData(prev => ({
+                ...prev,
+                profilePicture: dataUrl
+            }))
         }
     }
 
@@ -366,21 +531,17 @@ export default function WorkerProfilePage() {
     const handlePortfolioChange = (e) => {
         const files = Array.from(e.target.files || [])
 
-        files.forEach(file => {
-            const reader = new FileReader()
-            reader.onloadend = () => {
-                const dataUrl = reader.result
-                setFormData(prev => ({
-                    ...prev,
-                    portfolio: [...prev.portfolio, dataUrl]
-                }))
-                setPortfolioFiles(prev => [...prev, {
-                    name: file.name,
-                    url: dataUrl,
-                    file: file
-                }])
-            }
-            reader.readAsDataURL(file)
+        files.forEach(async (file) => {
+            const dataUrl = await compressImage(file)
+            setFormData(prev => ({
+                ...prev,
+                portfolio: [...prev.portfolio, dataUrl]
+            }))
+            setPortfolioFiles(prev => [...prev, {
+                name: file.name,
+                url: dataUrl,
+                file: file
+            }])
         })
     }
 
@@ -399,43 +560,80 @@ export default function WorkerProfilePage() {
         setUpdateSuccess(false)
 
         try {
-            // Portfolio data is already in the correct format (data URLs or strings)
-            const portfolioData = formData.portfolio.filter(p => p && typeof p === 'string')
+            const portfolioData = normalizeStringArray(formData.portfolio)
+            const currentPortfolio = normalizeStringArray(profile?.portfolio)
+            const hasPortfolioChanged =
+                portfolioData.length !== currentPortfolio.length
+                || portfolioData.some((item, idx) => item !== currentPortfolio[idx])
+
+            const currentProfilePicture = profile?.profile_picture || profile?.profilePicture || null
+            const nextProfilePicture = formData.profilePicture || null
+            const hasProfilePictureChanged = nextProfilePicture !== currentProfilePicture
 
             const updatePayload = {
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 phone_number: formData.phoneNumber,
-                user_type: formData.isWorker ? 'worker' : 'client',
                 job_title: formData.jobTitle,
                 location: formData.location,
                 bio: formData.bio,
                 years_experience: formData.yearsExperience,
-                services: formData.services,
-                portfolio: portfolioData
+                services: formData.services
             }
 
-            const { data, error } = await supabase
+            if (hasPortfolioChanged) {
+                updatePayload.portfolio = portfolioData
+            }
+
+            if (hasProfilePictureChanged) {
+                updatePayload.profile_picture = nextProfilePicture
+            }
+
+            const saveController = new AbortController()
+            let saveTimeoutId
+
+            const saveRequest = supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
-                .select()
-                .single()
+                .abortSignal(saveController.signal)
+
+            const { error } = await Promise.race([
+                saveRequest,
+                new Promise((_, reject) => {
+                    saveTimeoutId = setTimeout(() => {
+                        saveController.abort()
+                        reject(new Error('SAVE_TIMEOUT'))
+                    }, PROFILE_SAVE_TIMEOUT_MS)
+                })
+            ])
+
+            clearTimeout(saveTimeoutId)
 
             if (error) throw error
 
-            const updatedUser = data
-            setProfile(updatedUser)
-            if (updatedUser.portfolio && updatedUser.portfolio.length > 0) {
-                setProfilePicturePreview(updatedUser.portfolio[0])
+            const nextPortfolio = hasPortfolioChanged ? portfolioData : currentPortfolio
+            const updatedUser = {
+                ...(profile || {}),
+                ...updatePayload,
+                portfolio: nextPortfolio,
+                profile_picture: hasProfilePictureChanged ? nextProfilePicture : currentProfilePicture
             }
+
+            const normalizedUpdatedUser = normalizeWorkerProfile(updatedUser, profile?.email || user?.email)
+            setProfile(normalizedUpdatedUser)
+            setProfilePicturePreview(normalizedUpdatedUser.profilePicture)
             setIsEditing(false)
             setUpdateSuccess(true)
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to update profile', err)
-            setUpdateError(err.message || 'Failed to update profile')
+            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
+                setUpdateError('Profile save is taking too long. Please check your connection and try again.')
+            } else {
+                setUpdateError(err.message || 'Failed to update profile')
+            }
         } finally {
             setUpdateLoading(false)
         }
@@ -457,7 +655,10 @@ export default function WorkerProfilePage() {
 
             if (error) throw error
 
-            setProfile(data)
+            setProfile(prev => normalizeWorkerProfile({
+                ...(prev || {}),
+                ...(data || {})
+            }, prev?.email || user?.email))
         } catch (err) {
             console.error('Failed to update availability status', err)
             setAvailabilityError(err.message || 'Failed to update availability status')
@@ -471,10 +672,27 @@ export default function WorkerProfilePage() {
         setVerifyingEmail(true)
         setEmailVerificationError('')
         try {
-            // Email verification is handled by Supabase via email links
-            setEmailVerificationError('Email verification is handled automatically via the link sent to your email.')
+            const { data: { session }, error } = await supabase.auth.getSession()
+            if (error) throw error
+
+            if (!session?.user?.email_confirmed_at) {
+                setEmailVerificationError('Email not verified yet. Please click the link in your verification email first.')
+                return
+            }
+
+            const { error: syncError } = await supabase
+                .from('users')
+                .update({ email_verified: true })
+                .eq('id', user.id)
+
+            if (syncError) throw syncError
+
+            setProfile(prev => ({ ...prev, email_verified: true }))
+            setUpdateSuccess(true)
+            const id = setTimeout(() => setUpdateSuccess(false), 3000)
+            timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Verification not available')
+            setEmailVerificationError(err.message || 'Verification status check failed')
         } finally {
             setVerifyingEmail(false)
         }
@@ -496,7 +714,7 @@ export default function WorkerProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Failed to resend verification code')
+            setEmailVerificationError(err.message || 'Failed to resend verification email')
         } finally {
             setEmailResendLoading(false)
         }
@@ -538,7 +756,10 @@ export default function WorkerProfilePage() {
     useEffect(() => {
         if (pendingJobs.length > 0) {
             pendingJobs.forEach(job => {
-                loadCompletionStatus(job.id)
+                const jobId = job.job_id || job.id
+                if (jobId) {
+                    loadCompletionStatus(jobId)
+                }
             })
         }
     }, [pendingJobs])
@@ -612,8 +833,8 @@ export default function WorkerProfilePage() {
                                     onClick={handleToggleAvailability}
                                     disabled={isAvailabilityToggling}
                                     className={`px-4 py-2 rounded-lg font-semibold transition ${profile?.is_active
-                                            ? 'bg-green-600 text-white hover:bg-green-700'
-                                            : 'bg-red-600 text-white hover:bg-red-700'
+                                        ? 'bg-green-600 text-white hover:bg-green-700'
+                                        : 'bg-red-600 text-white hover:bg-red-700'
                                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
                                     {isAvailabilityToggling ? `${t('loading')}...` : (profile?.is_active ? '✓ Active' : '✗ Inactive')}
@@ -653,29 +874,20 @@ export default function WorkerProfilePage() {
                                 <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
                                     <p className="text-sm text-yellow-700 mb-4">
-                                        {t('verifySixDigitCode').replace('{{email}}', profile.email)}
+                                        Verification is link-based. Open the verification email sent to {profile.email}, click the link, then use the button below to refresh your status.
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
-                                        <input
-                                            type="text"
-                                            value={emailVerificationCode}
-                                            onChange={(e) => setEmailVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                            placeholder="000000"
-                                            maxLength="6"
-                                            className="w-32 px-3 py-2 border border-yellow-300 rounded text-center text-lg tracking-widest font-mono"
-                                            required
-                                        />
                                         <button
                                             type="submit"
-                                            disabled={verifyingEmail || emailVerificationCode.length !== 6}
+                                            disabled={verifyingEmail}
                                             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
                                         >
-                                            {verifyingEmail ? t('verifying') : t('verifyButton')}
+                                            {verifyingEmail ? 'Checking...' : 'I clicked the verification link'}
                                         </button>
                                     </form>
                                     {emailVerificationError && (
                                         <div className="text-sm text-red-600 mb-3 p-2 bg-red-50 rounded border border-red-200">
-                                            ❌ {emailVerificationError}
+                                            {emailVerificationError}
                                             {(emailVerificationError.toLowerCase().includes('expired') || emailVerificationError.toLowerCase().includes('invalid')) && (
                                                 <div className="mt-2 pt-2 border-t border-red-200">
                                                     <button
@@ -870,7 +1082,7 @@ export default function WorkerProfilePage() {
                                             <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
                                                 <span className="text-2xl">🏆</span> {t('completed')}
                                             </h4>
-                                            <p className="text-3xl font-bold text-purple-600">{finishedJobs.length}</p>
+                                            <p className="text-3xl font-bold text-purple-600">{profile?.completedJobs ?? 0}</p>
                                             <p className="text-xs text-purple-700 mt-2">{t('completedJobsDescription')}</p>
                                         </div>
                                     </div>
@@ -898,16 +1110,21 @@ export default function WorkerProfilePage() {
                                         <div className="mb-6 bg-blue-50 rounded-lg p-4">
                                             <h4 className="font-semibold text-blue-900 mb-3">{t('appliedJobsPending')}</h4>
                                             <div className="space-y-2">
-                                                {savedJobs.map(job => (
-                                                    <div key={job.job_id || job.id} className="bg-white p-3 rounded border border-blue-200">
-                                                        <p className="font-medium text-gray-900">{job.title}</p>
-                                                        <div className="text-xs text-gray-600 mt-1">
-                                                            <span>📍 {job.location}</span>
-                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                {appliedJobs.map(job => {
+                                                    const displayJob = job.job || job
+                                                    const jobId = job.job_id || displayJob.id || job.id
+
+                                                    return (
+                                                        <div key={job.id || jobId} className="bg-white p-3 rounded border border-blue-200">
+                                                            <p className="font-medium text-gray-900">{displayJob.title || 'Applied job'}</p>
+                                                            <div className="text-xs text-gray-600 mt-1">
+                                                                <span>📍 {displayJob.location || 'N/A'}</span>
+                                                                {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
+                                                            </div>
+                                                            <div className="text-xs text-blue-600 mt-1">{t('status')}: <span className="font-semibold">{t('pendingReviewStatus')}</span></div>
                                                         </div>
-                                                        <div className="text-xs text-blue-600 mt-1">{t('status')}: <span className="font-semibold">{t('pendingReviewStatus')}</span></div>
-                                                    </div>
-                                                ))}
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     )}
@@ -919,17 +1136,20 @@ export default function WorkerProfilePage() {
                                             <div className="space-y-3">
                                                 {pendingJobs.map(job => {
                                                     const jobId = job.job_id || job.id
-                                                    const status = completionStatus[jobId] || { status: 'not_requested' }
+                                                    const displayJob = job.job || job
+                                                    const hasConfirmedCompletion = confirmedCompletions.some(c => c?.job?.id === jobId)
+                                                    const status = completionStatus[jobId]
+                                                        || (hasConfirmedCompletion ? { status: 'completed_and_rated' } : { status: 'not_requested' })
                                                     const isCompleted = status.status === 'confirmed' || status.status === 'completed_and_rated'
 
                                                     return (
-                                                        <div key={jobId} className="bg-white p-4 rounded border border-green-200">
+                                                        <div key={job.id || jobId} className="bg-white p-4 rounded border border-green-200">
                                                             <div className="flex justify-between items-start">
                                                                 <div className="flex-1">
-                                                                    <p className="font-medium text-gray-900">{job.title}</p>
+                                                                    <p className="font-medium text-gray-900">{displayJob.title || 'Accepted job'}</p>
                                                                     <div className="text-xs text-gray-600 mt-1">
-                                                                        <span>📍 {job.location}</span>
-                                                                        {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                                        <span>📍 {displayJob.location || 'N/A'}</span>
+                                                                        {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
                                                                     </div>
                                                                 </div>
 
@@ -964,19 +1184,19 @@ export default function WorkerProfilePage() {
                                         </div>
                                     )}
 
-                                    {/* Finished Jobs Details */}
-                                    {finishedJobs.length > 0 && (
+                                    {/* Confirmed Completed Jobs Details */}
+                                    {confirmedCompletions.length > 0 && (
                                         <div className="bg-purple-50 rounded-lg p-4">
                                             <h4 className="font-semibold text-purple-900 mb-3">{t('completedJobsLabel')}</h4>
                                             <div className="space-y-2">
-                                                {finishedJobs.map(job => (
-                                                    <div key={job.job_id || job.id} className="bg-white p-3 rounded border border-purple-200">
-                                                        <p className="font-medium text-gray-900">{job.title}</p>
+                                                {confirmedCompletions.map(c => (
+                                                    <div key={c.id} className="bg-white p-3 rounded border border-purple-200">
+                                                        <p className="font-medium text-gray-900">{c.job?.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
-                                                            <span>📍 {job.location}</span>
-                                                            {job.salary && <span className="ml-3">💰 CFA {job.salary}</span>}
+                                                            <span>📍 {c.job?.location}</span>
+                                                            {c.final_price && <span className="ml-3">💰 CFA {c.final_price}</span>}
                                                         </div>
-                                                        <div className="text-xs text-purple-600 mt-1">{t('status')}: <span className="font-semibold">{t('completed')}</span></div>
+                                                        <div className="text-xs text-purple-600 mt-1">✅ {t('confirmedOn') || 'Confirmed'}: <span className="font-semibold">{c.confirmed_at ? new Date(c.confirmed_at).toLocaleDateString() : '—'}</span></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -984,7 +1204,7 @@ export default function WorkerProfilePage() {
                                     )}
 
                                     {/* No Jobs Message */}
-                                    {savedJobs.length === 0 && appliedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && (
+                                    {savedJobs.length === 0 && appliedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && confirmedCompletions.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
                                             <p>{t('noJobApplicationsYet')}</p>
                                         </div>

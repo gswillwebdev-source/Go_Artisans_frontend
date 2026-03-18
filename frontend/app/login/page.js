@@ -15,6 +15,19 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false)
 
     useEffect(() => {
+        const params = typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search)
+            : new URLSearchParams('')
+
+        const emailExists = params.get('emailExists')
+        const email = params.get('email')
+        if (emailExists === '1') {
+            setError(`This email is already registered. Please sign in${email ? ` with ${email}` : ''}.`)
+            if (email) {
+                setFormData(prev => ({ ...prev, email }))
+            }
+        }
+
         // Check if user is already logged in
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession()
@@ -57,6 +70,15 @@ export default function LoginPage() {
             })
 
             if (error) {
+                const normalized = (error.message || '').toLowerCase()
+                if (normalized.includes('email not confirmed')) {
+                    if (typeof window !== 'undefined') {
+                        localStorage.setItem('pendingVerificationEmail', formData.email)
+                    }
+                    router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`)
+                    setLoading(false)
+                    return
+                }
                 setError(error.message)
                 setLoading(false)
                 return

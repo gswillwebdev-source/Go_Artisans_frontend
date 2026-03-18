@@ -25,10 +25,13 @@ export default function SavedJobsPage() {
 
                 setIsLoggedIn(true)
 
-                // Note: Saved jobs feature is not yet implemented in the database
-                // For now, showing an empty list
-                // TODO: Implement saved_jobs table in Supabase schema
-                setSavedJobs([])
+                const { data, error: fetchError } = await supabase
+                    .from('saved_jobs')
+                    .select('created_at,job:job_id(id,title,description,budget,location,status,client_id,created_at,category)')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                if (fetchError) throw fetchError
+                setSavedJobs((data || []).map(row => row.job).filter(Boolean))
             } catch (err) {
                 console.error('Error fetching saved jobs:', err)
                 setError('Failed to load saved jobs')

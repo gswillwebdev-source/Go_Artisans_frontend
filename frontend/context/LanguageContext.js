@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useCallback, useEffect, useState } from 'react'
 import { translations } from '@/lib/translations'
 
 const LanguageContext = createContext()
@@ -23,9 +23,9 @@ export const LanguageProvider = ({ children }) => {
         }
     }
 
-    const t = (key) => {
+    const t = useCallback((key) => {
         return translations[language]?.[key] || translations['en']?.[key] || key
-    }
+    }, [language])
 
     return (
         <LanguageContext.Provider value={{ language, changeLanguage, t }}>
