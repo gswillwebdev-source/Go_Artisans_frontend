@@ -50,12 +50,32 @@ export default function ForgotPasswordPage() {
         setLoading(true)
         setError('')
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: getResetPasswordRedirectUrl(),
-            })
+            // 1. Check user eligibility via Supabase RPC (user exists + 2-week cooldown)
+            const { data: eligibility, error: rpcError } = await supabase.rpc(
+                'check_password_reset_eligibility',
+                { p_email: email.trim().toLowerCase() }
+            )
 
-            if (error) {
-                setError(error.message)
+            if (rpcError) {
+                setError('Failed to process reset request. Please try again.')
+                setLoading(false)
+                return
+            }
+
+            if (!eligibility?.eligible) {
+                setError(eligibility?.error || 'Unable to process reset request.')
+                setLoading(false)
+                return
+            }
+
+            // 2. User is eligible — trigger Supabase's built-in reset email
+            const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+                email.trim(),
+                { redirectTo: getResetPasswordRedirectUrl() }
+            )
+
+            if (resetError) {
+                setError(resetError.message)
             } else {
                 setStep(2)
             }
@@ -106,7 +126,7 @@ export default function ForgotPasswordPage() {
                         <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
                             <p className="font-semibold mb-2">{t('emailSent') || 'Email sent!'}</p>
                             <p>{t('sentResetLinkTo') || 'We\'ve sent a password reset link to'} <strong>{email}</strong></p>
-                            <p className="mt-2">{t('clickLinkExpires') || 'Click the link in the email to reset your password. The link expires in 1 hour.'}</p>
+                            <p className="mt-2">{t('clickLinkExpires') || 'Click the link in the email to reset your password. The link expires in 30 minutes.'}</p>
                         </div>
                         <button
                             onClick={() => {
