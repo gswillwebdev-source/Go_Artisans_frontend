@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -14,56 +14,37 @@ export default function ResetPasswordPage() {
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
-    // null = still checking | true = valid recovery session | false = invalid/expired
-    const [tokenStatus, setTokenStatus] = useState(null)
+    const [isValidToken, setIsValidToken] = useState(false)
+    const [hydrated, setHydrated] = useState(false)
 
     useEffect(() => {
-        // Check for error params Supabase appends to the hash when the link is
-        // expired or invalid (e.g. #error=access_denied&error_code=otp_expired)
-        const hash = typeof window !== 'undefined' ? window.location.hash : ''
+        // Only run on client, after hydration
+        setHydrated(true)
+
+        // Parse URL hash for Supabase error parameters
+        const hash = window.location.hash
         const params = new URLSearchParams(hash.substring(1))
+
         const errorCode = params.get('error_code')
+        const errorDescription = params.get('error_description')
+        const token = params.get('access_token')
 
-        if (errorCode) {
-            setError(
-                errorCode === 'otp_expired'
-                    ? 'Your reset link has expired (30-minute limit). Please request a new one.'
-                    : (params.get('error_description') || 'Invalid reset link. Please request a new one.')
-                        .replace(/\+/g, ' ')
-            )
-            setTokenStatus(false)
-            return
+        if (errorCode || errorDescription) {
+            // User has an expired or invalid token
+            if (errorCode === 'otp_expired') {
+                setError('Email link is invalid or has expired. Please request a new password reset.')
+            } else {
+                setError(errorDescription || 'Invalid reset link. Please request a new password reset.')
+            }
+            setIsValidToken(false)
+        } else if (token) {
+            // Valid token found
+            setIsValidToken(true)
+        } else {
+            setError('Invalid or missing reset token')
+            setIsValidToken(false)
         }
-
-        // Listen for Supabase PASSWORD_RECOVERY event.
-        // With detectSessionInUrl: true, Supabase parses the URL hash automatically
-        // and fires this event when the recovery token is valid.
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'PASSWORD_RECOVERY') {
-                setTokenStatus(true)
-            }
-        })
-
-        // Also check if a recovery session is already active (handles page reload)
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            if (session) {
-                setTokenStatus(true)
-            } else if (tokenStatus === null) {
-                // No session and no error — wait briefly then show invalid
-                setTimeout(() => {
-                    setTokenStatus((prev) => {
-                        if (prev === null) {
-                            setError('Invalid or missing reset link. Please request a new one.')
-                            return false
-                        }
-                        return prev
-                    })
-                }, 2000)
-            }
-        })
-
-        return () => subscription.unsubscribe()
-    }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    }, [])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -81,37 +62,29 @@ export default function ResetPasswordPage() {
 
         setLoading(true)
 
-        // Update password via Supabase Auth.
-        // The Postgres trigger on auth.users will automatically set
-        // last_password_reset_at = NOW() server-side — no client action needed.
-        const { error: updateError } = await supabase.auth.updateUser({
-            password: newPassword,
-        })
+        try {
+            const { error: authError } = await supabase.auth.updateUser({
+                password: newPassword
+            })
 
-        if (updateError) {
-            setError(updateError.message)
+            if (authError) {
+                setError(authError.message)
+                setLoading(false)
+                return
+            }
+
+            setSuccess(true)
+            setNewPassword('')
+            setConfirmPassword('')
+
+            setTimeout(() => {
+                router.push('/login')
+            }, 2000)
+        } catch (err) {
+            console.error('Password reset error:', err)
+            setError(err.message || 'Password reset failed')
             setLoading(false)
-            return
         }
-
-        // Sign out so the recovery session is cleared
-        await supabase.auth.signOut()
-
-        setSuccess(true)
-        setNewPassword('')
-        setConfirmPassword('')
-        setTimeout(() => router.push('/login'), 2500)
-    }
-
-    // ── Loading state while we wait for the auth event ──────────────────────
-    if (tokenStatus === null) {
-        return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
-                <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
-                    <p className="text-gray-600">Verifying your reset link...</p>
-                </div>
-            </div>
-        )
     }
 
     return (
@@ -120,35 +93,43 @@ export default function ResetPasswordPage() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">Reset Your Password</h1>
                 <p className="text-gray-600 mb-8">Enter your new password below</p>
 
-                {/* Error */}
+                {/* Show error messages */}
                 {error && (
                     <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
                         <div className="flex items-start">
-                            <svg className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            <p className="ml-3 text-sm text-red-700">{error}</p>
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3 flex-1">
+                                <p className="text-sm text-red-700">{error}</p>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Success */}
+                {/* Show success message */}
                 {success && (
                     <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r mb-4">
                         <div className="flex items-start">
-                            <svg className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <p className="ml-3 text-sm text-green-700">Password reset successfully! Redirecting to login...</p>
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3 flex-1">
+                                <p className="text-sm text-green-700">Password reset successfully! Redirecting to login...</p>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Invalid / expired token */}
-                {!tokenStatus && !success ? (
+                {/* If token is invalid/expired, show request new reset option */}
+                {!isValidToken && error ? (
                     <div className="space-y-4">
                         <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
-                            <p>Please request a new password reset link.</p>
+                            <p className="mb-2">Please request a new password reset link.</p>
                         </div>
                         <Link
                             href="/forgot-password"
@@ -163,7 +144,7 @@ export default function ResetPasswordPage() {
                             Back to Login
                         </Link>
                     </div>
-                ) : tokenStatus && !success ? (
+                ) : isValidToken ? (
                     <form onSubmit={handleSubmit} className="space-y-4 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
@@ -175,7 +156,7 @@ export default function ResetPasswordPage() {
                                     required
                                     disabled={loading}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent disabled:bg-gray-100"
-                                    placeholder="........"
+                                    placeholder="••••••••"
                                 />
                                 <button
                                     type="button"
@@ -206,7 +187,7 @@ export default function ResetPasswordPage() {
                                 required
                                 disabled={loading}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent disabled:bg-gray-100"
-                                placeholder="........"
+                                placeholder="••••••••"
                             />
                         </div>
 

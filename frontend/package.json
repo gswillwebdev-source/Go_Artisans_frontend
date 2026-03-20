@@ -3,14 +3,13 @@
     "version": "1.0.0",
     "description": "Job seeking platform - Next.js frontend",
     "scripts": {
-        "dev": "next dev --webpack",
-        "build": "next build --webpack",
-        "vercel-build": "next build --webpack",
+        "dev": "next dev",
+        "build": "next build",
+        "vercel-build": "next build",
         "start": "next start",
-        "lint": "eslint app components hooks lib context --ext .js,.jsx"
+        "lint": "next lint"
     },
     "dependencies": {
-        "@github/copilot-sdk": "^0.1.32",
         "@supabase/supabase-js": "^2.98.0",
         "@vercel/analytics": "^1.6.1",
         "axios": "^1.6.0",
