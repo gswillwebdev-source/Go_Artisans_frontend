@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Background -->
+  <rect width="64" height="64" fill="#4f46e5" rx="8"/>
+  
+  <!-- Briefcase icon representing jobs/work -->
+  <g transform="translate(16, 20)">
+    <!-- Main briefcase body -->
+    <path d="M2 8 L2 20 Q2 22 4 22 L28 22 Q30 22 30 20 L30 8 Q30 6 28 6 L4 6 Q2 6 2 8" fill="white" stroke="white" stroke-width="1"/>
+    <!-- Handle -->
+    <path d="M8 6 Q8 2 12 2 Q16 2 16 6" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <!-- Divider -->
+    <line x1="16" y1="6" x2="16" y2="22" stroke="white" stroke-width="1" opacity="0.5"/>
+  </g>
+  
+  <!-- Checkmark overlay -->
+  <g transform="translate(28, 32)">
+    <circle cx="4" cy="4" r="6" fill="#10b981"/>
+    <path d="M1 4 L3 6 L7 2" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

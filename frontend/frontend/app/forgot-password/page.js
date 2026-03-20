@@ -1,0 +1,130 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useLanguage } from '@/context/LanguageContext'
+import { useHydrated } from '@/hooks/useHydrated'
+import { supabase } from '@/lib/supabase'
+
+export default function ForgotPasswordPage() {
+    const router = useRouter()
+    const { t } = useLanguage()
+    const isHydrated = useHydrated()
+    const [email, setEmail] = useState('')
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
+    const [isChecking, setIsChecking] = useState(true)
+    const [step, setStep] = useState(1) // 1: request, 2: success message
+
+    useEffect(() => {
+        // Check if user is already logged in
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (session?.user) {
+                // Get user profile to check role
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('email', session.user.email)
+                    .single()
+
+                if (profile?.user_type === 'worker') {
+                    router.push('/worker-profile')
+                } else if (profile?.user_type === 'client') {
+                    router.push('/client-profile')
+                } else {
+                    router.push('/choose-role')
+                }
+            } else {
+                setIsChecking(false)
+            }
+        }
+
+        checkUser()
+    }, [router])
+
+    const handleRequestReset = async (e) => {
+        e.preventDefault()
+        setLoading(true)
+        setError('')
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/reset-password`,
+            })
+
+            if (error) {
+                setError(error.message)
+            } else {
+                setStep(2)
+            }
+        } catch (err) {
+            setError(t('failedToProcessReset') || 'Failed to process reset request')
+        }
+        setLoading(false)
+    }
+
+    if (isChecking && !isHydrated) {
+        return <div className="min-h-screen flex items-center justify-center">{t('loading') || 'Loading...'}</div>
+    }
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">{t('resetPassword') || 'Reset Your Password'}</h1>
+                <p className="text-gray-600 mb-8">
+                    {step === 1 && (t('enterEmailResetMessage') || 'Enter your email address and we\'ll send you a link to reset your password')}
+                    {step === 2 && (t('checkEmailResetMessage') || 'Check your email for the password reset link')}
+                </p>
+
+                {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{error}</div>}
+
+                {step === 1 ? (
+                    <form onSubmit={handleRequestReset} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">{t('email') || 'Email Address'}</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                placeholder="you@example.com"
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                        >
+                            {loading ? (t('sending') || 'Sending...') : (t('sendResetLink') || 'Send Reset Link')}
+                        </button>
+                    </form>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
+                            <p className="font-semibold mb-2">{t('emailSent') || 'Email sent!'}</p>
+                            <p>{t('sentResetLinkTo') || 'We\'ve sent a password reset link to'} <strong>{email}</strong></p>
+                            <p className="mt-2">{t('clickLinkExpires') || 'Click the link in the email to reset your password. The link expires in 1 hour.'}</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setStep(1)
+                                setEmail('')
+                            }}
+                            className="w-full text-indigo-600 hover:underline font-semibold py-2"
+                        >
+                            {t('tryAnotherEmail') || 'Try another email'}
+                        </button>
+                    </div>
+                )}
+
+                <p className="text-center text-gray-600 mt-6 text-sm">
+                    <Link href="/login" className="text-indigo-600 hover:underline font-semibold">
+                        {t('backToLogin') || 'Back to login'}
+                    </Link>
+                </p>
+            </div>
+        </div>
+    )
+}
