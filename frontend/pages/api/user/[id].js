@@ -118,17 +118,27 @@ export default async function handler(req, res) {
     }
 
     // Fetch followers/following counts directly from follows table
-    const { count: followerCount } = await supabase
+    const followerCountResult = await supabase
       .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('following_id', id)
       .eq('status', 'active')
 
-    const { count: followingCount } = await supabase
+    const followingCountResult = await supabase
       .from('follows')
       .select('*', { count: 'exact', head: true })
       .eq('follower_id', id)
       .eq('status', 'active')
+
+    const followerCount = followerCountResult.count || 0
+    const followingCount = followingCountResult.count || 0
+
+    console.log('[USER API] Count queries:', {
+      followerCountResult: { count: followerCountResult.count, error: followerCountResult.error },
+      followingCountResult: { count: followingCountResult.count, error: followingCountResult.error },
+      followerCount,
+      followingCount
+    })
 
     // Check follow status if viewer is authenticated
     let isFollowing = false
@@ -214,6 +224,12 @@ export default async function handler(req, res) {
     }
 
     console.log('[USER API] Profile fetched with visibility rules applied')
+    console.log('[USER API] Response:', {
+      follower_count: followerCount,
+      following_count: followingCount,
+      follow_status: followStatus,
+      isLoggedIn: !!viewer_id
+    })
 
     return res.status(200).json({
       user: safeUser,
