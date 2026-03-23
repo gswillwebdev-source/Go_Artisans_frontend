@@ -3,7 +3,9 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
+import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
+import FollowStats from '@/components/FollowStats'
 
 // Lazy load the ratings component - loads after main profile is shown for faster initial load
 const WorkerRatingsDisplay = lazy(() => import('@/components/WorkerRatingsDisplay'))
@@ -11,50 +13,61 @@ const WorkerRatingsDisplay = lazy(() => import('@/components/WorkerRatingsDispla
 export default function WorkerProfilePage() {
     const params = useParams()
     const workerId = params.id
+    const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
     const [worker, setWorker] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [followerCount, setFollowerCount] = useState(0)
+    const [followingCount, setFollowingCount] = useState(0)
+    const [visibility, setVisibility] = useState(null)
 
     useEffect(() => {
-        // If workerId is undefined, don't fetch yet
-        if (!workerId) {
+        // If workerId is undefined or auth is still loading, don't fetch yet
+        if (!workerId || authLoading) {
             return
         }
 
-        async function fetchWorker() {
+        async function fetchWorkerData() {
             try {
                 setLoading(true)
                 setError(null)
 
-                const { data: workerData, error } = await supabase
-                    .from('users')
-                    .select(`
-                        id,
-                        first_name,
-                        last_name,
-                        email,
-                        phone_number,
-                        user_type,
-                        job_title,
-                        location,
-                        bio,
-                        years_experience,
-                        services,
-                        portfolio,
-                        profile_picture,
-                        completed_jobs,
-                        rating,
-                        is_active
-                    `)
-                    .eq('id', workerId)
-                    .eq('user_type', 'worker')
-                    .single()
+                // Fetch worker profile with visibility rules
+                // Pass currentUser.id if user is logged in, otherwise omit viewer_id
+                const viewerId = currentUser?.id
+                const url = viewerId
+                    ? `/api/user/${workerId}?viewer_id=${viewerId}`
+                    : `/api/user/${workerId}`
+                console.log('[WORKER PAGE] Fetching with:', { workerId, viewerId, isLoggedIn: !!currentUser })
 
-                if (error) {
-                    throw error
+                const response = await fetch(url)
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch worker profile')
                 }
 
-                setWorker(workerData)
+                const data = await response.json()
+                console.log('[WORKER PAGE] Profile data loaded:', {
+                    hasServices: !!data.user?.services,
+                    servicesCount: data.user?.services?.length || 0,
+                    services: data.user?.services,
+                    hasPortfolio: !!data.user?.portfolio,
+                    portfolioCount: data.user?.portfolio?.length || 0,
+                    canSeeGallery: data.visibility?.canSeeGallery
+                })
+
+                setWorker(data.user)
+                setFollowerCount(data.follower_count || 0)
+                setFollowingCount(data.following_count || 0)
+                setVisibility(data.visibility)
+
+                // Debug: Log all sections
+                console.log('[WORKER PAGE] === SECTIONS DEBUG ===')
+                console.log('[WORKER PAGE] Bio:', !!data.user?.bio)
+                console.log('[WORKER PAGE] Services/Skills:', data.user?.services)
+                console.log('[WORKER PAGE] Portfolio/Gallery:', data.user?.portfolio)
+                console.log('[WORKER PAGE] canSeeGallery:', data.visibility?.canSeeGallery)
+
             } catch (err) {
                 console.error('Failed to fetch worker:', err)
                 setError('Failed to load worker profile')
@@ -63,7 +76,38 @@ export default function WorkerProfilePage() {
             }
         }
 
-        fetchWorker()
+        fetchWorkerData()
+    }, [workerId, currentUser?.id, authLoading])
+
+    // Listen for global follow/unfollow events and update follower count in real-time
+    useEffect(() => {
+        const handleFollowChange = (event) => {
+            const { followingId, isFollowing } = event.detail
+
+            console.log('[WORKER PAGE] Event listener triggered:', { eventFollowingId: followingId, pageWorkerId: workerId, match: String(followingId) === String(workerId) })
+
+            // If someone followed or unfollowed THIS worker, update follower count
+            // Convert to string for comparison to handle any type mismatches
+            if (String(followingId) === String(workerId)) {
+                console.log('[WORKER PAGE] MATCH! Follow event received for this worker:', { followingId, workerId, isFollowing })
+                setFollowerCount(prev => {
+                    const newCount = isFollowing ? prev + 1 : Math.max(0, prev - 1)
+                    console.log('[WORKER PAGE] Follower count synced:', { old: prev, new: newCount })
+                    return newCount
+                })
+            } else {
+                console.log('[WORKER PAGE] NO MATCH - event is for different worker')
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            console.log('[WORKER PAGE] Setting up event listener for workerId:', workerId)
+            window.addEventListener(FOLLOW_SYNC_EVENT, handleFollowChange)
+            return () => {
+                console.log('[WORKER PAGE] Removing event listener for workerId:', workerId)
+                window.removeEventListener(FOLLOW_SYNC_EVENT, handleFollowChange)
+            }
+        }
     }, [workerId])
 
     if (loading) {
@@ -127,11 +171,10 @@ export default function WorkerProfilePage() {
 
                             {/* Availability Status */}
                             <div className="mb-4">
-                                <span className={`inline-block px-4 py-2 rounded-full font-semibold text-sm ${
-                                    worker.is_active
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-gray-100 text-gray-800'
-                                }`}>
+                                <span className={`inline-block px-4 py-2 rounded-full font-semibold text-sm ${worker.is_active
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                    }`}>
                                     {worker.is_active ? '✓ Available for work' : '✗ Currently busy'}
                                 </span>
                             </div>
@@ -161,7 +204,7 @@ export default function WorkerProfilePage() {
                                         <span>{worker.rating.toFixed(1)} / 5.0 rating</span>
                                     </div>
                                 )}
-                                {worker.email && (
+                                {visibility?.canSeeContact && worker.email && (
                                     <div className="flex items-center">
                                         <span className="text-xl mr-3">📧</span>
                                         <span>{worker.email}</span>
@@ -169,22 +212,12 @@ export default function WorkerProfilePage() {
                                 )}
                             </div>
 
-                            {/* Contact Button */}
-                            {worker.phone_number ? (
-                                <a
-                                    href={`https://wa.me/${worker.phone_number.replace(/\D/g, '')}?text=Hello%20${worker.first_name},%20I%20am%20interested%20in%20your%20services.`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="mt-6 bg-green-500 text-white px-8 py-3 rounded-lg hover:bg-green-600 font-medium transition inline-flex items-center gap-2"
-                                >
-                                    <span>💬</span>
-                                    Contact on WhatsApp
-                                </a>
-                            ) : (
-                                <button disabled className="mt-6 bg-gray-300 text-white px-8 py-3 rounded-lg cursor-not-allowed font-medium">
-                                    No Contact Info Available
-                                </button>
-                            )}
+                            {/* Follow Stats - Visible to all */}
+                            <FollowStats
+                                followerCount={followerCount}
+                                followingCount={followingCount}
+                                isOwnProfile={false}
+                            />
                         </div>
                     </div>
 
@@ -215,8 +248,8 @@ export default function WorkerProfilePage() {
                         </div>
                     )}
 
-                    {/* Portfolio Section */}
-                    {worker.portfolio && worker.portfolio.length > 0 && (
+                    {/* Portfolio Section - Only if allowed by visibility rules */}
+                    {visibility?.canSeeGallery && worker.portfolio && worker.portfolio.length > 0 && (
                         <div className="mb-8">
                             <h2 className="text-2xl font-bold text-gray-900 mb-4">Portfolio</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -253,38 +286,23 @@ export default function WorkerProfilePage() {
                         </div>
                     )}
 
-                    {/* Reviews Section */}
-                    {worker.reviews && worker.reviews.length > 0 && (
-                        <div className="mb-8">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                                Reviews ({worker.reviews.length})
-                            </h2>
-                            <div className="space-y-4">
-                                {worker.reviews.map((review) => (
-                                    <div key={review.id} className="bg-gray-50 p-4 rounded-lg">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-semibold text-gray-900">
-                                                {review.client_first_name} {review.client_last_name}
-                                            </span>
-                                            <span className="text-yellow-500">{'⭐'.repeat(review.rating)}</span>
-                                        </div>
-                                        <p className="text-gray-600 text-sm">{review.comment}</p>
-                                        <p className="text-gray-500 text-xs mt-2">
-                                            {new Date(review.created_at).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                ))}
-                            </div>
+                    {!visibility?.canSeeGallery && worker.portfolio && worker.portfolio.length > 0 && (
+                        <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-blue-800 text-sm">
+                                👤 Follow this worker to see their portfolio and reviews
+                            </p>
                         </div>
                     )}
 
-                    {/* Ratings Section - Lazy Loaded */}
-                    <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Client Ratings & Feedback</h2>
-                        <Suspense fallback={<div className="text-gray-500">Loading reviews...</div>}>
-                            <WorkerRatingsDisplay workerId={worker.id} />
-                        </Suspense>
-                    </div>
+                    {/* Reviews Section - Only if allowed by visibility rules */}
+                    {visibility?.canSeeGallery && (
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-bold text-gray-900 mb-4">Client Ratings & Feedback</h2>
+                            <Suspense fallback={<div className="text-gray-500">Loading reviews...</div>}>
+                                <WorkerRatingsDisplay workerId={worker.id} />
+                            </Suspense>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
