@@ -67,13 +67,6 @@ export default function Navbar() {
                                         👥 All
                                     </Link>
 
-                                    <Link
-                                        href="/all-clients"
-                                        className={getLinkClasses('/all-clients')}
-                                    >
-                                        👔 Clients
-                                    </Link>
-
                                     {user.user_type === 'client' ? (
                                         <Link
                                             href="/browse-workers"
