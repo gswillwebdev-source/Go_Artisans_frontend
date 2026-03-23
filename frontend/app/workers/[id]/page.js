@@ -125,7 +125,7 @@ export default function WorkerProfilePage() {
                     <h2 className="text-2xl font-bold text-gray-900 mb-4">
                         {error || 'Worker not found'}
                     </h2>
-                    <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700">
+                    <Link href="/all-users" className="text-indigo-600 hover:text-indigo-700">
                         Back to workers
                     </Link>
                 </div>
@@ -136,7 +136,7 @@ export default function WorkerProfilePage() {
     return (
         <div className="min-h-screen bg-gray-50 py-8">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700 mb-6 inline-block">
+                <Link href="/all-users" className="text-indigo-600 hover:text-indigo-700 mb-6 inline-block">
                     ← Back to workers
                 </Link>
 
