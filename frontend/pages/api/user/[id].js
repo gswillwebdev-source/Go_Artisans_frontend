@@ -130,8 +130,15 @@ export default async function handler(req, res) {
       .eq('follower_id', id)
       .eq('status', 'active')
 
-    const followerCount = followerCountResult.count || 0
-    const followingCount = followingCountResult.count || 0
+    const followerCount = followerCountResult.count ?? 0
+    const followingCount = followingCountResult.count ?? 0
+
+    if (followerCountResult.error) {
+      console.error('[USER API] Follower count query error:', followerCountResult.error)
+    }
+    if (followingCountResult.error) {
+      console.error('[USER API] Following count query error:', followingCountResult.error)
+    }
 
     console.log('[USER API] Count queries:', {
       followerCountResult: { count: followerCountResult.count, error: followerCountResult.error },
