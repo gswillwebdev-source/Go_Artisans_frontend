@@ -1,0 +1,713 @@
+[
+  {
+    "id": "1",
+    "question": "Qu'est-ce que GoArtisans ?",
+    "answer": "GoArtisans est une plateforme qui permet de mettre en relation des clients avec des artisans qualifiés pour différents services (plomberie, électricité, maçonnerie, etc.).",
+    "category": "General",
+    "keywords": [
+      "GoArtisans",
+      "plateforme",
+      "artisans",
+      "services"
+    ],
+    "sort_order": 1
+  },
+  {
+    "id": "2",
+    "question": "Comment fonctionne GoArtisans ?",
+    "answer": "Vous publiez une demande ou recherchez un artisan, puis vous contactez directement celui qui correspond à vos besoins.",
+    "category": "General",
+    "keywords": [
+      "fonctionnement",
+      "plateforme",
+      "demande"
+    ],
+    "sort_order": 2
+  },
+  {
+    "id": "3",
+    "question": "Comment créer un compte ?",
+    "answer": "Cliquez sur 'S'inscrire', remplissez vos informations et validez votre inscription.",
+    "category": "Account",
+    "keywords": [
+      "créer",
+      "compte",
+      "inscription",
+      "s'inscrire"
+    ],
+    "sort_order": 3
+  },
+  {
+    "id": "4",
+    "question": "Est-ce que l'inscription est gratuite ?",
+    "answer": "Oui, l'inscription est totalement gratuite.",
+    "category": "Account",
+    "keywords": [
+      "gratuit",
+      "inscription",
+      "frais"
+    ],
+    "sort_order": 4
+  },
+  {
+    "id": "5",
+    "question": "Comment me connecter à mon compte ?",
+    "answer": "Utilisez votre email et votre mot de passe sur la page de connexion.",
+    "category": "Account",
+    "keywords": [
+      "connecter",
+      "connexion",
+      "login",
+      "email"
+    ],
+    "sort_order": 5
+  },
+  {
+    "id": "6",
+    "question": "Que faire si j'ai oublié mon mot de passe ?",
+    "answer": "Cliquez sur 'Mot de passe oublié' et suivez les instructions reçues par email.",
+    "category": "Account",
+    "keywords": [
+      "oublié",
+      "mot de passe",
+      "réinitialiser"
+    ],
+    "sort_order": 6
+  },
+  {
+    "id": "7",
+    "question": "Puis-je utiliser GoArtisans sur mobile ?",
+    "answer": "Oui, la plateforme est accessible sur téléphone et ordinateur.",
+    "category": "Technical",
+    "keywords": [
+      "mobile",
+      "téléphone",
+      "application"
+    ],
+    "sort_order": 7
+  },
+  {
+    "id": "8",
+    "question": "Comment trouver un artisan près de chez moi ?",
+    "answer": "Utilisez la barre de recherche ou sélectionnez une catégorie pour voir les artisans disponibles dans votre zone.",
+    "category": "Search",
+    "keywords": [
+      "trouver",
+      "artisan",
+      "recherche",
+      "localisation"
+    ],
+    "sort_order": 8
+  },
+  {
+    "id": "9",
+    "question": "Quels types de services sont disponibles ?",
+    "answer": "Plomberie, électricité, maçonnerie, peinture, menuiserie, et bien d'autres.",
+    "category": "Services",
+    "keywords": [
+      "types",
+      "services",
+      "catégories"
+    ],
+    "sort_order": 9
+  },
+  {
+    "id": "10",
+    "question": "Puis-je filtrer les artisans par catégorie ?",
+    "answer": "Oui, vous pouvez filtrer par type de service.",
+    "category": "Search",
+    "keywords": [
+      "filtrer",
+      "catégorie",
+      "artisans"
+    ],
+    "sort_order": 10
+  },
+  {
+    "id": "11",
+    "question": "Comment choisir le bon artisan ?",
+    "answer": "Consultez les profils, les avis et l'expérience de chaque artisan.",
+    "category": "Search",
+    "keywords": [
+      "choisir",
+      "artisan",
+      "profil",
+      "expérience"
+    ],
+    "sort_order": 11
+  },
+  {
+    "id": "12",
+    "question": "Est-ce que je peux voir les avis des artisans ?",
+    "answer": "Oui, chaque artisan peut être noté par les clients.",
+    "category": "Reviews",
+    "keywords": [
+      "avis",
+      "notation",
+      "évaluations"
+    ],
+    "sort_order": 12
+  },
+  {
+    "id": "13",
+    "question": "Comment publier une demande de service ?",
+    "answer": "Cliquez sur 'Publier une demande' et remplissez les détails du travail.",
+    "category": "Posting",
+    "keywords": [
+      "publier",
+      "demande",
+      "service",
+      "projet"
+    ],
+    "sort_order": 13
+  },
+  {
+    "id": "14",
+    "question": "Est-ce que publier une demande est gratuit ?",
+    "answer": "Oui, c'est gratuit.",
+    "category": "Posting",
+    "keywords": [
+      "gratuit",
+      "publier",
+      "demande"
+    ],
+    "sort_order": 14
+  },
+  {
+    "id": "15",
+    "question": "Combien de temps faut-il pour recevoir des réponses ?",
+    "answer": "Cela dépend, mais généralement vous recevez des réponses rapidement.",
+    "category": "Posting",
+    "keywords": [
+      "réponses",
+      "temps",
+      "rapide"
+    ],
+    "sort_order": 15
+  },
+  {
+    "id": "16",
+    "question": "Puis-je modifier ou supprimer ma demande ?",
+    "answer": "Oui, depuis votre tableau de bord.",
+    "category": "Posting",
+    "keywords": [
+      "modifier",
+      "supprimer",
+      "demande",
+      "tableau de bord"
+    ],
+    "sort_order": 16
+  },
+  {
+    "id": "17",
+    "question": "Que faire si personne ne répond à ma demande ?",
+    "answer": "Essayez de préciser davantage votre demande ou contactez directement un artisan.",
+    "category": "Posting",
+    "keywords": [
+      "personne",
+      "réponse",
+      "demande"
+    ],
+    "sort_order": 17
+  },
+  {
+    "id": "18",
+    "question": "Comment contacter un artisan ?",
+    "answer": "Via le chat intégré ou les informations de contact disponibles.",
+    "category": "Communication",
+    "keywords": [
+      "contacter",
+      "artisan",
+      "chat",
+      "contact"
+    ],
+    "sort_order": 18
+  },
+  {
+    "id": "19",
+    "question": "Puis-je discuter directement avec un artisan ?",
+    "answer": "Oui, vous pouvez échanger avant de confirmer le travail.",
+    "category": "Communication",
+    "keywords": [
+      "discuter",
+      "chat",
+      "artisan",
+      "communication"
+    ],
+    "sort_order": 19
+  },
+  {
+    "id": "20",
+    "question": "Est-ce que mes messages sont sécurisés ?",
+    "answer": "Oui, les communications sont protégées.",
+    "category": "Security",
+    "keywords": [
+      "message",
+      "sécurisé",
+      "protégé"
+    ],
+    "sort_order": 20
+  },
+  {
+    "id": "21",
+    "question": "Comment payer un artisan ?",
+    "answer": "Le paiement se fait directement entre vous et l'artisan selon un accord.",
+    "category": "Payment",
+    "keywords": [
+      "payer",
+      "paiement",
+      "artisan"
+    ],
+    "sort_order": 21
+  },
+  {
+    "id": "22",
+    "question": "Les paiements sont-ils sécurisés ?",
+    "answer": "Oui, si vous utilisez les options recommandées.",
+    "category": "Payment",
+    "keywords": [
+      "paiement",
+      "sécurisé",
+      "protégé"
+    ],
+    "sort_order": 22
+  },
+  {
+    "id": "23",
+    "question": "Puis-je payer en espèces ?",
+    "answer": "Oui, selon l'accord avec l'artisan.",
+    "category": "Payment",
+    "keywords": [
+      "payer",
+      "espèces",
+      "argent"
+    ],
+    "sort_order": 23
+  },
+  {
+    "id": "24",
+    "question": "Que faire en cas de problème de paiement ?",
+    "answer": "Contactez le support GoArtisans.",
+    "category": "Payment",
+    "keywords": [
+      "problème",
+      "paiement",
+      "support"
+    ],
+    "sort_order": 24
+  },
+  {
+    "id": "25",
+    "question": "Comment laisser un avis sur un artisan ?",
+    "answer": "Après le service, vous pouvez noter et commenter.",
+    "category": "Reviews",
+    "keywords": [
+      "avis",
+      "note",
+      "évaluation",
+      "commenter"
+    ],
+    "sort_order": 25
+  },
+  {
+    "id": "26",
+    "question": "Puis-je modifier mon avis ?",
+    "answer": "Oui, dans certains cas via votre compte.",
+    "category": "Reviews",
+    "keywords": [
+      "modifier",
+      "avis",
+      "compte"
+    ],
+    "sort_order": 26
+  },
+  {
+    "id": "27",
+    "question": "Comment sont vérifiés les artisans ?",
+    "answer": "Les profils peuvent être examinés pour garantir la qualité.",
+    "category": "Trust",
+    "keywords": [
+      "vérifiés",
+      "artisans",
+      "qualité"
+    ],
+    "sort_order": 27
+  },
+  {
+    "id": "28",
+    "question": "Que faire si je ne suis pas satisfait du service ?",
+    "answer": "Contactez le support et laissez un avis pour informer les autres.",
+    "category": "Support",
+    "keywords": [
+      "insatisfait",
+      "service",
+      "support"
+    ],
+    "sort_order": 28
+  },
+  {
+    "id": "29",
+    "question": "Comment s'inscrire en tant qu'artisan ?",
+    "answer": "Créez un compte et choisissez 'artisan' comme type de profil.",
+    "category": "Artisan Account",
+    "keywords": [
+      "s'inscrire",
+      "artisan",
+      "inscription"
+    ],
+    "sort_order": 29
+  },
+  {
+    "id": "30",
+    "question": "Quels documents sont nécessaires pour s'inscrire ?",
+    "answer": "Selon la plateforme : pièce d'identité, preuve d'expérience, etc.",
+    "category": "Artisan Account",
+    "keywords": [
+      "documents",
+      "inscription",
+      "pièce identité"
+    ],
+    "sort_order": 30
+  },
+  {
+    "id": "31",
+    "question": "Comment compléter mon profil d'artisan ?",
+    "answer": "Ajoutez vos compétences, photos et descriptions.",
+    "category": "Artisan Profile",
+    "keywords": [
+      "profil",
+      "compétences",
+      "photos"
+    ],
+    "sort_order": 31
+  },
+  {
+    "id": "32",
+    "question": "Puis-je modifier mes informations d'artisan ?",
+    "answer": "Oui, à tout moment.",
+    "category": "Artisan Profile",
+    "keywords": [
+      "modifier",
+      "informations",
+      "profil"
+    ],
+    "sort_order": 32
+  },
+  {
+    "id": "33",
+    "question": "Comment recevoir des demandes de clients ?",
+    "answer": "En étant actif et en ayant un profil complet.",
+    "category": "Artisan Work",
+    "keywords": [
+      "recevoir",
+      "demandes",
+      "clients",
+      "actif"
+    ],
+    "sort_order": 33
+  },
+  {
+    "id": "34",
+    "question": "Comment augmenter ma visibilité en tant qu'artisan ?",
+    "answer": "Ajoutez des photos, obtenez des avis positifs et soyez réactif.",
+    "category": "Artisan Work",
+    "keywords": [
+      "visibilité",
+      "photos",
+      "avis",
+      "réactif"
+    ],
+    "sort_order": 34
+  },
+  {
+    "id": "35",
+    "question": "Puis-je choisir les missions que je veux faire ?",
+    "answer": "Oui, vous acceptez ou refusez librement.",
+    "category": "Artisan Work",
+    "keywords": [
+      "choisir",
+      "missions",
+      "accepter",
+      "refuser"
+    ],
+    "sort_order": 35
+  },
+  {
+    "id": "36",
+    "question": "Y a-t-il un système de notation pour les artisans ?",
+    "answer": "Oui, basé sur les avis clients.",
+    "category": "Artisan Work",
+    "keywords": [
+      "notation",
+      "système",
+      "avis",
+      "note"
+    ],
+    "sort_order": 36
+  },
+  {
+    "id": "37",
+    "question": "Comment répondre à une demande de client ?",
+    "answer": "Via la plateforme en contactant le client.",
+    "category": "Artisan Work",
+    "keywords": [
+      "répondre",
+      "demande",
+      "client"
+    ],
+    "sort_order": 37
+  },
+  {
+    "id": "38",
+    "question": "Puis-je refuser une demande de service ?",
+    "answer": "Oui.",
+    "category": "Artisan Work",
+    "keywords": [
+      "refuser",
+      "demande",
+      "service"
+    ],
+    "sort_order": 38
+  },
+  {
+    "id": "39",
+    "question": "Comment gérer plusieurs clients en même temps ?",
+    "answer": "Organisez votre planning et vos disponibilités.",
+    "category": "Artisan Work",
+    "keywords": [
+      "gérer",
+      "clients",
+      "planning",
+      "disponibilités"
+    ],
+    "sort_order": 39
+  },
+  {
+    "id": "40",
+    "question": "Comment suis-je payé en tant qu'artisan ?",
+    "answer": "Directement par le client.",
+    "category": "Artisan Payment",
+    "keywords": [
+      "payé",
+      "paiement",
+      "client"
+    ],
+    "sort_order": 40
+  },
+  {
+    "id": "41",
+    "question": "Puis-je fixer mes propres prix en tant qu'artisan ?",
+    "answer": "Oui, totalement.",
+    "category": "Artisan Payment",
+    "keywords": [
+      "prix",
+      "fixer",
+      "tarif"
+    ],
+    "sort_order": 41
+  },
+  {
+    "id": "42",
+    "question": "Quand vais-je recevoir mon paiement ?",
+    "answer": "Selon l'accord avec le client.",
+    "category": "Artisan Payment",
+    "keywords": [
+      "paiement",
+      "reçu",
+      "quand"
+    ],
+    "sort_order": 42
+  },
+  {
+    "id": "43",
+    "question": "Mes informations personnelles sont-elles protégées ?",
+    "answer": "Oui, elles sont sécurisées.",
+    "category": "Security",
+    "keywords": [
+      "informations",
+      "protégées",
+      "sécurisées"
+    ],
+    "sort_order": 43
+  },
+  {
+    "id": "44",
+    "question": "Comment supprimer mon compte ?",
+    "answer": "Dans les paramètres ou via support.",
+    "category": "Account",
+    "keywords": [
+      "supprimer",
+      "compte",
+      "paramètres"
+    ],
+    "sort_order": 44
+  },
+  {
+    "id": "45",
+    "question": "Que faire si mon compte est bloqué ?",
+    "answer": "Contactez le support.",
+    "category": "Support",
+    "keywords": [
+      "bloqué",
+      "compte",
+      "support"
+    ],
+    "sort_order": 45
+  },
+  {
+    "id": "46",
+    "question": "Comment signaler un utilisateur ?",
+    "answer": "Utilisez l'option 'Signaler'.",
+    "category": "Support",
+    "keywords": [
+      "signaler",
+      "utilisateur",
+      "abusif"
+    ],
+    "sort_order": 46
+  },
+  {
+    "id": "47",
+    "question": "Que faire en cas de fraude ?",
+    "answer": "Contactez immédiatement le support.",
+    "category": "Support",
+    "keywords": [
+      "fraude",
+      "suspect",
+      "support"
+    ],
+    "sort_order": 47
+  },
+  {
+    "id": "48",
+    "question": "Pourquoi je n'arrive pas à me connecter ?",
+    "answer": "Vérifiez vos identifiants ou réinitialisez votre mot de passe.",
+    "category": "Technical",
+    "keywords": [
+      "connexion",
+      "problème",
+      "identifiants"
+    ],
+    "sort_order": 48
+  },
+  {
+    "id": "49",
+    "question": "L'application ne fonctionne pas, que faire ?",
+    "answer": "Essayez de la redémarrer ou vérifiez votre connexion internet.",
+    "category": "Technical",
+    "keywords": [
+      "application",
+      "fonctionne pas",
+      "redémarrer"
+    ],
+    "sort_order": 49
+  },
+  {
+    "id": "50",
+    "question": "Je ne reçois pas de notifications, pourquoi ?",
+    "answer": "Vérifiez vos paramètres de notifications.",
+    "category": "Technical",
+    "keywords": [
+      "notifications",
+      "reçoit pas",
+      "paramètres"
+    ],
+    "sort_order": 50
+  },
+  {
+    "id": "51",
+    "question": "Comment contacter le support ?",
+    "answer": "Via email ou formulaire sur la plateforme.",
+    "category": "Support",
+    "keywords": [
+      "contacter",
+      "support",
+      "email"
+    ],
+    "sort_order": 51
+  },
+  {
+    "id": "52",
+    "question": "GoArtisans est-il disponible dans ma ville ?",
+    "answer": "Oui, selon les zones couvertes.",
+    "category": "Local",
+    "keywords": [
+      "disponible",
+      "ville",
+      "localisation"
+    ],
+    "sort_order": 52
+  },
+  {
+    "id": "53",
+    "question": "Quels artisans sont disponibles à Lomé ?",
+    "answer": "Consultez la plateforme pour voir les artisans locaux.",
+    "category": "Local",
+    "keywords": [
+      "Lomé",
+      "artisans",
+      "disponibles"
+    ],
+    "sort_order": 53
+  },
+  {
+    "id": "54",
+    "question": "Puis-je trouver des artisans en urgence ?",
+    "answer": "Oui, certains sont disponibles rapidement.",
+    "category": "Local",
+    "keywords": [
+      "urgence",
+      "rapide",
+      "artisans"
+    ],
+    "sort_order": 54
+  },
+  {
+    "id": "55",
+    "question": "Les artisans parlent-ils français ?",
+    "answer": "Oui, la majorité.",
+    "category": "Local",
+    "keywords": [
+      "français",
+      "langue",
+      "artisans"
+    ],
+    "sort_order": 55
+  },
+  {
+    "id": "56",
+    "question": "Qui a créé GoArtisans ?",
+    "answer": "Une équipe dédiée à faciliter l'accès aux services locaux.",
+    "category": "Company",
+    "keywords": [
+      "créé",
+      "équipe",
+      "GoArtisans"
+    ],
+    "sort_order": 56
+  },
+  {
+    "id": "57",
+    "question": "Quelle est la mission de GoArtisans ?",
+    "answer": "Connecter facilement clients et artisans.",
+    "category": "Company",
+    "keywords": [
+      "mission",
+      "GoArtisans",
+      "connecter"
+    ],
+    "sort_order": 57
+  },
+  {
+    "id": "58",
+    "question": "Puis-je devenir partenaire de GoArtisans ?",
+    "answer": "Oui, contactez l'équipe.",
+    "category": "Company",
+    "keywords": [
+      "partenaire",
+      "GoArtisans",
+      "collaboration"
+    ],
+    "sort_order": 58
+  }
+]
