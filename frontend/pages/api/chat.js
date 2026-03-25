@@ -128,7 +128,7 @@ export default async function handler(req, res) {
 
     // Call Google Gemini API
     console.log('[CHAT API] Initializing Gemini model')
-    const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' })
+    const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' })
 
     const systemPrompt = `You are a helpful customer support assistant for GoArtisans, a platform connecting clients with skilled artisans for home services (plumbing, electrical, masonry, carpentry, painting, etc.).
 
