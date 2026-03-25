@@ -3,8 +3,7 @@
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
     "start": "npm --prefix frontend run start",
-    "vercel-build": "npm --prefix frontend run build",
-    "postinstall": "npm --prefix frontend install"
+    "vercel-build": "cd frontend && npm run build"
   },
   "dependencies": {
     "next": "^16.1.6",
