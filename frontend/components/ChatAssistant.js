@@ -125,7 +125,7 @@ export default function ChatAssistant() {
       {/* Floating Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg z-40 transition-transform duration-200 hover:scale-110"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg z-40 transition-transform duration-200 hover:scale-110"
         title="Chat with assistant"
       >
         {isOpen ? (
@@ -141,7 +141,7 @@ export default function ChatAssistant() {
 
       {/* Chat Modal */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-96 h-96 bg-white rounded-lg shadow-2xl flex flex-col z-50 border border-gray-200">
+        <div className="fixed bottom-20 sm:bottom-24 right-4 left-4 sm:left-auto sm:right-6 sm:w-96 h-[70vh] sm:h-[500px] bg-white rounded-lg shadow-2xl flex flex-col z-50 border border-gray-200">
           {/* Header */}
           <div className="bg-indigo-600 text-white px-6 py-4 rounded-t-lg flex justify-between items-center">
             <div>
@@ -170,7 +170,7 @@ export default function ChatAssistant() {
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
+                  className={`max-w-[75%] px-4 py-2 rounded-lg ${
                     msg.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-br-none'
                       : 'bg-gray-200 text-gray-900 rounded-bl-none'
