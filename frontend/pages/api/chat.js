@@ -111,7 +111,7 @@ export default async function handler(req, res) {
         .from('faq_articles')
         .select('question, answer, category')
         .eq('is_active', true)
-        .limit(10)
+        .limit(5)
 
       if (faqError) {
         console.warn('[CHAT API] FAQ fetch warning (continuing without FAQs):', faqError.message)
@@ -128,7 +128,7 @@ export default async function handler(req, res) {
 
     // Call Google Gemini API
     console.log('[CHAT API] Initializing Gemini model')
-    const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const model = gemini.getGenerativeModel({ model: 'gemini-1.5-flash' })
 
     const systemPrompt = `You are a helpful customer support assistant for GoArtisans, a platform connecting clients with skilled artisans for home services (plumbing, electrical, masonry, carpentry, painting, etc.).
 
