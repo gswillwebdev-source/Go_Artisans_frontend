@@ -30,6 +30,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message must be between 1 and 500 characters' })
     }
 
+    // Early check for missing API key
+    if (!process.env.GOOGLE_GEMINI_API_KEY) {
+      console.error('[CHAT API] GOOGLE_GEMINI_API_KEY is not set')
+      return res.status(500).json({ error: 'API configuration error. Please contact support.' })
+    }
+
     // Get user identifier
     const isAuthenticated = !!userId
     const identifier = isAuthenticated ? userId : req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress
@@ -97,26 +103,28 @@ export default async function handler(req, res) {
       remainingLimit = null // unlimited for authenticated users
     }
 
-    // Retrieve relevant FAQs for context
+    // Retrieve relevant FAQs for context (non-critical — continue if it fails)
     console.log('[CHAT API] Fetching FAQs from Supabase')
-    const { data: faqs, error: faqError } = await supabase
-      .from('faq_articles')
-      .select('question, answer, category')
-      .eq('is_active', true)
-      .limit(10)
+    let faqContext = ''
+    try {
+      const { data: faqs, error: faqError } = await supabase
+        .from('faq_articles')
+        .select('question, answer, category')
+        .eq('is_active', true)
+        .limit(10)
 
-    if (faqError) {
-      console.error('[CHAT API] FAQ fetch error:', faqError)
-      throw new Error(`FAQ fetch failed: ${faqError.message}`)
+      if (faqError) {
+        console.warn('[CHAT API] FAQ fetch warning (continuing without FAQs):', faqError.message)
+      } else {
+        console.log(`[CHAT API] Retrieved ${faqs?.length || 0} FAQs`)
+        if (faqs && faqs.length > 0) {
+          faqContext = 'Based on these FAQs:\n\n' +
+            faqs.map((faq, i) => `${i + 1}. **${faq.question}** (Category: ${faq.category})\n${faq.answer}`).join('\n\n')
+        }
+      }
+    } catch (faqErr) {
+      console.warn('[CHAT API] FAQ fetch exception (continuing without FAQs):', faqErr.message)
     }
-
-    console.log(`[CHAT API] Retrieved ${faqs?.length || 0} FAQs`)
-
-    // Build FAQ context for system prompt
-    const faqContext = faqs && faqs.length > 0
-      ? 'Based on these FAQs:\n\n' +
-      faqs.map((faq, i) => `${i + 1}. **${faq.question}** (Catégorie: ${faq.category})\n${faq.answer}`).join('\n\n')
-      : ''
 
     // Call Google Gemini API
     console.log('[CHAT API] Initializing Gemini model')
@@ -148,24 +156,27 @@ User's question: ${message}`
     const response = result.response.text()
     console.log('[CHAT API] Gemini response received, length:', response.length)
 
-    // Save to database
+    // Save to database (non-critical — return the response even if save fails)
     console.log('[CHAT API] Saving message to database')
-    const { error: saveError } = await supabase
-      .from('chat_messages')
-      .insert({
-        user_id: userId || null,
-        session_id: sessionId,
-        message: message.trim(),
-        response: response,
-        ip_address: identifier
-      })
+    try {
+      const { error: saveError } = await supabase
+        .from('chat_messages')
+        .insert({
+          user_id: userId || null,
+          session_id: sessionId,
+          message: message.trim(),
+          response: response,
+          ip_address: identifier
+        })
 
-    if (saveError) {
-      console.error('[CHAT API] Save error:', saveError)
-      throw new Error(`Failed to save message: ${saveError.message}`)
+      if (saveError) {
+        console.warn('[CHAT API] Save warning (response still returned):', saveError.message)
+      } else {
+        console.log('[CHAT API] Message saved successfully')
+      }
+    } catch (saveErr) {
+      console.warn('[CHAT API] Save exception (response still returned):', saveErr.message)
     }
-
-    console.log('[CHAT API] Message saved successfully')
 
     return res.status(200).json({
       success: true,
