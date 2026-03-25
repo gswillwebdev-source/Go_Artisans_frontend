@@ -1,6 +1,10 @@
 -- English FAQ entries for GoArtisans chat assistant
 -- Run this in Supabase SQL Editor AFTER running CHAT_SYSTEM_SETUP.sql
 
+-- Add language column if it doesn't exist (defaults existing French FAQs to 'fr')
+ALTER TABLE public.faq_articles
+  ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'fr';
+
 INSERT INTO faq_articles (question, answer, category, language, is_active) VALUES
 
 -- Registration & Account
