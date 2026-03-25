@@ -184,29 +184,7 @@ User's question: ${message}`
       rateLimitRemaining: remainingLimit
     })
   } catch (error) {
-    console.error('Chat API error:', error)
-    console.error('Error details:', {
-      message: error.message,
-      status: error.status,
-      code: error.code
-    })
-
-    if (error.message?.includes('API key')) {
-      return res.status(500).json({ error: 'API configuration error. Please contact support.' })
-    }
-
-    if (error.message?.includes('not found') || error.message?.includes('generateContent')) {
-      return res.status(500).json({
-        error: 'Google Gemini API access issue. Please ensure: 1) API key is valid, 2) Billing is enabled, 3) API is active in Google Cloud Console.'
-      })
-    }
-
-    if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-      return res.status(500).json({
-        error: 'Database not configured. Please run CHAT_SYSTEM_SETUP.sql in Supabase.'
-      })
-    }
-
-    return res.status(500).json({ error: 'Failed to process your message. Please try again.' })
+    console.error('Chat API error:', error.message)
+    return res.status(500).json({ error: error.message || 'Failed to process your message. Please try again.' })
   }
 }
