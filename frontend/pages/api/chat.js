@@ -103,7 +103,7 @@ export default async function handler(req, res) {
       .from('faq_articles')
       .select('question, answer, category')
       .eq('is_active', true)
-      .limit(5)
+      .limit(10)
 
     if (faqError) {
       console.error('[CHAT API] FAQ fetch error:', faqError)
@@ -122,14 +122,22 @@ export default async function handler(req, res) {
     console.log('[CHAT API] Initializing Gemini model')
     const model = gemini.getGenerativeModel({ model: 'gemini-1.5-pro' })
 
-    const systemPrompt = `You are a helpful customer support assistant for GoArtisans, a platform connecting clients with skilled artisans for services like plumbing, electrical work, masonry, etc.
+    const systemPrompt = `You are a helpful customer support assistant for GoArtisans, a platform connecting clients with skilled artisans for home services (plumbing, electrical, masonry, carpentry, painting, etc.).
+
+LANGUAGE DETECTION RULE (CRITICAL):
+- Detect the language of the user's message carefully
+- If the user writes in French → respond ONLY in French
+- If the user writes in English → respond ONLY in English
+- Never mix languages in a single response
+- If unclear, default to French
 
 Instructions:
-- Answer questions in the same language as the user (French or English)
 - Be professional, friendly, and concise
-- Provide helpful information about the platform
-- If you don't know something, suggest contacting support
-- Always be respectful and helpful
+- Provide helpful and accurate information about the GoArtisans platform
+- For registration, payment, quotes, disputes, or account issues, guide the user step by step
+- If you don't know the answer, suggest contacting support at support@goartisans.online
+- Never invent features or policies that are not mentioned in the FAQs below
+- Keep answers short (3-5 sentences max) unless a detailed explanation is clearly needed
 
 ${faqContext}
 
