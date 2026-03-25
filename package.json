@@ -6,7 +6,6 @@
     "vercel-build": "cd frontend && npm run vercel-build"
   },
   "dependencies": {
-    "next": "^15.1.0",
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.1",
     "resend": "^6.9.4"
