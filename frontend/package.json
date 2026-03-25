@@ -4,7 +4,7 @@
     "description": "Job seeking platform - Next.js frontend",
     "scripts": {
         "dev": "next dev --webpack",
-        "build": "next build --webpack",
+        "build": "next build",
         "vercel-build": "next build",
         "start": "next start",
         "lint": "eslint app components hooks lib context --ext .js,.jsx"
