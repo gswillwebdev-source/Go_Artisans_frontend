@@ -1,12 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import Groq from 'groq-sdk'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ACCOUNT_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 )
 
-const gemini = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY)
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY })
 
 // Rate limiting configuration
 const RATE_LIMIT = 5 // messages per day for anonymous users
@@ -31,8 +31,8 @@ export default async function handler(req, res) {
     }
 
     // Early check for missing API key
-    if (!process.env.GOOGLE_GEMINI_API_KEY) {
-      console.error('[CHAT API] GOOGLE_GEMINI_API_KEY is not set')
+    if (!process.env.GROQ_API_KEY) {
+      console.error('[CHAT API] GROQ_API_KEY is not set')
       return res.status(500).json({ error: 'API configuration error. Please contact support.' })
     }
 
@@ -118,46 +118,44 @@ export default async function handler(req, res) {
       } else {
         console.log(`[CHAT API] Retrieved ${faqs?.length || 0} FAQs`)
         if (faqs && faqs.length > 0) {
-          faqContext = 'Based on these FAQs:\n\n' +
-            faqs.map((faq, i) => `${i + 1}. **${faq.question}** (Category: ${faq.category})\n${faq.answer}`).join('\n\n')
+          faqContext = 'Relevant FAQs:\n\n' +
+            faqs.map((faq, i) => `${i + 1}. Q: ${faq.question}\nA: ${faq.answer}`).join('\n\n')
         }
       }
     } catch (faqErr) {
       console.warn('[CHAT API] FAQ fetch exception (continuing without FAQs):', faqErr.message)
     }
 
-    // Call Google Gemini API
-    console.log('[CHAT API] Initializing Gemini model')
-    const model = gemini.getGenerativeModel({ model: 'gemini-2.0-flash' })
-
+    // Build system prompt
     const systemPrompt = `You are a helpful customer support assistant for GoArtisans, a platform connecting clients with skilled artisans for home services (plumbing, electrical, masonry, carpentry, painting, etc.).
 
-LANGUAGE DETECTION RULE (CRITICAL):
-- Detect the language of the user's message carefully
-- If the user writes in French → respond ONLY in French
-- If the user writes in English → respond ONLY in English
-- Never mix languages in a single response
-- If unclear, default to French
+LANGUAGE RULE (CRITICAL): Detect the language of the user's message and respond ONLY in that language. French message → French reply. English message → English reply. Never mix languages.
 
 Instructions:
 - Be professional, friendly, and concise
-- Provide helpful and accurate information about the GoArtisans platform
-- For registration, payment, quotes, disputes, or account issues, guide the user step by step
-- If you don't know the answer, suggest contacting support at support@goartisans.online
-- Never invent features or policies that are not mentioned in the FAQs below
-- Keep answers short (3-5 sentences max) unless a detailed explanation is clearly needed
+- Guide users step by step for registration, payment, quotes, and dispute issues
+- If you don't know the answer, suggest contacting support@goartisans.online
+- Never invent features or policies not mentioned in the FAQs
+- Keep answers to 3-5 sentences unless more detail is clearly needed
 
-${faqContext}
+${faqContext}`
 
-User's question: ${message}`
+    // Call Groq API
+    console.log('[CHAT API] Calling Groq API')
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: message }
+      ],
+      max_tokens: 500,
+      temperature: 0.7
+    })
 
-    console.log('[CHAT API] Calling Gemini API')
-    const result = await model.generateContent(systemPrompt)
-    const response = result.response.text()
-    console.log('[CHAT API] Gemini response received, length:', response.length)
+    const response = completion.choices[0].message.content
+    console.log('[CHAT API] Groq response received, length:', response.length)
 
     // Save to database (non-critical — return the response even if save fails)
-    console.log('[CHAT API] Saving message to database')
     try {
       const { error: saveError } = await supabase
         .from('chat_messages')
@@ -171,8 +169,6 @@ User's question: ${message}`
 
       if (saveError) {
         console.warn('[CHAT API] Save warning (response still returned):', saveError.message)
-      } else {
-        console.log('[CHAT API] Message saved successfully')
       }
     } catch (saveErr) {
       console.warn('[CHAT API] Save exception (response still returned):', saveErr.message)
