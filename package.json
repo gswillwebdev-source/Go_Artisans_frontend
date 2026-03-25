@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "next": "^16.2.0-canary.53",
-    "nodemailer": "^8.0.1"
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.1",
+    "resend": "^6.9.4"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.1.4",

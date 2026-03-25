@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@github/copilot-sdk": "^0.1.32",
+        "@google/generative-ai": "^0.24.1",
         "@supabase/supabase-js": "^2.98.0",
         "@vercel/analytics": "^1.6.1",
         "axios": "^1.6.0",

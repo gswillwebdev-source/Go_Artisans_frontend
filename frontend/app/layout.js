@@ -1,6 +1,7 @@
 import './globals.css'
 import Navbar from '@/components/Navbar'
 import UpdateNoticeBanner from '@/components/UpdateNoticeBanner'
+import ChatAssistant from '@/components/ChatAssistant'
 import { LanguageProvider } from '@/context/LanguageContext'
 import { Analytics } from '@vercel/analytics/react'
 
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
                     <Navbar />
                     <UpdateNoticeBanner />
                     {children}
+                    <ChatAssistant />
                 </LanguageProvider>
                 <Analytics />
             </body>

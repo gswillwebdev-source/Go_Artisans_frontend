@@ -17,29 +17,18 @@ export default function ForgotPasswordPage() {
     const [error, setError] = useState('')
     const [isChecking, setIsChecking] = useState(true)
     const [step, setStep] = useState(1) // 1: request, 2: success message
+    const [isLoggedIn, setIsLoggedIn] = useState(false) // Track if user is logged in
 
     useEffect(() => {
-        // Check if user is already logged in
+        // Check if user is logged in to pre-fill email
         const checkUser = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             if (session?.user) {
-                // Get user profile to check role
-                const { data: profile } = await supabase
-                    .from('users')
-                    .select('user_type')
-                    .eq('email', session.user.email)
-                    .single()
-
-                if (profile?.user_type === 'worker') {
-                    router.push('/worker-profile')
-                } else if (profile?.user_type === 'client') {
-                    router.push('/client-profile')
-                } else {
-                    router.push('/choose-role')
-                }
-            } else {
-                setIsChecking(false)
+                // Pre-fill email with authenticated user's email (read-only)
+                setEmail(session.user.email)
+                setIsLoggedIn(true)
             }
+            setIsChecking(false)
         }
 
         checkUser()
@@ -85,8 +74,14 @@ export default function ForgotPasswordPage() {
         setLoading(false)
     }
 
-    if (isChecking && !isHydrated) {
-        return <div className="min-h-screen flex items-center justify-center">{t('loading') || 'Loading...'}</div>
+    if (isChecking) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
+                    <p className="text-gray-600">{t('loading') || 'Loading...'}</p>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -109,7 +104,8 @@ export default function ForgotPasswordPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                readOnly={isLoggedIn}
+                                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent ${isLoggedIn ? 'bg-gray-100' : ''}`}
                                 placeholder="you@example.com"
                             />
                         </div>
@@ -127,15 +123,18 @@ export default function ForgotPasswordPage() {
                             <p className="font-semibold mb-2">{t('emailSent') || 'Email sent!'}</p>
                             <p>{t('sentResetLinkTo') || 'We\'ve sent a password reset link to'} <strong>{email}</strong></p>
                             <p className="mt-2">{t('clickLinkExpires') || 'Click the link in the email to reset your password. The link expires in 30 minutes.'}</p>
+                            <p className="mt-3 text-xs text-blue-600 border-t border-blue-200 pt-2">
+                                💡 {t('checkSpam') || 'Tip: If you don\'t see the email in your inbox, please check your spam or junk folder.'}
+                            </p>
                         </div>
                         <button
                             onClick={() => {
                                 setStep(1)
-                                setEmail('')
+                                setError('')
                             }}
                             className="w-full text-indigo-600 hover:underline font-semibold py-2"
                         >
-                            {t('tryAnotherEmail') || 'Try another email'}
+                            {t('tryAgain') || 'Send reset link again'}
                         </button>
                     </div>
                 )}

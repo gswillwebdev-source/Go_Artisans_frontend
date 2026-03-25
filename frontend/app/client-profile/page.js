@@ -9,6 +9,8 @@ import RatingModal from '@/components/RatingModal'
 import DeclineReasonModal from '@/components/DeclineReasonModal'
 import RatingsDisplay from '@/components/RatingsDisplay'
 import CompletionRequest from '@/components/CompletionRequest'
+import FollowStats from '@/components/FollowStats'
+import FollowNotificationBell from '@/components/FollowNotificationBell'
 import { useLanguage } from '@/context/LanguageContext'
 import { togoLocations } from '@/lib/togoData'
 
@@ -43,6 +45,8 @@ export default function ClientProfilePage() {
     const { t } = useLanguage()
     const { user, isLoading: authLoading } = useAuth({ requiredRole: 'client' })
     const [profile, setProfile] = useState(null)
+    const [followerCount, setFollowerCount] = useState(0)
+    const [followingCount, setFollowingCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
@@ -74,6 +78,16 @@ export default function ClientProfilePage() {
     const [jobFormError, setJobFormError] = useState(null)
     const [jobFormSuccess, setJobFormSuccess] = useState(false)
     const [editingJobId, setEditingJobId] = useState(null)
+    const [jobFormLoading, setJobFormLoading] = useState(false)
+    const [collapsedSections, setCollapsedSections] = useState({
+        basicInfo: false,
+        about: false,
+        ratings: false,
+        projects: false,
+        completions: false,
+        applicants: false,
+        completedProjects: false
+    })
     const [timeoutWarning, setTimeoutWarning] = useState(false)
     const [jobApplicants, setJobApplicants] = useState({}) // Job ID -> Array of applicants
     const [applicantsLoading, setApplicantsLoading] = useState(false)
@@ -336,6 +350,30 @@ export default function ClientProfilePage() {
         }
     }, [authLoading, user])
 
+    // Fetch follower/following counts
+    useEffect(() => {
+        if (!user?.id) return
+
+        async function fetchFollowCounts() {
+            try {
+                const response = await fetch(`/api/user/${user.id}`)
+                if (response.ok) {
+                    const data = await response.json()
+                    setFollowerCount(data.follower_count || 0)
+                    setFollowingCount(data.following_count || 0)
+                }
+            } catch (err) {
+                console.error('Failed to fetch follow counts:', err)
+            }
+        }
+
+        fetchFollowCounts()
+
+        // Poll for updates every minute
+        const interval = setInterval(fetchFollowCounts, 60000)
+        return () => clearInterval(interval)
+    }, [user?.id])
+
     // Handle email resend cooldown timer
     useEffect(() => {
         if (emailResendCooldown > 0) {
@@ -520,46 +558,96 @@ export default function ClientProfilePage() {
         })
     }
 
+    const toggleSection = (section) => {
+        setCollapsedSections(prev => ({
+            ...prev,
+            [section]: !prev[section]
+        }))
+    }
+
     const handleJobSubmit = async (e) => {
         e.preventDefault()
         setJobFormError(null)
         setJobFormSuccess(false)
 
+        // Validation
+        if (!jobFormData.title?.trim()) {
+            setJobFormError('Project title is required')
+            return
+        }
+        if (!jobFormData.description?.trim()) {
+            setJobFormError('Project description is required')
+            return
+        }
+        if (!jobFormData.location?.trim()) {
+            setJobFormError('Location is required')
+            return
+        }
+        if (!jobFormData.jobType?.trim()) {
+            setJobFormError('Project type/category is required')
+            return
+        }
+        if (!jobFormData.salary || jobFormData.salary === '') {
+            setJobFormError('Budget is required')
+            return
+        }
+
+        setJobFormLoading(true)
+
         try {
             const jobPayload = {
-                title: jobFormData.title,
-                description: jobFormData.description,
-                budget: jobFormData.salary,
-                location: jobFormData.location,
-                category: jobFormData.jobType,
-                client_id: user.id
+                title: jobFormData.title.trim(),
+                description: jobFormData.description.trim(),
+                budget: parseFloat(jobFormData.salary),
+                location: jobFormData.location.trim(),
+                category: jobFormData.jobType.trim(),
+                client_id: user.id,
+                status: 'open'
             }
 
-            if (editingJobId) {
-                // Update existing job
-                const { data, error } = await supabase
-                    .from('jobs')
-                    .update(jobPayload)
-                    .eq('id', editingJobId)
-                    .select()
-                    .single()
+            // Set timeout for database operation (3 seconds)
+            const JOB_SAVE_TIMEOUT = 3000
+            let timeoutId
 
-                if (error) throw error
+            const savePromise = new Promise(async (resolve, reject) => {
+                try {
+                    if (editingJobId) {
+                        // Update existing job
+                        const { data, error } = await supabase
+                            .from('jobs')
+                            .update(jobPayload)
+                            .eq('id', editingJobId)
+                            .select()
+                            .single()
 
-                setJobs(jobs.map(j => j.id === editingJobId ? data : j))
-                setEditingJobId(null)
-            } else {
-                // Create new job
-                const { data, error } = await supabase
-                    .from('jobs')
-                    .insert(jobPayload)
-                    .select()
-                    .single()
+                        if (error) throw error
+                        setJobs(jobs.map(j => j.id === editingJobId ? data : j))
+                        setEditingJobId(null)
+                    } else {
+                        // Create new job
+                        const { data, error } = await supabase
+                            .from('jobs')
+                            .insert([jobPayload])
+                            .select()
+                            .single()
 
-                if (error) throw error
+                        if (error) throw error
+                        setJobs([data, ...jobs])
+                    }
+                    resolve()
+                } catch (err) {
+                    reject(err)
+                }
+            })
 
-                setJobs([data, ...jobs])
-            }
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutId = setTimeout(() => {
+                    reject(new Error('TIMEOUT'))
+                }, JOB_SAVE_TIMEOUT)
+            })
+
+            await Promise.race([savePromise, timeoutPromise])
+            clearTimeout(timeoutId)
 
             setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
             setShowJobModal(false)
@@ -568,7 +656,32 @@ export default function ClientProfilePage() {
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to save job', err)
-            setJobFormError(err.message || 'Failed to save job')
+
+            // Specific error messages
+            let errorMessage = 'Failed to save project. Please try again.'
+
+            if (err.message === 'TIMEOUT') {
+                errorMessage = 'Project save took too long (over 3 seconds). This usually means:\n\n' +
+                    '1. Your internet connection is slow or unstable\n' +
+                    '2. The server is experiencing high traffic\n' +
+                    '3. Your data quota is exceeded\n\n' +
+                    'Please check your connection and try again. If the problem persists, contact support.'
+            } else if (err.message?.includes('unique')) {
+                errorMessage = 'A project with this title already exists. Please use a different title.'
+            } else if (err.message?.includes('permission')) {
+                errorMessage = 'You do not have permission to create projects. Please verify your account status.'
+            } else if (err.message?.includes('connection') || err.message?.includes('ECONNREFUSED')) {
+                errorMessage = 'Connection failed. Please check your internet connection and try again.'
+            } else if (err.message?.includes('budget') || err.message?.includes('salary')) {
+                errorMessage = 'The budget value is invalid. Please enter a valid number.'
+            } else {
+                // Fallback to actual error if available
+                errorMessage = err.message || 'Failed to save project. Please try again.'
+            }
+
+            setJobFormError(errorMessage)
+        } finally {
+            setJobFormLoading(false)
         }
     }
 
@@ -909,14 +1022,24 @@ export default function ClientProfilePage() {
                             <p className="text-gray-600 mt-1">{t('manageInformation')}</p>
                         </div>
                         {!isEditing && (
-                            <button
-                                onClick={() => setIsEditing(true)}
-                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-                            >
-                                {t('editProfile')}
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <FollowNotificationBell userId={user?.id} />
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                >
+                                    {t('editProfile')}
+                                </button>
+                            </div>
                         )}
                     </div>
+
+                    {/* Follow Stats */}
+                    <FollowStats
+                        followerCount={followerCount}
+                        followingCount={followingCount}
+                        isOwnProfile={true}
+                    />
 
                     {updateSuccess && (
                         <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r">
@@ -1036,356 +1159,458 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Basic Information Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('basicInformation')}</h2>
-                            <div className="grid grid-cols-2 gap-6">
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700">{t('firstName')}</label>
-                                    <p className="text-gray-900 mt-1">{profile?.first_name || t('notProvided')}</p>
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('basicInfo')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('basicInformation')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.basicInfo ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.basicInfo && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">{t('firstName')}</label>
+                                            <p className="text-gray-900 mt-1">{profile?.first_name || t('notProvided')}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">{t('lastName')}</label>
+                                            <p className="text-gray-900 mt-1">{profile?.last_name || t('notProvided')}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">{t('email')}</label>
+                                            <p className="text-gray-900 mt-1">{profile?.email}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">{t('phoneNumber')}</label>
+                                            <p className="text-gray-900 mt-1">{profile?.phone_number || t('notProvided')}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-700">{t('location')}</label>
+                                            <p className="text-gray-900 mt-1">{profile?.location || t('notProvided')}</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700">{t('lastName')}</label>
-                                    <p className="text-gray-900 mt-1">{profile?.last_name || t('notProvided')}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700">{t('email')}</label>
-                                    <p className="text-gray-900 mt-1">{profile?.email}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700">{t('phoneNumber')}</label>
-                                    <p className="text-gray-900 mt-1">{profile?.phone_number || t('notProvided')}</p>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-medium text-gray-700">{t('location')}</label>
-                                    <p className="text-gray-900 mt-1">{profile?.location || t('notProvided')}</p>
-                                </div>
-                            </div>
+                            )}
                         </div>
-
-                        {/* About Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('aboutMe')}</h2>
-                            <div>
-                                <label className="text-sm font-medium text-gray-700">{t('skillsYouNeed')}</label>
-                                <p className="text-gray-900 mt-2 whitespace-pre-wrap">
-                                    {profile?.bio || t('notProvided')}
-                                </p>
-                            </div>
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('about')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('aboutMe')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.about ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.about && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <div>
+                                        <label className="text-sm font-medium text-gray-700">{t('skillsYouNeed')}</label>
+                                        <p className="text-gray-900 mt-2 whitespace-pre-wrap">
+                                            {profile?.bio || t('notProvided')}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Ratings Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('yourRatingsAsClient')}</h2>
-                            <p className="text-sm text-gray-600 mb-6">
-                                {t('workersSeeyourRatings')}
-                            </p>
-                            <RatingsDisplay userId={profile?.id} />
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('ratings')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('yourRatingsAsClient')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.ratings ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.ratings && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <p className="text-sm text-gray-600 mb-6">
+                                        {t('workersSeeyourRatings')}
+                                    </p>
+                                    <RatingsDisplay userId={profile?.id} />
+                                </div>
+                            )}
                         </div>
 
                         {/* Your Projects Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <div className="flex justify-between items-center mb-6">
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('projects')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
                                 <h2 className="text-xl font-semibold">{t('yourProjects')}</h2>
-                                <button
-                                    onClick={() => {
-                                        setEditingJobId(null)
-                                        setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
-                                        setShowJobModal(true)
-                                    }}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm"
-                                >
-                                    {t('postNewProject')}
-                                </button>
-                            </div>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.projects ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.projects && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <button
+                                            onClick={() => {
+                                                setEditingJobId(null)
+                                                setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
+                                                setShowJobModal(true)
+                                            }}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm"
+                                        >
+                                            {t('postNewProject')}
+                                        </button>
+                                    </div>
 
-                            {jobsLoading ? (
-                                <div className="text-center py-12">{t('loadingProjects')}</div>
-                            ) : jobs.length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="text-4xl mb-4">📋</div>
-                                    <p className="text-gray-600">{t('noProjectsPosted')}</p>
-                                    <p className="text-sm text-gray-500 mt-2">{t('startPostingProject')}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {jobs.map(job => (
-                                        <div key={job.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
-                                                    <p className="text-sm text-gray-600 mt-1">{job.location}</p>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => handleEditJob(job)}
-                                                        className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100 transition"
-                                                    >
-                                                        {t('editProfile')}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteJob(job.id)}
-                                                        className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100 transition"
-                                                    >
-                                                        {t('delete')}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <p className="text-gray-700 mt-3">{job.description}</p>
-                                            <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
-                                                <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('type')}</span>
-                                                    <p className="text-sm text-gray-900 mt-1">{job.category || t('notSpecified')}</p>
-                                                </div>
-                                                <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('hiringRate')}</span>
-                                                    <p className="text-sm text-gray-900 mt-1 font-semibold">{job.budget || t('negotiable')}</p>
-                                                </div>
-                                                <div>
-                                                    <span className="text-xs font-medium text-gray-600 uppercase">{t('posted')}</span>
-                                                    <p className="text-sm text-gray-900 mt-1">{new Date(job.created_at).toLocaleDateString()}</p>
-                                                </div>
-                                            </div>
+                                    {jobsLoading ? (
+                                        <div className="text-center py-12">{t('loadingProjects')}</div>
+                                    ) : jobs.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <div className="text-4xl mb-4">📋</div>
+                                            <p className="text-gray-600">{t('noProjectsPosted')}</p>
+                                            <p className="text-sm text-gray-500 mt-2">{t('startPostingProject')}</p>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {jobs.map(job => (
+                                                <div key={job.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <div>
+                                                            <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                                                            <p className="text-sm text-gray-600 mt-1">{job.location}</p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleEditJob(job)}
+                                                                className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100 transition"
+                                                            >
+                                                                {t('editProfile')}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteJob(job.id)}
+                                                                className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100 transition"
+                                                            >
+                                                                {t('delete')}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-gray-700 mt-3">{job.description}</p>
+                                                    <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
+                                                        <div>
+                                                            <span className="text-xs font-medium text-gray-600 uppercase">{t('type')}</span>
+                                                            <p className="text-sm text-gray-900 mt-1">{job.category || t('notSpecified')}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs font-medium text-gray-600 uppercase">{t('hiringRate')}</span>
+                                                            <p className="text-sm text-gray-900 mt-1 font-semibold">{job.budget || t('negotiable')}</p>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-xs font-medium text-gray-600 uppercase">{t('posted')}</span>
+                                                            <p className="text-sm text-gray-900 mt-1">{new Date(job.created_at).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
 
                         {/* Completion Requests Section */}
-                        <div className="bg-white shadow rounded-lg p-4 sm:p-8 mb-8">
-                            <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">{t('activeProjectsCompletion')}</h2>
-
-                            {completionOperationError && (
-                                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
-                                    <div className="flex items-start">
-                                        <div className="flex-shrink-0">
-                                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                            </svg>
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('completions')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('activeProjectsCompletion')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.completions ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.completions && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
+                                        <div className="flex items-start">
+                                            <div className="flex-shrink-0">
+                                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                </svg>
+                                            </div>
+                                            <div className="ml-3 flex-1">
+                                                <h3 className="text-sm font-medium text-red-800">Completion operation failed</h3>
+                                                <p className="text-sm text-red-700 mt-2">{completionOperationError}</p>
+                                            </div>
+                                            <button
+                                                onClick={() => setCompletionOperationError(null)}
+                                                className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
+                                            >
+                                                ✕
+                                            </button>
                                         </div>
-                                        <div className="ml-3 flex-1">
-                                            <h3 className="text-sm font-medium text-red-800">Completion operation failed</h3>
-                                            <p className="text-sm text-red-700 mt-2">{completionOperationError}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setCompletionOperationError(null)}
-                                            className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            ✕
-                                        </button>
                                     </div>
-                                </div>
-                            )}
 
-                            {jobs.filter(job => job.completions && job.completions.length > 0).length === 0 ? (
-                                <div className="text-center py-8 sm:py-12">
-                                    <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🔄</div>
-                                    <p className="text-gray-600 text-sm sm:text-base">{t('noActiveProjectsCompletion')}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-3 sm:space-y-4">
-                                    {jobs.filter(job => job.completions && job.completions.length > 0).map(job => {
-                                        const completion = job.completions[0]
-                                        return (
-                                            <CompletionRequest
-                                                key={completion.id}
-                                                job={job}
-                                                completion={completion}
-                                                onConfirm={handleConfirmCompletion}
-                                                onDecline={() => {
-                                                    setDeclineCompletionId(completion.id)
-                                                    setShowDeclineModal(true)
-                                                }}
-                                                isProcessing={processingCompletionId === completion.id}
-                                            />
-                                        )
-                                    })}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Job Applicants Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
-                                <button
-                                    onClick={() => setShowApplicants(!showApplicants)}
-                                    className="text-sm text-gray-600 hover:text-gray-900"
-                                >
-                                    {showApplicants ? t('hideBtn') : t('showBtn')}
-                                </button>
-                            </div>
-
-                            {applicationOperationError && (
-                                <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
-                                    <div className="flex items-start">
-                                        <div className="flex-shrink-0">
-                                            <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-3 flex-1">
-                                            <h3 className="text-sm font-medium text-red-800">Application operation failed</h3>
-                                            <p className="text-sm text-red-700 mt-2">{applicationOperationError}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setApplicationOperationError(null)}
-                                            className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {showApplicants && (
-                                <>
-                                    {applicantsLoading ? (
-                                        <div className="text-center py-12">{t('loadingApplicants')}</div>
-                                    ) : applicantsError ? (
-                                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r">
+                                    {completionOperationError && (
+                                        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
                                             <div className="flex items-start">
                                                 <div className="flex-shrink-0">
-                                                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                                                     </svg>
                                                 </div>
                                                 <div className="ml-3 flex-1">
-                                                    <h3 className="text-sm font-medium text-yellow-800">Failed to load applicants</h3>
-                                                    <p className="text-sm text-yellow-700 mt-2">{applicantsError}</p>
+                                                    <h3 className="text-sm font-medium text-red-800">Completion operation failed</h3>
+                                                    <p className="text-sm text-red-700 mt-2">{completionOperationError}</p>
                                                 </div>
                                                 <button
-                                                    onClick={() => setApplicantsError(null)}
-                                                    className="ml-3 text-yellow-600 hover:text-yellow-800 text-sm font-medium"
+                                                    onClick={() => setCompletionOperationError(null)}
+                                                    className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
                                                 >
                                                     ✕
                                                 </button>
                                             </div>
                                         </div>
-                                    ) : Object.keys(jobApplicants).length === 0 ? (
-                                        <div className="text-center py-12">
-                                            <div className="text-4xl mb-4">👥</div>
-                                            <p className="text-gray-600">{t('noApplicantsYet')}</p>
+                                    )}
+
+                                    {jobs.filter(job => job.completions && job.completions.length > 0).length === 0 ? (
+                                        <div className="text-center py-8 sm:py-12">
+                                            <div className="text-3xl sm:text-4xl mb-3 sm:mb-4">🔄</div>
+                                            <p className="text-gray-600 text-sm sm:text-base">{t('noActiveProjectsCompletion')}</p>
                                         </div>
                                     ) : (
-                                        <div className="space-y-6">
-                                            {jobs.map(job => {
-                                                const applicants = jobApplicants[job.id] || []
-                                                if (applicants.length === 0) return null
-
+                                        <div className="space-y-3 sm:space-y-4">
+                                            {jobs.filter(job => job.completions && job.completions.length > 0).map(job => {
+                                                const completion = job.completions[0]
                                                 return (
-                                                    <div key={job.id} className="border border-gray-200 rounded-lg p-6">
-                                                        <h3 className="text-lg font-semibold text-gray-900 mb-4">{job.title}</h3>
-                                                        <div className="space-y-3">
-                                                            {applicants.map(applicant => (
-                                                                <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-b-0 gap-4">
-                                                                    <div className="flex-1">
-                                                                        <p className="font-medium text-gray-900">
-                                                                            {applicant.first_name} {applicant.last_name}
-                                                                        </p>
-                                                                        <div className="flex gap-4 text-sm text-gray-600 mt-1 flex-wrap">
-                                                                            <span>📧 {applicant.email}</span>
-                                                                            {applicant.phone_number && <span>📱 {applicant.phone_number}</span>}
-                                                                        </div>
-                                                                        <p className="text-xs text-gray-500 mt-1">
-                                                                            {t('applied')}: {new Date(applicant.created_at).toLocaleDateString()}
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="flex flex-col items-end gap-2">
-                                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${applicant.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                                                            applicant.status === 'declined' ? 'bg-red-100 text-red-800' :
-                                                                                applicant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                                                                    'bg-yellow-100 text-yellow-800'
-                                                                            }`}>
-                                                                            {applicant.status}
-                                                                        </span>
-                                                                        <div className="flex gap-1">
-                                                                            <Link
-                                                                                href={`/workers/${applicant.worker_id}`}
-                                                                                className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"
-                                                                            >
-                                                                                {t('viewProfile')}
-                                                                            </Link>
-                                                                            {applicant.phone_number && (
-                                                                                <a
-                                                                                    href={`https://wa.me/${applicant.phone_number.replace(/\D/g, '')}?text=Hello%20${applicant.first_name},%20I%20reviewed%20your%20application.`}
-                                                                                    target="_blank"
-                                                                                    rel="noopener noreferrer"
-                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition"
-                                                                                >
-                                                                                    WhatsApp
-                                                                                </a>
-                                                                            )}
-                                                                        </div>
-                                                                        {applicant.status === 'pending' && (
-                                                                            <div className="flex gap-1">
-                                                                                <button
-                                                                                    onClick={() => handleUpdateApplicationStatus(applicant.id, 'accepted')}
-                                                                                    disabled={updatingAppId === applicant.id}
-                                                                                    className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                >
-                                                                                    {updatingAppId === applicant.id ? '⏳' : '✓'} {t('acceptApplicant')}
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => handleUpdateApplicationStatus(applicant.id, 'declined')}
-                                                                                    disabled={updatingAppId === applicant.id}
-                                                                                    className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                >
-                                                                                    {updatingAppId === applicant.id ? '⏳' : '✕'} {t('rejectApplicant')}
-                                                                                </button>
+                                                    <CompletionRequest
+                                                        key={completion.id}
+                                                        job={job}
+                                                        completion={completion}
+                                                        onConfirm={handleConfirmCompletion}
+                                                        onDecline={() => {
+                                                            setDeclineCompletionId(completion.id)
+                                                            setShowDeclineModal(true)
+                                                        }}
+                                                        isProcessing={processingCompletionId === completion.id}
+                                                    />
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Job Applicants Section */}
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('applicants')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.applicants ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.applicants && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
+                                        <button
+                                            onClick={() => setShowApplicants(!showApplicants)}
+                                            className="text-sm text-gray-600 hover:text-gray-900"
+                                        >
+                                            {showApplicants ? t('hideBtn') : t('showBtn')}
+                                        </button>
+                                    </div>
+
+                                    {applicationOperationError && (
+                                        <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
+                                            <div className="flex items-start">
+                                                <div className="flex-shrink-0">
+                                                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <div className="ml-3 flex-1">
+                                                    <h3 className="text-sm font-medium text-red-800">Application operation failed</h3>
+                                                    <p className="text-sm text-red-700 mt-2">{applicationOperationError}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => setApplicationOperationError(null)}
+                                                    className="ml-3 text-red-600 hover:text-red-800 text-sm font-medium"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {showApplicants && (
+                                        <>
+                                            {applicantsLoading ? (
+                                                <div className="text-center py-12">{t('loadingApplicants')}</div>
+                                            ) : applicantsError ? (
+                                                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r">
+                                                    <div className="flex items-start">
+                                                        <div className="flex-shrink-0">
+                                                            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="ml-3 flex-1">
+                                                            <h3 className="text-sm font-medium text-yellow-800">Failed to load applicants</h3>
+                                                            <p className="text-sm text-yellow-700 mt-2">{applicantsError}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setApplicantsError(null)}
+                                                            className="ml-3 text-yellow-600 hover:text-yellow-800 text-sm font-medium"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : Object.keys(jobApplicants).length === 0 ? (
+                                                <div className="text-center py-12">
+                                                    <div className="text-4xl mb-4">👥</div>
+                                                    <p className="text-gray-600">{t('noApplicantsYet')}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-6">
+                                                    {jobs.map(job => {
+                                                        const applicants = jobApplicants[job.id] || []
+                                                        if (applicants.length === 0) return null
+
+                                                        return (
+                                                            <div key={job.id} className="border border-gray-200 rounded-lg p-6">
+                                                                <h3 className="text-lg font-semibold text-gray-900 mb-4">{job.title}</h3>
+                                                                <div className="space-y-3">
+                                                                    {applicants.map(applicant => (
+                                                                        <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-b-0 gap-4">
+                                                                            <div className="flex-1">
+                                                                                <p className="font-medium text-gray-900">
+                                                                                    {applicant.first_name} {applicant.last_name}
+                                                                                </p>
+                                                                                <div className="flex gap-4 text-sm text-gray-600 mt-1 flex-wrap">
+                                                                                    <span>📧 {applicant.email}</span>
+                                                                                    {applicant.phone_number && <span>📱 {applicant.phone_number}</span>}
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-500 mt-1">
+                                                                                    {t('applied')}: {new Date(applicant.created_at).toLocaleDateString()}
+                                                                                </p>
                                                                             </div>
-                                                                        )}
-                                                                    </div>
+                                                                            <div className="flex flex-col items-end gap-2">
+                                                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${applicant.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                                                                    applicant.status === 'declined' ? 'bg-red-100 text-red-800' :
+                                                                                        applicant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                                                                            'bg-yellow-100 text-yellow-800'
+                                                                                    }`}>
+                                                                                    {applicant.status}
+                                                                                </span>
+                                                                                <div className="flex gap-1">
+                                                                                    <Link
+                                                                                        href={`/workers/${applicant.worker_id}`}
+                                                                                        className="bg-blue-50 text-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-100 transition"
+                                                                                    >
+                                                                                        {t('viewProfile')}
+                                                                                    </Link>
+                                                                                    {applicant.phone_number && (
+                                                                                        <a
+                                                                                            href={`https://wa.me/${applicant.phone_number.replace(/\D/g, '')}?text=Hello%20${applicant.first_name},%20I%20reviewed%20your%20application.`}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition"
+                                                                                        >
+                                                                                            WhatsApp
+                                                                                        </a>
+                                                                                    )}
+                                                                                </div>
+                                                                                {applicant.status === 'pending' && (
+                                                                                    <div className="flex gap-1">
+                                                                                        <button
+                                                                                            onClick={() => handleUpdateApplicationStatus(applicant.id, 'accepted')}
+                                                                                            disabled={updatingAppId === applicant.id}
+                                                                                            className="bg-green-50 text-green-600 px-2 py-1 rounded text-xs hover:bg-green-100 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                        >
+                                                                                            {updatingAppId === applicant.id ? '⏳' : '✓'} {t('acceptApplicant')}
+                                                                                        </button>
+                                                                                        <button
+                                                                                            onClick={() => handleUpdateApplicationStatus(applicant.id, 'declined')}
+                                                                                            disabled={updatingAppId === applicant.id}
+                                                                                            className="bg-red-50 text-red-600 px-2 py-1 rounded text-xs hover:bg-red-100 transition font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                        >
+                                                                                            {updatingAppId === applicant.id ? '⏳' : '✕'} {t('rejectApplicant')}
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Completed Projects Section */}
+                        <div className="bg-white shadow rounded-lg">
+                            <button
+                                onClick={() => toggleSection('completedProjects')}
+                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                            >
+                                <h2 className="text-xl font-semibold">{t('completedJobs')}</h2>
+                                <span className="text-2xl text-gray-600">
+                                    {collapsedSections.completedProjects ? '▶' : '▼'}
+                                </span>
+                            </button>
+                            {!collapsedSections.completedProjects && (
+                                <div className="px-8 pb-6 pt-2 border-t">
+
+                                    {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <div className="text-4xl mb-4">🏆</div>
+                                            <p className="text-gray-600">{t('noCompletedProjects')}</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').map(job => {
+                                                const completion = job.completions[0]
+                                                return (
+                                                    <div key={job.id} className="border border-gray-200 rounded-lg p-6 bg-green-50">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                                                                <p className="text-sm text-gray-600 mt-1">{job.location}</p>
+                                                            </div>
+                                                            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                                                                ✓ {t('completed')}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-gray-700 mt-3">{job.description}</p>
+                                                        <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
+                                                            <div>
+                                                                <span className="text-xs font-medium text-gray-600 uppercase">{t('finalPrice')}</span>
+                                                                <p className="text-sm text-gray-900 mt-1 font-semibold">CFA {completion.final_price || job.budget}</p>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-xs font-medium text-gray-600 uppercase">{t('completedOn')}</span>
+                                                                <p className="text-sm text-gray-900 mt-1">{completion.confirmed_at ? new Date(completion.confirmed_at).toLocaleDateString() : t('notYet')}</p>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 )
                                             })}
                                         </div>
                                     )}
-                                </>
-                            )}
-                        </div>
-
-                        {/* Completed Projects Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('completedJobs')}</h2>
-
-                            {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').length === 0 ? (
-                                <div className="text-center py-12">
-                                    <div className="text-4xl mb-4">🏆</div>
-                                    <p className="text-gray-600">{t('noCompletedProjects')}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').map(job => {
-                                        const completion = job.completions[0]
-                                        return (
-                                            <div key={job.id} className="border border-gray-200 rounded-lg p-6 bg-green-50">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <div>
-                                                        <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
-                                                        <p className="text-sm text-gray-600 mt-1">{job.location}</p>
-                                                    </div>
-                                                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                                        ✓ {t('completed')}
-                                                    </span>
-                                                </div>
-                                                <p className="text-gray-700 mt-3">{job.description}</p>
-                                                <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
-                                                    <div>
-                                                        <span className="text-xs font-medium text-gray-600 uppercase">{t('finalPrice')}</span>
-                                                        <p className="text-sm text-gray-900 mt-1 font-semibold">CFA {completion.final_price || job.budget}</p>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-xs font-medium text-gray-600 uppercase">{t('completedOn')}</span>
-                                                        <p className="text-sm text-gray-900 mt-1">{completion.confirmed_at ? new Date(completion.confirmed_at).toLocaleDateString() : t('notYet')}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
                                 </div>
                             )}
                         </div>
@@ -1656,14 +1881,16 @@ export default function ClientProfilePage() {
                                 <div className="flex gap-3 pt-6 border-t border-gray-200">
                                     <button
                                         type="submit"
-                                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-medium flex-1"
+                                        disabled={jobFormLoading}
+                                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-medium flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {editingJobId ? 'Update Project' : 'Post Project'}
+                                        {jobFormLoading ? 'Posting...' : editingJobId ? 'Update Project' : 'Post Project'}
                                     </button>
                                     <button
                                         type="button"
+                                        disabled={jobFormLoading}
                                         onClick={() => setShowJobModal(false)}
-                                        className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium flex-1"
+                                        className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium flex-1 disabled:opacity-50"
                                     >
                                         Cancel
                                     </button>

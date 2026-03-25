@@ -24,7 +24,7 @@ ALTER TABLE public.users
 
 -- ============================================================================
 -- 2. RPC: check if a user is eligible for a password reset
---    Callable by unauthenticated (anon) users.
+--    Callable by anonymous and authenticated users.
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.check_password_reset_eligibility(p_email TEXT)
 RETURNS JSONB
@@ -62,7 +62,7 @@ BEGIN
 END;
 $$;
 
--- Allow anonymous (unauthenticated) callers to invoke this function
+-- Allow both anonymous and authenticated users to invoke this function
 GRANT EXECUTE ON FUNCTION public.check_password_reset_eligibility(TEXT) TO anon, authenticated;
 
 -- ============================================================================

@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import completionClient from '@/lib/completionClient'
 import RatingModal from '@/components/RatingModal'
 import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
+import FollowStats from '@/components/FollowStats'
+import FollowNotificationBell from '@/components/FollowNotificationBell'
 import { togoLocations, handworks } from '@/lib/togoData'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -81,6 +84,8 @@ export default function WorkerProfilePage() {
     const { t } = useLanguage()
     const { user, isLoading: authLoading } = useAuth({ requiredRole: 'worker' })
     const [profile, setProfile] = useState(null)
+    const [followerCount, setFollowerCount] = useState(0)
+    const [followingCount, setFollowingCount] = useState(0)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
     const [isEditing, setIsEditing] = useState(false)
@@ -411,6 +416,30 @@ export default function WorkerProfilePage() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authLoading, user])
+
+    // Fetch follower/following counts
+    useEffect(() => {
+        if (!user?.id) return
+
+        async function fetchFollowCounts() {
+            try {
+                const response = await fetch(`/api/user/${user.id}`)
+                if (response.ok) {
+                    const data = await response.json()
+                    setFollowerCount(data.follower_count || 0)
+                    setFollowingCount(data.following_count || 0)
+                }
+            } catch (err) {
+                console.error('Failed to fetch follow counts:', err)
+            }
+        }
+
+        fetchFollowCounts()
+
+        // Poll for updates every minute
+        const interval = setInterval(fetchFollowCounts, 60000)
+        return () => clearInterval(interval)
+    }, [user?.id])
 
     // Real-time subscription for application status changes
     useEffect(() => {
@@ -822,13 +851,20 @@ export default function WorkerProfilePage() {
                             <p className="text-gray-600 mt-1">{t('buildProfessional')}</p>
                         </div>
                         {!isEditing && (
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 items-start">
+                                <FollowNotificationBell userId={user?.id} />
                                 <button
                                     onClick={() => setIsEditing(true)}
                                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
                                 >
                                     {t('editProfile')}
                                 </button>
+                                <Link
+                                    href="/job-alerts"
+                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-semibold"
+                                >
+                                    🔔 Job Alerts
+                                </Link>
                                 <button
                                     onClick={handleToggleAvailability}
                                     disabled={isAvailabilityToggling}
@@ -842,6 +878,13 @@ export default function WorkerProfilePage() {
                             </div>
                         )}
                     </div>
+
+                    {/* Follow Stats */}
+                    <FollowStats
+                        followerCount={followerCount}
+                        followingCount={followingCount}
+                        isOwnProfile={true}
+                    />
 
                     {updateSuccess && (
                         <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4">
