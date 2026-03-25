@@ -6,8 +6,10 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function FollowingPage() {
+    const { t } = useLanguage()
     const params = useParams()
     const userId = params.userId
     const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
@@ -37,12 +39,12 @@ export default function FollowingPage() {
                 )
 
                 if (response.status === 403) {
-                    setError('You can only view your own following list')
+                    setError(t('youCanOnlyViewYourOwnFollowingList'))
                     return
                 }
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch following')
+                    throw new Error(t('failedToFetchFollowing'))
                 }
 
                 const data = await response.json()
@@ -50,7 +52,7 @@ export default function FollowingPage() {
 
             } catch (err) {
                 console.error('Failed to fetch following:', err)
-                setError('Failed to load following list')
+                setError(t('failedToLoadFollowingList'))
             } finally {
                 setLoading(false)
             }
@@ -90,12 +92,12 @@ export default function FollowingPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50 py-8">
+            <div className="min-h-screen py-8">
                 <div className="max-w-4xl mx-auto px-4">
-                    <div className="bg-white rounded-lg shadow p-8 text-center">
-                        <p className="text-gray-900 mb-4">{error}</p>
-                        <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700">
-                            Back to browse
+                    <div className="glass-surface rounded-2xl shadow p-8 text-center border border-white/80">
+                        <p className="text-slate-900 mb-4">{error}</p>
+                        <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                            {t('backToBrowse')}
                         </Link>
                     </div>
                 </div>
@@ -104,25 +106,25 @@ export default function FollowingPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+        <div className="min-h-screen py-8">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                <Link href="/worker-profile" className="text-indigo-600 hover:text-indigo-700 mb-6 inline-block">
-                    ← Back to profile
+                <Link href="/worker-profile" className="text-blue-700 hover:text-blue-800 mb-6 inline-block font-semibold">
+                    ← {t('backToProfile')}
                 </Link>
 
-                <div className="bg-white rounded-lg shadow-lg p-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">You're Following</h1>
-                    <p className="text-gray-600 mb-8">You're following {following.length} user{following.length !== 1 ? 's' : ''}</p>
+                <div className="glass-surface rounded-2xl shadow-lg p-8 border border-white/80">
+                    <h1 className="display-font text-3xl font-bold text-slate-900 mb-2 tracking-tight">{t('youAreFollowing')}</h1>
+                    <p className="text-slate-600 mb-8">{t('yourFollowingCount').replace('{{count}}', following.length).replace('{{label}}', following.length === 1 ? t('usersLabelSingular') : t('usersLabelPlural'))}</p>
 
                     {loading ? (
                         <div className="text-center py-12">
-                            <p className="text-gray-500">Loading following list...</p>
+                            <p className="text-slate-500">{t('loadingFollowingList')}</p>
                         </div>
                     ) : following.length === 0 ? (
                         <div className="text-center py-12">
-                            <p className="text-gray-500 mb-4">You're not following anyone yet</p>
-                            <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700">
-                                Browse workers to start following
+                            <p className="text-slate-500 mb-4">{t('noFollowingYet')}</p>
+                            <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                                {t('browseWorkersToStartFollowing')}
                             </Link>
                         </div>
                     ) : (
@@ -132,9 +134,9 @@ export default function FollowingPage() {
                                     key={followingUser.id}
                                     href={`/workers/${followingUser.id}`}
                                 >
-                                    <div className="bg-gray-50 rounded-lg p-6 hover:shadow-lg transition cursor-pointer">
+                                    <div className="elevated-card interactive-rise rounded-2xl p-6 cursor-pointer">
                                         {/* Profile Picture */}
-                                        <div className="w-24 h-24 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-3xl mb-4 mx-auto overflow-hidden">
+                                        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-3xl mb-4 mx-auto overflow-hidden ring-4 ring-blue-50">
                                             {followingUser.profile_picture ? (
                                                 <img
                                                     src={followingUser.profile_picture}
@@ -147,18 +149,18 @@ export default function FollowingPage() {
                                         </div>
 
                                         {/* Info */}
-                                        <h3 className="font-bold text-gray-900 text-center mb-1">
+                                        <h3 className="font-bold text-slate-900 text-center mb-1">
                                             {followingUser.first_name} {followingUser.last_name}
                                         </h3>
 
                                         {followingUser.job_title && (
-                                            <p className="text-sm text-gray-600 text-center mb-2">
+                                            <p className="text-sm text-slate-600 text-center mb-2">
                                                 {followingUser.job_title}
                                             </p>
                                         )}
 
                                         {followingUser.location && (
-                                            <p className="text-sm text-gray-500 text-center">
+                                            <p className="text-sm text-slate-500 text-center">
                                                 📍 {followingUser.location}
                                             </p>
                                         )}
@@ -170,8 +172,8 @@ export default function FollowingPage() {
                                         )}
 
                                         {followingUser.user_type === 'client' && (
-                                            <p className="text-sm text-indigo-600 text-center mt-2">
-                                                👔 Client
+                                            <p className="text-sm text-blue-700 text-center mt-2">
+                                                👔 {t('client')}
                                             </p>
                                         )}
                                     </div>

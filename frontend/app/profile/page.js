@@ -3,9 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function ProfilePage() {
     const router = useRouter()
+    const { t } = useLanguage()
     const [profile, setProfile] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
@@ -27,6 +29,7 @@ export default function ProfilePage() {
     const [updateError, setUpdateError] = useState(null)
     const [updateSuccess, setUpdateSuccess] = useState(false)
     const [newService, setNewService] = useState('')
+    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     useEffect(() => {
         async function initProfile() {
@@ -44,7 +47,7 @@ export default function ProfilePage() {
                 // Fetch user profile from database
                 const { data: userData, error: fetchError } = await supabase
                     .from('users')
-                    .select('*')
+                    .select('id,user_type,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,services,portfolio,profile_picture')
                     .eq('id', user.id)
                     .single()
 
@@ -75,7 +78,7 @@ export default function ProfilePage() {
                 })
             } catch (err) {
                 console.error('Failed to fetch profile', err)
-                setError('Failed to load profile')
+                setError(t('failedLoadProfileMsg'))
             } finally {
                 setLoading(false)
             }
@@ -117,174 +120,247 @@ export default function ProfilePage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Not authenticated')
 
-            const { error: updateError } = await supabase
+            const nextBasePayload = {
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                phone_number: formData.phone_number,
+                job_title: formData.job_title,
+                location: formData.location,
+                bio: formData.bio,
+                years_experience: formData.years_experience,
+                services: formData.services,
+                portfolio: formData.portfolio,
+                profile_picture: formData.profile_picture
+            }
+
+            const updatePayload = {}
+            for (const [key, nextValue] of Object.entries(nextBasePayload)) {
+                const currentValue = profile?.[key]
+                const isSameArray = Array.isArray(nextValue)
+                    && Array.isArray(currentValue)
+                    && nextValue.length === currentValue.length
+                    && nextValue.every((item, idx) => item === currentValue[idx])
+
+                if (isSameArray || nextValue === currentValue) continue
+                updatePayload[key] = nextValue
+            }
+
+            if (Object.keys(updatePayload).length === 0) {
+                setIsEditing(false)
+                setUpdateSuccess(true)
+                setTimeout(() => setUpdateSuccess(false), 3000)
+                return
+            }
+
+            const saveController = new AbortController()
+            let saveTimeoutId
+
+            const saveRequest = supabase
                 .from('users')
-                .update({
-                    first_name: formData.first_name,
-                    last_name: formData.last_name,
-                    phone_number: formData.phone_number,
-                    job_title: formData.job_title,
-                    location: formData.location,
-                    bio: formData.bio,
-                    years_experience: formData.years_experience,
-                    services: formData.services,
-                    portfolio: formData.portfolio,
-                    profile_picture: formData.profile_picture
-                })
+                .update(updatePayload)
                 .eq('id', user.id)
+                .abortSignal(saveController.signal)
+
+            const { error: updateError } = await Promise.race([
+                saveRequest,
+                new Promise((_, reject) => {
+                    saveTimeoutId = setTimeout(() => {
+                        saveController.abort()
+                        reject(new Error('SAVE_TIMEOUT'))
+                    }, PROFILE_SAVE_TIMEOUT_MS)
+                })
+            ])
+
+            clearTimeout(saveTimeoutId)
 
             if (updateError) throw updateError
 
-            setProfile(formData)
+            setProfile(prev => ({ ...(prev || {}), ...updatePayload }))
             setIsEditing(false)
             setUpdateSuccess(true)
             setTimeout(() => setUpdateSuccess(false), 3000)
         } catch (err) {
             console.error('Failed to update profile', err)
-            setUpdateError(err.message || 'Failed to update profile')
+            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
+                setUpdateError(t('profileSaveTooLong'))
+            } else {
+                setUpdateError(err.message || t('profileUpdateFailed'))
+            }
         } finally {
             setUpdateLoading(false)
         }
     }
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center">Loading profile...</div>
-    if (error) return <div className="min-h-screen flex items-center justify-center text-red-600">{error}</div>
-    if (!profile) return <div className="min-h-screen flex items-center justify-center">Profile not found</div>
+    if (loading) {
+        return <div className="min-h-screen flex items-center justify-center text-slate-600 font-semibold">{t('loadingProfile')}</div>
+    }
+
+    if (error) {
+        return <div className="min-h-screen flex items-center justify-center text-red-600 font-semibold">{error}</div>
+    }
+
+    if (!profile) {
+        return <div className="min-h-screen flex items-center justify-center text-slate-600 font-semibold">{t('profileNotFound')}</div>
+    }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12">
-            <div className="max-w-4xl mx-auto bg-white shadow rounded-lg p-8">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold">Your Profile</h2>
-                    {!isEditing && (
-                        <button
-                            onClick={() => setIsEditing(true)}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-                        >
-                            Edit Profile
-                        </button>
-                    )}
+        <div className="profile-page">
+            <div className="profile-container space-y-6">
+                <div className="profile-hero fade-in-up">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <span className="profile-chip mb-3">{t('profile')}</span>
+                            <h1 className="profile-title text-3xl sm:text-4xl font-bold text-slate-900">{t('yourProfile')}</h1>
+                            <p className="profile-muted mt-2">{t('manageInformation')}</p>
+                        </div>
+                        {!isEditing && (
+                            <div className="profile-actions lg:justify-end">
+                                <button
+                                    onClick={() => setIsEditing(true)}
+                                    className="primary-action px-4 py-2 rounded-xl font-semibold shadow-sm"
+                                >
+                                    {t('editProfile')}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {updateSuccess && (
-                    <div className="bg-green-50 text-green-600 p-3 rounded-lg mb-4">
-                        Profile updated successfully!
+                    <div className="bg-green-50 text-green-700 p-3 rounded-xl border border-green-200">
+                        {t('profileUpdatedSuccess')}
                     </div>
                 )}
 
                 {updateError && (
-                    <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4">
+                    <div className="bg-red-50 text-red-700 p-3 rounded-xl border border-red-200">
                         {updateError}
                     </div>
                 )}
 
                 {!isEditing ? (
-                    // View Mode
                     <div className="space-y-6">
-                        <div className="border-b pb-4">
-                            <h3 className="text-lg font-semibold">Basic Information</h3>
-                            <div className="grid grid-cols-2 gap-4 mt-3">
+                        <div className="profile-section profile-section-soft">
+                            <h2 className="profile-title text-xl font-semibold mb-5">{t('basicInformation')}</h2>
+                            <div className="profile-grid-2">
                                 <div>
-                                    <span className="font-medium text-gray-700">First Name:</span>
-                                    <p className="text-gray-900">{profile.first_name || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('firstName')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.first_name || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Last Name:</span>
-                                    <p className="text-gray-900">{profile.last_name || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('lastName')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.last_name || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Email:</span>
-                                    <p className="text-gray-900">{profile.email}</p>
+                                    <span className="font-medium text-gray-700">{t('email')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.email || t('notProvided')}</p>
                                 </div>
                                 <div>
-                                    <span className="font-medium text-gray-700">Phone:</span>
-                                    <p className="text-gray-900">{profile.phone_number || 'N/A'}</p>
+                                    <span className="font-medium text-gray-700">{t('phone')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.phone_number || t('notProvided')}</p>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-700">{t('jobTitle')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.job_title || t('notProvided')}</p>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-700">{t('location')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.location || t('notProvided')}</p>
+                                </div>
+                                <div>
+                                    <span className="font-medium text-gray-700">{t('years')}:</span>
+                                    <p className="text-gray-900 mt-1">{profile.years_experience || 0}</p>
                                 </div>
                             </div>
                         </div>
+
+                        <div className="profile-section">
+                            <h2 className="profile-title text-xl font-semibold mb-5">{t('aboutMe')}</h2>
+                            <p className="text-gray-700 whitespace-pre-wrap">{profile.bio || t('notProvided')}</p>
+                        </div>
                     </div>
                 ) : (
-                    // Edit Mode
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="profile-section space-y-6">
+                        <div className="profile-grid-2">
                             <input
                                 type="text"
                                 name="first_name"
-                                placeholder="First Name"
                                 value={formData.first_name}
                                 onChange={handleInputChange}
-                                className="border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('firstName')}
                             />
                             <input
                                 type="text"
                                 name="last_name"
-                                placeholder="Last Name"
                                 value={formData.last_name}
                                 onChange={handleInputChange}
-                                className="border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('lastName')}
                             />
                             <input
                                 type="email"
                                 name="email"
-                                placeholder="Email"
                                 value={formData.email}
                                 disabled
-                                className="border p-2 rounded bg-gray-100"
+                                className="border border-gray-300 p-3 rounded-xl bg-gray-100"
+                                placeholder={t('email')}
                             />
                             <input
                                 type="tel"
                                 name="phone_number"
-                                placeholder="Phone Number"
                                 value={formData.phone_number}
                                 onChange={handleInputChange}
-                                className="border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('phoneNumber')}
                             />
                             <input
                                 type="text"
                                 name="job_title"
-                                placeholder="Job Title"
                                 value={formData.job_title}
                                 onChange={handleInputChange}
-                                className="col-span-2 border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('jobTitle')}
                             />
                             <input
                                 type="text"
                                 name="location"
-                                placeholder="Location"
                                 value={formData.location}
                                 onChange={handleInputChange}
-                                className="col-span-2 border p-2 rounded"
-                            />
-                            <textarea
-                                name="bio"
-                                placeholder="Bio"
-                                value={formData.bio}
-                                onChange={handleInputChange}
-                                className="col-span-2 border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('location')}
                             />
                             <input
                                 type="number"
                                 name="years_experience"
-                                placeholder="Years of Experience"
                                 value={formData.years_experience}
                                 onChange={handleInputChange}
-                                className="border p-2 rounded"
+                                className="border border-gray-300 p-3 rounded-xl"
+                                placeholder={t('yearsExperience')}
+                            />
+                            <div />
+                            <textarea
+                                name="bio"
+                                value={formData.bio}
+                                onChange={handleInputChange}
+                                className="sm:col-span-2 border border-gray-300 p-3 rounded-xl min-h-[140px]"
+                                placeholder={t('bio')}
                             />
                         </div>
 
-                        <div className="flex gap-3">
+                        <div className="profile-actions">
                             <button
                                 onClick={handleSaveProfile}
                                 disabled={updateLoading}
-                                className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+                                className="primary-action px-6 py-2.5 rounded-xl font-medium disabled:opacity-50"
                             >
-                                {updateLoading ? 'Saving...' : 'Save Changes'}
+                                {updateLoading ? t('saving') : t('saveChanges')}
                             </button>
                             <button
                                 onClick={() => setIsEditing(false)}
-                                className="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700"
+                                className="profile-button-secondary px-6 py-2.5 rounded-xl font-medium"
                             >
-                                Cancel
+                                {t('cancel')}
                             </button>
                         </div>
                     </div>

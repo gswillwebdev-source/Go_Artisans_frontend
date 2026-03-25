@@ -71,14 +71,19 @@ export default function BrowseWorkersPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen py-8 sm:py-10">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="mb-6 fade-in-up">
+                    <h1 className="display-font text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">{t('browseWorkersTitle')}</h1>
+                    <p className="text-slate-600 mt-2">{t('browseWorkersSubtitle')}</p>
+                </div>
+
                 <WorkerSearchBar onSearch={handleSearch} />
 
                 {loading ? (
-                    <div className="text-center py-8">{t('loading')}</div>
+                    <div className="text-center py-8 text-slate-600 font-semibold">{t('loading')}</div>
                 ) : workers.length === 0 ? (
-                    <div className="text-center py-8 text-gray-600">{t('noWorkersFound')}</div>
+                    <div className="glass-surface rounded-2xl p-10 text-center text-slate-600 mt-6">{t('noWorkersFound')}</div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
                         {workers.map((worker) => (

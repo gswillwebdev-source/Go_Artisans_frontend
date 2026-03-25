@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function NotificationPreferencesModal({ onClose }) {
+    const { t } = useLanguage()
     const [preferences, setPreferences] = useState(null)
+    const [initialPreferences, setInitialPreferences] = useState(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState('')
@@ -21,7 +24,7 @@ export default function NotificationPreferencesModal({ onClose }) {
             // Try to get existing preferences or create defaults
             let { data, error: err } = await supabase
                 .from('notification_preferences')
-                .select('*')
+                .select('id,user_id,email_job_alerts,in_app_job_alerts,email_frequency,digest_day_of_week,digest_time_preference,updated_at')
                 .single()
 
             if (err && err.code === 'PGRST116') {
@@ -39,10 +42,11 @@ export default function NotificationPreferencesModal({ onClose }) {
             }
 
             setPreferences(data)
+            setInitialPreferences(data)
             setError('')
         } catch (err) {
             console.error('[Fetch Preferences Error]', err)
-            setError('Failed to load preferences')
+            setError(t('failedLoadPreferences'))
         } finally {
             setLoading(false)
         }
@@ -59,28 +63,52 @@ export default function NotificationPreferencesModal({ onClose }) {
         try {
             setSaving(true)
 
+            const nextPayload = {
+                email_job_alerts: preferences.email_job_alerts,
+                in_app_job_alerts: preferences.in_app_job_alerts,
+                email_frequency: preferences.email_frequency,
+                digest_day_of_week: preferences.digest_day_of_week,
+                digest_time_preference: preferences.digest_time_preference
+            }
+
+            const changedPayload = {}
+            for (const [key, nextValue] of Object.entries(nextPayload)) {
+                if (nextValue === initialPreferences?.[key]) continue
+                changedPayload[key] = nextValue
+            }
+
+            if (Object.keys(changedPayload).length === 0) {
+                setSuccess(t('preferencesSavedSuccess'))
+                setTimeout(() => {
+                    setSuccess('')
+                    onClose()
+                }, 2000)
+                return
+            }
+
             const { error: err } = await supabase
                 .from('notification_preferences')
                 .update({
-                    email_job_alerts: preferences.email_job_alerts,
-                    in_app_job_alerts: preferences.in_app_job_alerts,
-                    email_frequency: preferences.email_frequency,
-                    digest_day_of_week: preferences.digest_day_of_week,
-                    digest_time_preference: preferences.digest_time_preference,
+                    ...changedPayload,
                     updated_at: new Date().toISOString()
                 })
                 .eq('user_id', (await supabase.auth.getSession()).data.session.user.id)
 
             if (err) throw err
 
-            setSuccess('Preferences saved successfully')
+            setInitialPreferences(prev => ({
+                ...(prev || {}),
+                ...changedPayload
+            }))
+
+            setSuccess(t('preferencesSavedSuccess'))
             setTimeout(() => {
                 setSuccess('')
                 onClose()
             }, 2000)
         } catch (err) {
             console.error('[Save Preferences Error]', err)
-            setError('Failed to save preferences')
+            setError(t('failedSavePreferences'))
         } finally {
             setSaving(false)
         }
@@ -88,20 +116,20 @@ export default function NotificationPreferencesModal({ onClose }) {
 
     if (loading) {
         return (
-            <div className="bg-white rounded-lg shadow-xl p-6 text-center">
-                <p>Loading preferences...</p>
+            <div className="glass-surface rounded-2xl shadow-xl p-6 text-center border border-white/80">
+                <p className="text-slate-600 font-semibold">{t('loadingPreferences')}</p>
             </div>
         )
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <div className="glass-surface rounded-2xl shadow-xl max-w-md w-full border border-white/80 overflow-hidden">
             {/* Header */}
-            <div className="bg-indigo-600 text-white p-6 flex items-center justify-between">
-                <h2 className="text-xl font-bold">Notification Preferences</h2>
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 flex items-center justify-between">
+                <h2 className="display-font text-xl font-bold tracking-tight">{t('notificationPreferences')}</h2>
                 <button
                     onClick={onClose}
-                    className="text-white hover:bg-indigo-700 p-1 rounded transition"
+                    className="text-white hover:bg-blue-800 p-1 rounded transition"
                 >
                     ✕
                 </button>
@@ -132,10 +160,10 @@ export default function NotificationPreferencesModal({ onClose }) {
                                     onChange={(e) => handleChange('email_job_alerts', e.target.checked)}
                                     className="rounded"
                                 />
-                                <span className="ml-3 text-sm font-semibold text-gray-700">📧 Email Job Alerts</span>
+                                <span className="ml-3 text-sm font-semibold text-slate-700">📧 {t('emailJobAlerts')}</span>
                             </label>
-                            <p className="text-xs text-gray-600 ml-6">
-                                Receive job notifications via email
+                            <p className="text-xs text-slate-600 ml-6">
+                                {t('emailJobAlertsHint')}
                             </p>
                         </div>
 
@@ -148,62 +176,62 @@ export default function NotificationPreferencesModal({ onClose }) {
                                     onChange={(e) => handleChange('in_app_job_alerts', e.target.checked)}
                                     className="rounded"
                                 />
-                                <span className="ml-3 text-sm font-semibold text-gray-700">🔔 In-App Notifications</span>
+                                <span className="ml-3 text-sm font-semibold text-slate-700">🔔 {t('inAppNotifications')}</span>
                             </label>
-                            <p className="text-xs text-gray-600 ml-6">
-                                See notification badge and alerts in the app
+                            <p className="text-xs text-slate-600 ml-6">
+                                {t('inAppNotificationsHint')}
                             </p>
                         </div>
 
                         {/* Default Frequency */}
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Default Notification Frequency
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                {t('defaultNotificationFrequency')}
                             </label>
                             <select
                                 value={preferences.email_frequency}
                                 onChange={(e) => handleChange('email_frequency', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
-                                <option value="immediate">⚡ Immediate</option>
-                                <option value="daily">📅 Daily Digest</option>
-                                <option value="weekly">📬 Weekly Digest</option>
+                                <option value="immediate">⚡ {t('frequencyImmediate')}</option>
+                                <option value="daily">📅 {t('frequencyDailyDigest')}</option>
+                                <option value="weekly">📬 {t('frequencyWeeklyDigest')}</option>
                             </select>
-                            <p className="text-xs text-gray-600 mt-1">
-                                Default for new alerts (can override per alert)
+                            <p className="text-xs text-slate-600 mt-1">
+                                {t('defaultNotificationFrequencyHint')}
                             </p>
                         </div>
 
                         {/* Digest Timing */}
                         <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Digest Email Time
+                            <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                {t('digestEmailTime')}
                             </label>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-xs text-gray-600">Day</label>
+                                    <label className="text-xs text-slate-600">{t('day')}</label>
                                     <select
                                         value={preferences.digest_day_of_week}
                                         onChange={(e) => handleChange('digest_day_of_week', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent text-sm"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                     >
-                                        <option value="monday">Monday</option>
-                                        <option value="tuesday">Tuesday</option>
-                                        <option value="wednesday">Wednesday</option>
-                                        <option value="thursday">Thursday</option>
-                                        <option value="friday">Friday</option>
-                                        <option value="saturday">Saturday</option>
-                                        <option value="sunday">Sunday</option>
+                                        <option value="monday">{t('monday')}</option>
+                                        <option value="tuesday">{t('tuesday')}</option>
+                                        <option value="wednesday">{t('wednesday')}</option>
+                                        <option value="thursday">{t('thursday')}</option>
+                                        <option value="friday">{t('friday')}</option>
+                                        <option value="saturday">{t('saturday')}</option>
+                                        <option value="sunday">{t('sunday')}</option>
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="text-xs text-gray-600">Time (UTC)</label>
+                                    <label className="text-xs text-slate-600">{t('timeUtc')}</label>
                                     <input
                                         type="time"
                                         value={preferences.digest_time_preference}
                                         onChange={(e) => handleChange('digest_time_preference', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent text-sm"
+                                        className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                     />
                                 </div>
                             </div>
@@ -211,7 +239,7 @@ export default function NotificationPreferencesModal({ onClose }) {
 
                         {/* Info Box */}
                         <div className="bg-blue-50 p-3 rounded text-xs text-blue-700">
-                            💡 You can override these defaults when creating or editing individual job alerts
+                            💡 {t('preferenceOverrideHint')}
                         </div>
                     </>
                 )}
@@ -220,16 +248,16 @@ export default function NotificationPreferencesModal({ onClose }) {
                 <div className="flex gap-3 justify-end border-t pt-6">
                     <button
                         onClick={onClose}
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50 transition"
+                        className="px-4 py-2 border border-slate-300 rounded-xl text-slate-700 font-semibold hover:bg-slate-100 transition"
                     >
-                        Cancel
+                        {t('cancel')}
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                        className="px-4 py-2 primary-action text-white rounded-xl font-semibold disabled:opacity-50 transition shadow-sm"
                     >
-                        {saving ? 'Saving...' : 'Save Preferences'}
+                        {saving ? t('saving') : t('savePreferences')}
                     </button>
                 </div>
             </div>

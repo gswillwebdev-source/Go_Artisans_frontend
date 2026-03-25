@@ -170,11 +170,10 @@ export default function ChatAssistant() {
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
-                  className={`max-w-[75%] px-4 py-2 rounded-lg ${
-                    msg.role === 'user'
+                  className={`max-w-[75%] px-4 py-2 rounded-lg ${msg.role === 'user'
                       ? 'bg-indigo-600 text-white rounded-br-none'
                       : 'bg-gray-200 text-gray-900 rounded-bl-none'
-                  }`}
+                    }`}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
                 </div>

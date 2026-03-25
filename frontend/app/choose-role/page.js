@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function ChooseRolePage() {
     const router = useRouter()
+    const { t } = useLanguage()
     const { user, isLoading: authLoading } = useAuth()
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
@@ -112,7 +114,7 @@ export default function ChooseRolePage() {
             routeToRoleHome(selectedRole)
         } catch (err) {
             console.error('Failed to set role:', err)
-            setError('Failed to set role. Please try again.')
+            setError(t('failedSetRole'))
             setLoading(false)
         }
     }
@@ -125,17 +127,17 @@ export default function ChooseRolePage() {
         await chooseRole('client')
     }
 
-    if (authLoading || !user) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    if (authLoading || !user) return <div className="min-h-screen flex items-center justify-center text-slate-600 font-semibold">{t('loading')}</div>
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-blue-600 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-2xl">
-                <h1 className="text-4xl font-bold text-gray-900 mb-2 text-center">Welcome to GoArtisans</h1>
-                <p className="text-gray-600 text-center mb-4">Hi {user.first_name}! 👋</p>
-                <p className="text-gray-600 text-center mb-8">What are you looking to do?</p>
+        <div className="min-h-screen flex items-center justify-center p-4 sm:p-6">
+            <div className="glass-surface rounded-3xl shadow-xl p-8 w-full max-w-2xl border border-white/90 fade-in-up">
+                <h1 className="display-font text-4xl font-bold text-slate-900 mb-2 text-center tracking-tight">{t('roleWelcomeTitle')}</h1>
+                <p className="text-slate-600 text-center mb-4">{t('roleWelcomeHi').replace('{{name}}', user.first_name || '')}</p>
+                <p className="text-slate-600 text-center mb-8">{t('roleQuestion')}</p>
 
                 {error && (
-                    <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+                    <div className="bg-red-50 text-red-700 border border-red-200 p-4 rounded-xl mb-6">
                         {error}
                     </div>
                 )}
@@ -145,13 +147,13 @@ export default function ChooseRolePage() {
                     <button
                         onClick={handleWorkerChoice}
                         disabled={loading}
-                        className="border-2 border-indigo-600 rounded-lg p-8 hover:bg-indigo-50 transition transform hover:scale-105 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="border-2 border-blue-500 rounded-2xl p-8 hover:bg-blue-50/80 transition transform hover:-translate-y-1 text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-lg"
                     >
                         <div className="text-4xl mb-4">🔧</div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">I'm a Service Provider</h2>
-                        <p className="text-gray-600 mb-4">I want to offer my professional services and build my portfolio.</p>
-                        <div className="text-sm text-indigo-600 font-semibold flex items-center gap-2">
-                            {loading ? 'Setting up...' : 'Set up as Worker'} <span>→</span>
+                        <h2 className="display-font text-2xl font-bold text-slate-900 mb-2">{t('roleServiceProviderTitle')}</h2>
+                        <p className="text-slate-600 mb-4">{t('roleServiceProviderDesc')}</p>
+                        <div className="text-sm text-blue-700 font-semibold flex items-center gap-2">
+                            {loading ? t('settingUp') : t('roleSetWorker')} <span>→</span>
                         </div>
                     </button>
 
@@ -159,29 +161,29 @@ export default function ChooseRolePage() {
                     <button
                         onClick={handleClientChoice}
                         disabled={loading}
-                        className="border-2 border-green-600 rounded-lg p-8 hover:bg-green-50 transition transform hover:scale-105 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="border-2 border-emerald-500 rounded-2xl p-8 hover:bg-emerald-50/80 transition transform hover:-translate-y-1 text-left disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-lg"
                     >
                         <div className="text-4xl mb-4">👥</div>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-2">I'm Looking for Help</h2>
-                        <p className="text-gray-600 mb-4">I want to find and hire service providers for my projects.</p>
-                        <div className="text-sm text-green-600 font-semibold flex items-center gap-2">
-                            {loading ? 'Setting up...' : 'Set up as Client'} <span>→</span>
+                        <h2 className="display-font text-2xl font-bold text-slate-900 mb-2">{t('roleLookingHelpTitle')}</h2>
+                        <p className="text-slate-600 mb-4">{t('roleLookingHelpDesc')}</p>
+                        <div className="text-sm text-emerald-700 font-semibold flex items-center gap-2">
+                            {loading ? t('settingUp') : t('roleSetClient')} <span>→</span>
                         </div>
                     </button>
                 </div>
 
-                <div className="mt-8 pt-8 border-t border-gray-200 text-center">
-                    <p className="text-gray-600 text-sm">
-                        Choose carefully: your account role is locked after the first selection.
+                <div className="mt-8 pt-8 border-t border-slate-200 text-center">
+                    <p className="text-slate-600 text-sm">
+                        {t('roleLockedHint')}
                     </p>
                 </div>
 
                 <div className="mt-6 text-center">
                     <button
                         onClick={() => router.push('/jobs')}
-                        className="text-indigo-600 hover:underline text-sm"
+                        className="text-blue-700 hover:underline text-sm font-semibold"
                     >
-                        Skip for now and browse jobs
+                        {t('skipBrowseJobs')}
                     </button>
                 </div>
             </div>

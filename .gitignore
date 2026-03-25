@@ -40,3 +40,5 @@ coverage/
 
 # Misc
 .env.example
+.vercel
+.env*.local

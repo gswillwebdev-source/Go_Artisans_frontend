@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function WorkerSearchBar({ onSearch }) {
+    const { t } = useLanguage()
     const [jobTitle, setJobTitle] = useState('')
     const [location, setLocation] = useState('')
     const [jobType, setJobType] = useState('')
@@ -13,51 +15,51 @@ export default function WorkerSearchBar({ onSearch }) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow">
+        <form onSubmit={handleSubmit} className="glass-surface p-6 rounded-2xl border border-white/80 shadow-lg fade-in-up">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Job Title or Skill</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">{t('jobTitleOrSkill')}</label>
                     <input
                         type="text"
                         value={jobTitle}
                         onChange={(e) => setJobTitle(e.target.value)}
-                        placeholder="e.g. Developer, Designer"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
+                        placeholder={t('jobTitleOrSkillPlaceholder')}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">{t('location')}</label>
                     <input
                         type="text"
                         value={location}
                         onChange={(e) => setLocation(e.target.value)}
-                        placeholder="e.g. New York"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
+                        placeholder={t('locationPlaceholder')}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Job Type</label>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">{t('jobType')}</label>
                     <select
                         value={jobType}
                         onChange={(e) => setJobType(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600"
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500"
                     >
-                        <option value="">All Types</option>
-                        <option value="full_time">Full Time</option>
-                        <option value="part_time">Part Time</option>
-                        <option value="contract">Contract</option>
-                        <option value="remote">Remote</option>
+                        <option value="">{t('allTypes')}</option>
+                        <option value="full_time">{t('fullTime')}</option>
+                        <option value="part_time">{t('partTime')}</option>
+                        <option value="contract">{t('contract')}</option>
+                        <option value="remote">{t('remote')}</option>
                     </select>
                 </div>
 
                 <div className="flex items-end">
                     <button
                         type="submit"
-                        className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-medium"
+                        className="w-full primary-action text-white py-2.5 rounded-xl font-semibold shadow-md shadow-blue-500/20 interactive-rise"
                     >
-                        Search
+                        {t('search')}
                     </button>
                 </div>
             </div>

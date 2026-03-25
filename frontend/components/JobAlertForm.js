@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { togoLocations, handworks } from '@/lib/togoData'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobAlertForm({ alert, onClose, onSuccess }) {
+    const { t } = useLanguage()
     const [formData, setFormData] = useState({
         name: '',
         skills: [],
@@ -75,16 +77,16 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
 
         try {
             if (!formData.name.trim()) {
-                throw new Error('Alert name is required')
+                throw new Error(t('alertNameRequired'))
             }
 
             if (formData.skills.length === 0) {
-                throw new Error('Please select at least one skill')
+                throw new Error(t('selectAtLeastOneSkill'))
             }
 
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) {
-                throw new Error('Authentication required')
+                throw new Error(t('authenticationRequired'))
             }
 
             const alertData = {
@@ -100,11 +102,38 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
             }
 
             if (alert) {
-                // Update existing alert
+                const changedFields = {}
+                const baseCompare = {
+                    name: alertData.name,
+                    skills: alertData.skills,
+                    location: alertData.location,
+                    min_budget: alertData.min_budget,
+                    max_budget: alertData.max_budget,
+                    notification_frequency: alertData.notification_frequency,
+                    email_notifications: alertData.email_notifications,
+                    in_app_notifications: alertData.in_app_notifications
+                }
+
+                for (const [key, nextValue] of Object.entries(baseCompare)) {
+                    const currentValue = alert?.[key]
+                    const isSameArray = Array.isArray(nextValue)
+                        && Array.isArray(currentValue)
+                        && nextValue.length === currentValue.length
+                        && nextValue.every((item, idx) => item === currentValue[idx])
+
+                    if (isSameArray || nextValue === currentValue) continue
+                    changedFields[key] = nextValue
+                }
+
+                if (Object.keys(changedFields).length === 0) {
+                    onSuccess()
+                    return
+                }
+
                 const { error: err } = await supabase
                     .from('job_alerts')
                     .update({
-                        ...alertData,
+                        ...changedFields,
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', alert.id)
@@ -122,64 +151,59 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
             onSuccess()
         } catch (err) {
             console.error('[Form Submit Error]', err)
-            setError(err.message || 'Failed to save alert')
+            setError(err.message || t('failedSaveAlert'))
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto">
-            {/* Header */}
-            <div className="sticky top-0 bg-indigo-600 text-white p-6 flex items-center justify-between z-10">
-                <h2 className="text-2xl font-bold">
-                    {alert ? 'Edit Job Alert' : 'Create New Job Alert'}
+        <div className="glass-surface rounded-3xl shadow-xl max-w-2xl w-full max-h-screen overflow-y-auto border border-white/80">
+            <div className="sticky top-0 bg-gradient-to-r from-blue-700 to-cyan-600 text-white p-6 flex items-center justify-between z-10">
+                <h2 className="profile-title text-2xl font-bold text-white">
+                    {alert ? t('editJobAlertTitle') : t('createJobAlertTitle')}
                 </h2>
                 <button
                     onClick={onClose}
-                    className="text-white hover:bg-indigo-700 p-1 rounded transition"
+                    className="text-white hover:bg-white/20 p-1 rounded transition"
                 >
                     ✕
                 </button>
             </div>
 
-            {/* Content */}
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
                 {error && (
-                    <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
+                    <div className="bg-red-50 border border-red-200 p-4 rounded-xl">
                         <p className="text-red-700">{error}</p>
                     </div>
                 )}
 
-                {/* Alert Name */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Alert Name *
+                        {t('alertNameLabel')} *
                     </label>
                     <input
                         type="text"
                         name="name"
                         value={formData.name}
                         onChange={handleInputChange}
-                        placeholder="e.g., Web Design Jobs in Lome"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                        placeholder={t('alertNamePlaceholder')}
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                     />
                 </div>
 
-                {/* Skills/Services - Dropdown */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Skills to Match *
+                        {t('skillsToMatch')} *
                     </label>
-                    <p className="text-xs text-gray-600 mb-3">Select handwork skills to match with notifications</p>
+                    <p className="text-xs text-gray-600 mb-3">{t('skillsToMatchHint')}</p>
 
-                    {/* Dropdown */}
                     <div className="mb-3">
                         <select
                             onChange={handleSkillAdd}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                         >
-                            <option value="">-- Select a skill --</option>
+                            <option value="">-- {t('selectSkill')} --</option>
                             {handworks.map(skill => (
                                 <option key={skill.value} value={skill.label}>
                                     {skill.label}
@@ -188,7 +212,6 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                         </select>
                     </div>
 
-                    {/* Selected Skills Tags */}
                     {formData.skills.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
                             {formData.skills.map(skill => (
@@ -208,22 +231,21 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-sm text-gray-500 italic">No skills selected yet</p>
+                        <p className="text-sm text-gray-500 italic">{t('noSkillsSelectedYet')}</p>
                     )}
                 </div>
 
-                {/* Location - Dropdown with Togo Cities */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Location (Optional)
+                        {t('locationOptional')}
                     </label>
                     <select
                         name="location"
                         value={formData.location}
                         onChange={handleInputChange}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                        className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                     >
-                        <option value="">-- All Locations --</option>
+                        <option value="">-- {t('allLocationsOption')} --</option>
                         {togoLocations.map(loc => (
                             <option key={loc.value} value={loc.label}>
                                 {loc.label}
@@ -232,11 +254,10 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                     </select>
                 </div>
 
-                {/* Budget Range */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Min Budget (Optional)
+                            {t('minBudgetOptional')}
                         </label>
                         <input
                             type="number"
@@ -244,12 +265,12 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                             value={formData.min_budget}
                             onChange={handleInputChange}
                             placeholder="e.g., 10000"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                         />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Max Budget (Optional)
+                            {t('maxBudgetOptional')}
                         </label>
                         <input
                             type="number"
@@ -257,18 +278,17 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                             value={formData.max_budget}
                             onChange={handleInputChange}
                             placeholder="e.g., 50000"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                         />
                     </div>
                 </div>
 
-                {/* Notification Frequency */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                        When to Get Notified *
+                        {t('whenToGetNotified')} *
                     </label>
                     <div className="space-y-2">
-                        <label className="flex items-center p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                        <label className="flex items-center p-2 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
                             <input
                                 type="radio"
                                 name="notification_frequency"
@@ -278,10 +298,10 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                                 className="rounded-full"
                             />
                             <span className="ml-2 text-sm text-gray-700">
-                                <strong>⚡ Immediate</strong> - Get notified right away when a job matches
+                                <strong>⚡ {t('frequencyImmediate')}</strong> - {t('immediateHint')}
                             </span>
                         </label>
-                        <label className="flex items-center p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                        <label className="flex items-center p-2 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
                             <input
                                 type="radio"
                                 name="notification_frequency"
@@ -291,10 +311,10 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                                 className="rounded-full"
                             />
                             <span className="ml-2 text-sm text-gray-700">
-                                <strong>📅 Daily</strong> - Get a digest email each morning at 8 AM
+                                <strong>📅 {t('frequencyDailyDigest')}</strong> - {t('dailyHint')}
                             </span>
                         </label>
-                        <label className="flex items-center p-2 border border-gray-200 rounded hover:bg-gray-50 cursor-pointer">
+                        <label className="flex items-center p-2 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
                             <input
                                 type="radio"
                                 name="notification_frequency"
@@ -304,16 +324,15 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                                 className="rounded-full"
                             />
                             <span className="ml-2 text-sm text-gray-700">
-                                <strong>📬 Weekly</strong> - Get a digest email every Monday at 8 AM
+                                <strong>📬 {t('frequencyWeeklyDigest')}</strong> - {t('weeklyHint')}
                             </span>
                         </label>
                     </div>
                 </div>
 
-                {/* Notification Channels */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-3">
-                        How to Get Notified
+                        {t('howToGetNotified')}
                     </label>
                     <div className="space-y-2">
                         <label className="flex items-center">
@@ -324,7 +343,7 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                                 onChange={handleCheckboxChange}
                                 className="rounded"
                             />
-                            <span className="ml-2 text-sm text-gray-700">📧 Email notifications</span>
+                            <span className="ml-2 text-sm text-gray-700">📧 {t('emailNotificationsLabel')}</span>
                         </label>
                         <label className="flex items-center">
                             <input
@@ -334,26 +353,25 @@ export default function JobAlertForm({ alert, onClose, onSuccess }) {
                                 onChange={handleCheckboxChange}
                                 className="rounded"
                             />
-                            <span className="ml-2 text-sm text-gray-700">🔔 In-app notifications</span>
+                            <span className="ml-2 text-sm text-gray-700">🔔 {t('inAppNotificationsLabel')}</span>
                         </label>
                     </div>
                 </div>
 
-                {/* Buttons */}
-                <div className="flex gap-3 justify-end sticky bottom-0 bg-gray-50 p-4 border-t -mx-6 -mb-6">
+                <div className="flex gap-3 justify-end sticky bottom-0 bg-white/95 backdrop-blur p-4 border-t -mx-6 -mb-6">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-50 transition"
+                        className="px-6 py-2.5 border border-gray-300 rounded-xl text-gray-700 font-semibold hover:bg-gray-50 transition"
                     >
-                        Cancel
+                        {t('cancel')}
                     </button>
                     <button
                         type="submit"
                         disabled={loading}
-                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
+                        className="primary-action px-6 py-2.5 rounded-xl font-semibold disabled:opacity-50 transition"
                     >
-                        {loading ? 'Saving...' : alert ? 'Update Alert' : 'Create Alert'}
+                        {loading ? t('saveAlerting') : alert ? t('updateAlert') : t('createAlert')}
                     </button>
                 </div>
             </form>

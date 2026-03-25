@@ -17,12 +17,14 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en" suppressHydrationWarning>
             <body suppressHydrationWarning>
-                <LanguageProvider>
-                    <Navbar />
-                    <UpdateNoticeBanner />
-                    {children}
-                    <ChatAssistant />
-                </LanguageProvider>
+                <div className="app-shell">
+                    <LanguageProvider>
+                        <Navbar />
+                        <UpdateNoticeBanner />
+                        {children}
+                        <ChatAssistant />
+                    </LanguageProvider>
+                </div>
                 <Analytics />
             </body>
         </html>

@@ -44,11 +44,11 @@ export default function RatingModal({
     if (!isOpen) return null
 
     const ratingExplanations = {
-        1: "Poor - Work quality was below expectations",
-        2: "Fair - Work had significant issues",
-        3: "Good - Work was satisfactory",
-        4: "Excellent - Work was high quality",
-        5: "Outstanding - Exceeded all expectations"
+        1: t('ratingPoor'),
+        2: t('ratingFair'),
+        3: t('ratingGood'),
+        4: t('ratingExcellent'),
+        5: t('ratingOutstanding')
     }
 
     return (
@@ -60,7 +60,7 @@ export default function RatingModal({
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                     <p className="text-xs sm:text-sm text-blue-900">
-                        <strong>{t('whyRate')}</strong> Your feedback helps workers improve and helps other clients make informed decisions. Please be honest and fair in your assessment.
+                        <strong>{t('whyRate')}</strong> {t('ratingHelpWorkersDetailed')}
                     </p>
                 </div>
 
@@ -110,18 +110,18 @@ export default function RatingModal({
                     {/* Review Text */}
                     <div>
                         <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                            {t('review')} (Optional)
+                            {t('review')} ({t('optional')})
                         </label>
                         <textarea
                             value={review}
                             onChange={(e) => setReview(e.target.value)}
-                            placeholder="Share your experience working with this worker..."
+                            placeholder={t('shareExperiencePlaceholder')}
                             maxLength={500}
                             className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent resize-none text-xs sm:text-sm"
                             rows={3}
                         />
                         <p className="text-xs text-gray-500 mt-1 sm:mt-2">
-                            {review.length}/500 characters
+                            {t('charactersCount').replace('{{count}}', review.length)}
                         </p>
                     </div>
 
@@ -133,7 +133,7 @@ export default function RatingModal({
                             disabled={loading}
                             className="px-3 sm:px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition text-xs sm:text-sm font-medium"
                         >
-                            Maybe Later
+                            {t('maybeLater')}
                         </button>
                         <button
                             type="submit"
@@ -147,7 +147,7 @@ export default function RatingModal({
                                 </>
                             ) : (
                                 <>
-                                    ✓ <span className="hidden sm:inline">{t('submitRating')}</span> <span className="sm:hidden">Submit</span>
+                                    ✓ <span className="hidden sm:inline">{t('submitRating')}</span> <span className="sm:hidden">{t('submitRating')}</span>
                                 </>
                             )}
                         </button>

@@ -90,11 +90,27 @@ export default function AdminReviewsManagement() {
             setLoading(true);
             setErrorMessage('');
 
+            const currentReview = reviews.find((review) => review.id === editingId);
+            const updatePayload = {};
+
+            if (!currentReview || currentReview.rating !== editingData.rating) {
+                updatePayload.rating = editingData.rating;
+            }
+            if (!currentReview || (currentReview.review || '') !== (editingData.review || '')) {
+                updatePayload.review = editingData.review;
+            }
+
+            if (Object.keys(updatePayload).length === 0) {
+                setShowEditModal(false);
+                setEditingId(null);
+                setLoading(false);
+                return;
+            }
+
             const { error } = await supabase
                 .from('reviews')
                 .update({
-                    rating: editingData.rating,
-                    review: editingData.review,
+                    ...updatePayload,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', editingId);

@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function FollowNotificationBell({ userId }) {
   const [isOpen, setIsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const { t } = useLanguage()
 
   // Fetch notifications on mount and periodically
   useEffect(() => {
@@ -63,7 +65,7 @@ export default function FollowNotificationBell({ userId }) {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-600 hover:text-indigo-600 transition"
-        title="Notifications"
+        title={t('notificationsBell')}
       >
         <svg
           className="w-6 h-6"
@@ -92,18 +94,18 @@ export default function FollowNotificationBell({ userId }) {
         <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-50 border border-gray-200">
           {/* Header */}
           <div className="p-4 border-b border-gray-200">
-            <h3 className="font-bold text-lg">Notifications</h3>
+            <h3 className="font-bold text-lg">{t('notificationsBell')}</h3>
           </div>
 
           {/* Notifications List */}
           <div className="max-h-96 overflow-y-auto">
             {isLoading && notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                <p>Loading notifications...</p>
+                <p>{t('loadingNotifications')}</p>
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
-                <p>No notifications yet</p>
+                <p>{t('noNotificationsYet')}</p>
               </div>
             ) : (
               notifications.map(notification => (
@@ -133,7 +135,7 @@ export default function FollowNotificationBell({ userId }) {
                       className="text-xs text-indigo-600 hover:text-indigo-700 mt-2 inline-block"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      View →
+                      {t('viewAction')} →
                     </Link>
                   )}
                 </div>
@@ -148,7 +150,7 @@ export default function FollowNotificationBell({ userId }) {
                 href="/notifications"
                 className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
               >
-                View all notifications
+                {t('viewAllNotifications')}
               </Link>
             </div>
           )}

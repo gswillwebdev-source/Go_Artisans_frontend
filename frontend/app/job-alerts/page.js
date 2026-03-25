@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import JobAlertForm from '@/components/JobAlertForm'
-import Link from 'next/link'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function JobAlertsPage() {
+    const { t } = useLanguage()
     const [alerts, setAlerts] = useState([])
     const [loading, setLoading] = useState(true)
     const [showForm, setShowForm] = useState(false)
@@ -23,14 +24,14 @@ export default function JobAlertsPage() {
             const { data: { session } } = await supabase.auth.getSession()
 
             if (!session) {
-                setError('You must be logged in to view your alerts')
+                setError(t('mustBeLoggedInViewAlerts'))
                 setLoading(false)
                 return
             }
 
             const { data, error: err } = await supabase
                 .from('job_alerts')
-                .select('*')
+                .select('id,name,skills,location,min_budget,max_budget,is_active,notification_frequency,email_notifications,in_app_notifications,created_at')
                 .order('created_at', { ascending: false })
 
             if (err) throw err
@@ -39,14 +40,14 @@ export default function JobAlertsPage() {
             setError('')
         } catch (err) {
             console.error('[Fetch Alerts Error]', err)
-            setError('Failed to load your job alerts')
+            setError(t('failedLoadJobAlerts'))
         } finally {
             setLoading(false)
         }
     }
 
     const handleDeleteAlert = async (alertId) => {
-        if (!confirm('Are you sure you want to delete this alert?')) return
+        if (!confirm(t('confirmDeleteJobAlert'))) return
 
         try {
             const { error } = await supabase
@@ -57,11 +58,11 @@ export default function JobAlertsPage() {
             if (error) throw error
 
             setAlerts(alerts.filter(a => a.id !== alertId))
-            setSuccess('Alert deleted successfully')
+            setSuccess(t('jobAlertDeletedSuccess'))
             setTimeout(() => setSuccess(''), 3000)
         } catch (err) {
             console.error('[Delete Alert Error]', err)
-            setError('Failed to delete alert')
+            setError(t('failedDeleteJobAlert'))
         }
     }
 
@@ -77,11 +78,11 @@ export default function JobAlertsPage() {
             if (error) throw error
 
             setAlerts(alerts.map(a => a.id === alertId ? data : a))
-            setSuccess(`Alert ${data.is_active ? 'enabled' : 'disabled'}`)
+            setSuccess(data.is_active ? t('jobAlertEnabled') : t('jobAlertDisabled'))
             setTimeout(() => setSuccess(''), 3000)
         } catch (err) {
             console.error('[Toggle Alert Error]', err)
-            setError('Failed to toggle alert')
+            setError(t('failedSaveAlert'))
         }
     }
 
@@ -93,16 +94,22 @@ export default function JobAlertsPage() {
     const handleFormSuccess = () => {
         handleFormClose()
         fetchAlerts()
-        setSuccess('Alert saved successfully')
+        setSuccess(t('jobAlertSavedSuccess'))
         setTimeout(() => setSuccess(''), 3000)
+    }
+
+    const getFrequencyLabel = (frequency) => {
+        if (frequency === 'daily') return t('frequencyDailyDigest')
+        if (frequency === 'weekly') return t('frequencyWeeklyDigest')
+        return t('frequencyImmediate')
     }
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 p-4">
-                <div className="max-w-4xl mx-auto">
-                    <div className="text-center py-12">
-                        <p className="text-gray-600">Loading your job alerts...</p>
+            <div className="profile-page">
+                <div className="profile-container">
+                    <div className="profile-section text-center py-16">
+                        <p className="text-slate-600 font-semibold">{t('loadingJobAlerts')}</p>
                     </div>
                 </div>
             </div>
@@ -110,109 +117,107 @@ export default function JobAlertsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4">
-            <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2">Job Alerts</h1>
-                    <p className="text-gray-600">Automatically get notified when new jobs match your skills</p>
+        <div className="profile-page">
+            <div className="profile-container space-y-6">
+                <div className="profile-hero fade-in-up">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <span className="profile-chip mb-3">{t('jobAlertsCta')}</span>
+                            <h1 className="profile-title text-3xl sm:text-4xl font-bold text-slate-900">{t('jobAlertsTitle')}</h1>
+                            <p className="profile-muted mt-2">{t('jobAlertsSubtitle')}</p>
+                        </div>
+                        <div className="profile-actions">
+                            <button
+                                onClick={() => setShowForm(true)}
+                                className="primary-action px-6 py-2.5 rounded-xl font-semibold shadow-sm"
+                            >
+                                + {t('createNewJobAlert')}
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Messages */}
                 {error && (
-                    <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded">
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                         <p className="text-red-700">{error}</p>
                     </div>
                 )}
                 {success && (
-                    <div className="bg-green-50 border-l-4 border-green-400 p-4 mb-6 rounded">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                         <p className="text-green-700">{success}</p>
                     </div>
                 )}
 
-                {/* Action Button */}
-                <div className="mb-8">
-                    <button
-                        onClick={() => setShowForm(true)}
-                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition"
-                    >
-                        + Create New Alert
-                    </button>
-                </div>
-
-                {/* Alerts List */}
                 {alerts.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow p-12 text-center">
-                        <svg className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="profile-section text-center py-12">
+                        <svg className="h-16 w-16 text-slate-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                         </svg>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No job alerts yet</h3>
-                        <p className="text-gray-600 mb-6">Create your first job alert to get notified about opportunities</p>
+                        <h3 className="text-xl font-semibold text-slate-900 mb-2">{t('noJobAlertsYet')}</h3>
+                        <p className="text-slate-600 mb-6">{t('createFirstJobAlertDesc')}</p>
                         <button
                             onClick={() => setShowForm(true)}
-                            className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition"
+                            className="primary-action px-6 py-2.5 rounded-xl font-semibold"
                         >
-                            Create Your First Alert
+                            {t('createFirstJobAlert')}
                         </button>
                     </div>
                 ) : (
                     <div className="space-y-4">
                         {alerts.map(alert => (
-                            <div key={alert.id} className="bg-white rounded-lg shadow p-6 hover:shadow-md transition">
+                            <div key={alert.id} className="profile-list-card hover:shadow-lg transition">
                                 <div className="flex items-start justify-between mb-4">
                                     <div>
-                                        <h3 className="text-xl font-semibold text-gray-900">{alert.name}</h3>
-                                        <div className="mt-2 space-y-1 text-sm text-gray-600">
+                                        <h3 className="text-xl font-semibold text-slate-900">{alert.name}</h3>
+                                        <div className="mt-2 space-y-1 text-sm text-slate-600">
                                             {alert.skills && alert.skills.length > 0 && (
-                                                <p><strong>Skills:</strong> {Array.isArray(alert.skills) ? alert.skills.join(', ') : alert.skills}</p>
+                                                <p><strong>{t('skillsLabel')}:</strong> {Array.isArray(alert.skills) ? alert.skills.join(', ') : alert.skills}</p>
                                             )}
                                             {alert.location && (
-                                                <p><strong>Location:</strong> {alert.location}</p>
+                                                <p><strong>{t('location')}:</strong> {alert.location}</p>
                                             )}
                                             {alert.min_budget || alert.max_budget ? (
-                                                <p><strong>Budget:</strong> {alert.min_budget || '—'} - {alert.max_budget || 'Any'}</p>
+                                                <p><strong>{t('budget')}:</strong> {alert.min_budget || '—'} - {alert.max_budget || t('budgetAny')}</p>
                                             ) : null}
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${alert.is_active
-                                                ? 'bg-green-100 text-green-800'
-                                                : 'bg-gray-100 text-gray-800'
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-gray-100 text-gray-800'
                                             }`}>
-                                            {alert.is_active ? 'Active' : 'Inactive'}
+                                            {alert.is_active ? t('activeStatus') : t('inactiveStatus')}
                                         </span>
                                     </div>
                                 </div>
 
-                                {/* Notification Settings */}
-                                <div className="bg-gray-50 p-3 rounded mb-4 text-sm">
-                                    <p className="text-gray-700">
-                                        <strong>Frequency:</strong> {alert.notification_frequency.charAt(0).toUpperCase() + alert.notification_frequency.slice(1)} {alert.email_notifications && '📧'} {alert.in_app_notifications && '🔔'}
+                                <div className="bg-slate-50 p-3 rounded-xl mb-4 text-sm border border-slate-200">
+                                    <p className="text-slate-700">
+                                        <strong>{t('frequencyLabel')}:</strong> {getFrequencyLabel(alert.notification_frequency)} {alert.email_notifications && '📧'} {alert.in_app_notifications && '🔔'}
                                     </p>
                                 </div>
 
-                                {/* Actions */}
                                 <div className="flex gap-3 justify-end">
                                     <button
                                         onClick={() => handleToggleAlert(alert.id, alert.is_active)}
-                                        className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm"
+                                        className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm px-2 py-1 rounded-lg hover:bg-indigo-50"
                                     >
-                                        {alert.is_active ? 'Disable' : 'Enable'}
+                                        {alert.is_active ? t('disableAlert') : t('enableAlert')}
                                     </button>
                                     <button
                                         onClick={() => {
                                             setEditingAlert(alert)
                                             setShowForm(true)
                                         }}
-                                        className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm"
+                                        className="text-indigo-600 hover:text-indigo-700 font-semibold text-sm px-2 py-1 rounded-lg hover:bg-indigo-50"
                                     >
-                                        Edit
+                                        {t('editProfile')}
                                     </button>
                                     <button
                                         onClick={() => handleDeleteAlert(alert.id)}
-                                        className="text-red-600 hover:text-red-700 font-semibold text-sm"
+                                        className="text-red-600 hover:text-red-700 font-semibold text-sm px-2 py-1 rounded-lg hover:bg-red-50"
                                     >
-                                        Delete
+                                        {t('delete')}
                                     </button>
                                 </div>
                             </div>
@@ -220,20 +225,18 @@ export default function JobAlertsPage() {
                     </div>
                 )}
 
-                {/* Help Section */}
-                <div className="mt-12 bg-blue-50 border-l-4 border-blue-400 p-6 rounded">
-                    <h4 className="text-lg font-semibold text-blue-900 mb-2">💡 Tips for Creating Alerts</h4>
-                    <ul className="text-blue-700 space-y-2 list-disc list-inside">
-                        <li>Use clear skill names that match job titles (e.g., "plumbing", "electrical work")</li>
-                        <li>Add your location to find nearby jobs</li>
-                        <li>Set budget ranges to filter opportunities</li>
-                        <li>Choose "immediate" for urgent notifications, or "daily"/"weekly" for digests</li>
+                <div className="profile-section bg-blue-50/80 border border-blue-200">
+                    <h4 className="text-lg font-semibold text-blue-900 mb-2">💡 {t('alertTipsTitle')}</h4>
+                    <ul className="text-blue-800 space-y-2 list-disc list-inside">
+                        <li>{t('alertTipOne')}</li>
+                        <li>{t('alertTipTwo')}</li>
+                        <li>{t('alertTipThree')}</li>
+                        <li>{t('alertTipFour')}</li>
                     </ul>
                 </div>
 
-                {/* Form Modal */}
                 {showForm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="fixed inset-0 bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                         <JobAlertForm
                             alert={editingAlert}
                             onClose={handleFormClose}

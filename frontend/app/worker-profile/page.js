@@ -129,7 +129,7 @@ export default function WorkerProfilePage() {
     const [isAvailabilityToggling, setIsAvailabilityToggling] = useState(false)
     const [availabilityError, setAvailabilityError] = useState('')
     const timeoutsRef = useRef([])
-    const PROFILE_SAVE_TIMEOUT_MS = 120000
+    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -599,7 +599,7 @@ export default function WorkerProfilePage() {
             const nextProfilePicture = formData.profilePicture || null
             const hasProfilePictureChanged = nextProfilePicture !== currentProfilePicture
 
-            const updatePayload = {
+            const nextBasePayload = {
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 phone_number: formData.phoneNumber,
@@ -610,12 +610,32 @@ export default function WorkerProfilePage() {
                 services: formData.services
             }
 
+            const updatePayload = {}
+            for (const [key, nextValue] of Object.entries(nextBasePayload)) {
+                const currentValue = profile?.[key]
+                const isSameArray = Array.isArray(nextValue)
+                    && Array.isArray(currentValue)
+                    && nextValue.length === currentValue.length
+                    && nextValue.every((item, idx) => item === currentValue[idx])
+
+                if (isSameArray || nextValue === currentValue) continue
+                updatePayload[key] = nextValue
+            }
+
             if (hasPortfolioChanged) {
                 updatePayload.portfolio = portfolioData
             }
 
             if (hasProfilePictureChanged) {
                 updatePayload.profile_picture = nextProfilePicture
+            }
+
+            if (Object.keys(updatePayload).length === 0) {
+                setIsEditing(false)
+                setUpdateSuccess(true)
+                const id = setTimeout(() => setUpdateSuccess(false), 3000)
+                timeoutsRef.current.push(id)
+                return
             }
 
             const saveController = new AbortController()
@@ -659,9 +679,9 @@ export default function WorkerProfilePage() {
         } catch (err) {
             console.error('Failed to update profile', err)
             if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
-                setUpdateError('Profile save is taking too long. Please check your connection and try again.')
+                setUpdateError(t('profileSaveTooLong'))
             } else {
-                setUpdateError(err.message || 'Failed to update profile')
+                setUpdateError(err.message || t('failedLoadProfileMsg'))
             }
         } finally {
             setUpdateLoading(false)
@@ -690,7 +710,7 @@ export default function WorkerProfilePage() {
             }, prev?.email || user?.email))
         } catch (err) {
             console.error('Failed to update availability status', err)
-            setAvailabilityError(err.message || 'Failed to update availability status')
+            setAvailabilityError(err.message || t('failedUpdateAvailabilityStatus'))
         } finally {
             setIsAvailabilityToggling(false)
         }
@@ -705,7 +725,7 @@ export default function WorkerProfilePage() {
             if (error) throw error
 
             if (!session?.user?.email_confirmed_at) {
-                setEmailVerificationError('Email not verified yet. Please click the link in your verification email first.')
+                setEmailVerificationError(t('emailNotVerifiedYet'))
                 return
             }
 
@@ -721,7 +741,7 @@ export default function WorkerProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Verification status check failed')
+            setEmailVerificationError(err.message || t('verificationStatusCheckFailed'))
         } finally {
             setVerifyingEmail(false)
         }
@@ -743,7 +763,7 @@ export default function WorkerProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Failed to resend verification email')
+            setEmailVerificationError(err.message || t('failedResendVerificationEmail'))
         } finally {
             setEmailResendLoading(false)
         }
@@ -763,7 +783,7 @@ export default function WorkerProfilePage() {
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to request completion:', err)
-            const errorMessage = err.response?.data?.error || err.message || 'Failed to request completion'
+            const errorMessage = err.response?.data?.error || err.message || t('failedRequestCompletion')
             setUpdateError(errorMessage)
             const id = setTimeout(() => setUpdateError(null), 5000)
             timeoutsRef.current.push(id)
@@ -841,39 +861,40 @@ export default function WorkerProfilePage() {
     )
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12">
-            <div className="max-w-4xl mx-auto">
+        <div className="profile-page">
+            <div className="profile-container">
                 {/* Header */}
-                <div className="bg-white shadow rounded-lg p-8 mb-6">
-                    <div className="flex justify-between items-start mb-6">
+                <div className="profile-hero fade-in-up mb-6">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between mb-6 relative">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">{t('yourWorkerProfile')}</h1>
-                            <p className="text-gray-600 mt-1">{t('buildProfessional')}</p>
+                            <span className="profile-chip mb-3">{t('workerProfile')}</span>
+                            <h1 className="profile-title text-3xl sm:text-4xl font-bold text-gray-900">{t('yourWorkerProfile')}</h1>
+                            <p className="profile-muted mt-2 max-w-2xl">{t('buildProfessional')}</p>
                         </div>
                         {!isEditing && (
-                            <div className="flex gap-3 items-start">
+                            <div className="profile-actions lg:justify-end">
                                 <FollowNotificationBell userId={user?.id} />
                                 <button
                                     onClick={() => setIsEditing(true)}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                    className="primary-action px-4 py-2 rounded-xl font-semibold shadow-sm"
                                 >
                                     {t('editProfile')}
                                 </button>
                                 <Link
                                     href="/job-alerts"
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-semibold"
+                                    className="profile-button-secondary px-4 py-2 rounded-xl font-semibold"
                                 >
-                                    🔔 Job Alerts
+                                    🔔 {t('jobAlertsCta')}
                                 </Link>
                                 <button
                                     onClick={handleToggleAvailability}
                                     disabled={isAvailabilityToggling}
-                                    className={`px-4 py-2 rounded-lg font-semibold transition ${profile?.is_active
+                                    className={`px-4 py-2 rounded-xl font-semibold transition shadow-sm ${profile?.is_active
                                         ? 'bg-green-600 text-white hover:bg-green-700'
                                         : 'bg-red-600 text-white hover:bg-red-700'
                                         } disabled:opacity-50 disabled:cursor-not-allowed`}
                                 >
-                                    {isAvailabilityToggling ? `${t('loading')}...` : (profile?.is_active ? '✓ Active' : '✗ Inactive')}
+                                    {isAvailabilityToggling ? `${t('loading')}...` : (profile?.is_active ? t('availabilityActive') : t('availabilityInactive'))}
                                 </button>
                             </div>
                         )}
@@ -912,12 +933,12 @@ export default function WorkerProfilePage() {
 
                     {/* Email Verification Section */}
                     {profile && !profile.email_verified && (
-                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r">
+                        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded-r rounded-xl">
                             <div className="flex items-start">
                                 <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
                                     <p className="text-sm text-yellow-700 mb-4">
-                                        Verification is link-based. Open the verification email sent to {profile.email}, click the link, then use the button below to refresh your status.
+                                        {t('verifyEmailLinkInstructions').replace('{{email}}', profile.email)}
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
                                         <button
@@ -925,7 +946,7 @@ export default function WorkerProfilePage() {
                                             disabled={verifyingEmail}
                                             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
                                         >
-                                            {verifyingEmail ? 'Checking...' : 'I clicked the verification link'}
+                                            {verifyingEmail ? t('checkingVerification') : t('verificationLinkClicked')}
                                         </button>
                                     </form>
                                     {emailVerificationError && (
@@ -961,9 +982,9 @@ export default function WorkerProfilePage() {
                     // View Mode
                     <div className="space-y-6">
                         {/* Profile Picture Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <div className="flex items-center gap-6">
-                                <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
+                        <div className="profile-section profile-section-soft">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                                <div className="profile-avatar w-24 h-24 bg-indigo-200 flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
                                     {profilePicturePreview ? (
                                         <img
                                             src={profilePicturePreview}
@@ -975,19 +996,19 @@ export default function WorkerProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-lg font-semibold text-gray-900">
+                                    <p className="text-xl font-semibold text-gray-900">
                                         {profile.firstName} {profile.lastName}
                                     </p>
-                                    <p className="text-indigo-600 font-medium">{profile.jobTitle || t('serviceProvider')}</p>
-                                    <p className="text-gray-600 text-sm mt-1">{profile.location || t('locationNotSet')}</p>
+                                    <p className="text-indigo-600 font-semibold mt-1">{profile.jobTitle || t('serviceProvider')}</p>
+                                    <p className="text-gray-600 text-sm mt-2">{profile.location || t('locationNotSet')}</p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Basic Information */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('basicInformation')}</h3>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-5">{t('basicInformation')}</h3>
+                            <div className="profile-grid-2">
                                 <div>
                                     <span className="font-medium text-gray-700">{t('firstName')}:</span>
                                     <p className="text-gray-900">{profile.firstName || t('notAvailable')}</p>
@@ -1010,9 +1031,9 @@ export default function WorkerProfilePage() {
                         {profile.user_type === 'worker' && (
                             <>
                                 {/* Professional Profile */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">{t('professionalProfile')}</h3>
-                                    <div className="grid grid-cols-3 gap-4">
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-5">{t('professionalProfile')}</h3>
+                                    <div className="profile-grid-3">
                                         <div>
                                             <span className="font-medium text-gray-700">{t('jobTitle')}:</span>
                                             <p className="text-gray-900">{profile.jobTitle || t('notAvailable')}</p>
@@ -1029,29 +1050,29 @@ export default function WorkerProfilePage() {
                                 </div>
 
                                 {/* About Me */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">{t('aboutMe')}</h3>
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-4">{t('aboutMe')}</h3>
                                     <p className="text-gray-900">{profile.bio || t('noDescriptionProvided')}</p>
                                 </div>
 
                                 {/* Services */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">{t('servicesSkills')}</h3>
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-4">{t('servicesSkills')}</h3>
                                     <div className="flex flex-wrap gap-2">
                                         {(profile.services || []).length === 0 ? (
                                             <span className="text-gray-500">{t('noServicesListed')}</span>
                                         ) : (
                                             (profile.services || []).map((s, idx) => (
-                                                <span key={idx} className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">{s}</span>
+                                                <span key={idx} className="px-3 py-1.5 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">{s}</span>
                                             ))
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Portfolio */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-4">{t('portfolio')}</h3>
-                                    <div className="grid grid-cols-3 gap-4">
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-4">{t('portfolio')}</h3>
+                                    <div className="profile-grid-3">
                                         {(profile.portfolio || []).length === 0 ? (
                                             <span className="text-gray-500">{t('noPortfolioImages')}</span>
                                         ) : (
@@ -1061,7 +1082,7 @@ export default function WorkerProfilePage() {
                                                 const isValidImage = imageUrl && (imageUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl))
 
                                                 return (
-                                                    <div key={idx} className="bg-gray-100 h-40 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
+                                                    <div key={idx} className="profile-list-card bg-gray-100 h-40 flex items-center justify-center overflow-hidden border border-gray-200">
                                                         {isValidImage ? (
                                                             <img src={imageUrl} alt={t('portfolio')} className="w-full h-full object-cover" onError={(e) => {
                                                                 e.target.style.display = 'none'
@@ -1079,8 +1100,8 @@ export default function WorkerProfilePage() {
                                 </div>
 
                                 {/* Ratings Section */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-6">{t('publicRatings')}</h3>
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-6">{t('publicRatings')}</h3>
                                     <p className="text-sm text-gray-600 mb-6">
                                         {t('ratingsDescription')}
                                     </p>
@@ -1088,13 +1109,13 @@ export default function WorkerProfilePage() {
                                 </div>
 
                                 {/* Jobs Tracking Section */}
-                                <div className="bg-white shadow rounded-lg p-8">
-                                    <h3 className="text-lg font-semibold mb-6">Job Applications & Status</h3>
+                                <div className="profile-section">
+                                    <h3 className="profile-title text-xl font-semibold mb-6">{t('jobApplicationsStatus')}</h3>
 
                                     {/* Stats Cards */}
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                    <div className="profile-grid-4 mb-8">
                                         {/* Saved Jobs */}
-                                        <div className="border border-teal-200 rounded-lg p-4 bg-teal-50">
+                                        <div className="profile-stat-card border-teal-200 bg-teal-50">
                                             <h4 className="font-semibold text-teal-900 mb-3 flex items-center gap-2">
                                                 <span className="text-2xl">💾</span> {t('savedJobsCountLabel')}
                                             </h4>
@@ -1103,7 +1124,7 @@ export default function WorkerProfilePage() {
                                         </div>
 
                                         {/* Applied Jobs */}
-                                        <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                                        <div className="profile-stat-card border-blue-200 bg-blue-50">
                                             <h4 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
                                                 <span className="text-2xl">📝</span> {t('applied')}
                                             </h4>
@@ -1112,7 +1133,7 @@ export default function WorkerProfilePage() {
                                         </div>
 
                                         {/* Accepted Jobs */}
-                                        <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+                                        <div className="profile-stat-card border-green-200 bg-green-50">
                                             <h4 className="font-semibold text-green-900 mb-3 flex items-center gap-2">
                                                 <span className="text-2xl">✅</span> {t('accepted')}
                                             </h4>
@@ -1121,7 +1142,7 @@ export default function WorkerProfilePage() {
                                         </div>
 
                                         {/* Finished Jobs */}
-                                        <div className="border border-purple-200 rounded-lg p-4 bg-purple-50">
+                                        <div className="profile-stat-card border-purple-200 bg-purple-50">
                                             <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
                                                 <span className="text-2xl">🏆</span> {t('completed')}
                                             </h4>
@@ -1132,11 +1153,11 @@ export default function WorkerProfilePage() {
 
                                     {/* Saved Jobs Details */}
                                     {savedJobs.length > 0 && (
-                                        <div className="mb-6 bg-teal-50 rounded-lg p-4">
+                                        <div className="mb-6 bg-teal-50 rounded-2xl p-4 sm:p-5">
                                             <h4 className="font-semibold text-teal-900 mb-3">{t('savedJobs')}</h4>
                                             <div className="space-y-2">
                                                 {savedJobs.map(job => (
-                                                    <div key={job.id} className="bg-white p-3 rounded border border-teal-200">
+                                                    <div key={job.id} className="profile-list-card border-teal-200">
                                                         <p className="font-medium text-gray-900">{job.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
                                                             <span>📍 {job.location}</span>
@@ -1150,7 +1171,7 @@ export default function WorkerProfilePage() {
 
                                     {/* Applied Jobs Details */}
                                     {appliedJobs.length > 0 && (
-                                        <div className="mb-6 bg-blue-50 rounded-lg p-4">
+                                        <div className="mb-6 bg-blue-50 rounded-2xl p-4 sm:p-5">
                                             <h4 className="font-semibold text-blue-900 mb-3">{t('appliedJobsPending')}</h4>
                                             <div className="space-y-2">
                                                 {appliedJobs.map(job => {
@@ -1158,10 +1179,10 @@ export default function WorkerProfilePage() {
                                                     const jobId = job.job_id || displayJob.id || job.id
 
                                                     return (
-                                                        <div key={job.id || jobId} className="bg-white p-3 rounded border border-blue-200">
-                                                            <p className="font-medium text-gray-900">{displayJob.title || 'Applied job'}</p>
+                                                        <div key={job.id || jobId} className="profile-list-card border-blue-200">
+                                                            <p className="font-medium text-gray-900">{displayJob.title || t('jobFallbackApplied')}</p>
                                                             <div className="text-xs text-gray-600 mt-1">
-                                                                <span>📍 {displayJob.location || 'N/A'}</span>
+                                                                <span>📍 {displayJob.location || t('notProvided')}</span>
                                                                 {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
                                                             </div>
                                                             <div className="text-xs text-blue-600 mt-1">{t('status')}: <span className="font-semibold">{t('pendingReviewStatus')}</span></div>
@@ -1174,7 +1195,7 @@ export default function WorkerProfilePage() {
 
                                     {/* Accepted Jobs Details */}
                                     {pendingJobs.length > 0 && (
-                                        <div className="mb-6 bg-green-50 rounded-lg p-4">
+                                        <div className="mb-6 bg-green-50 rounded-2xl p-4 sm:p-5">
                                             <h4 className="font-semibold text-green-900 mb-3">{t('acceptedJobsInProgress')}</h4>
                                             <div className="space-y-3">
                                                 {pendingJobs.map(job => {
@@ -1186,12 +1207,12 @@ export default function WorkerProfilePage() {
                                                     const isCompleted = status.status === 'confirmed' || status.status === 'completed_and_rated'
 
                                                     return (
-                                                        <div key={job.id || jobId} className="bg-white p-4 rounded border border-green-200">
-                                                            <div className="flex justify-between items-start">
+                                                        <div key={job.id || jobId} className="profile-list-card border-green-200">
+                                                            <div className="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start">
                                                                 <div className="flex-1">
-                                                                    <p className="font-medium text-gray-900">{displayJob.title || 'Accepted job'}</p>
+                                                                    <p className="font-medium text-gray-900">{displayJob.title || t('jobFallbackAccepted')}</p>
                                                                     <div className="text-xs text-gray-600 mt-1">
-                                                                        <span>📍 {displayJob.location || 'N/A'}</span>
+                                                                        <span>📍 {displayJob.location || t('notProvided')}</span>
                                                                         {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
                                                                     </div>
                                                                 </div>
@@ -1229,17 +1250,17 @@ export default function WorkerProfilePage() {
 
                                     {/* Confirmed Completed Jobs Details */}
                                     {confirmedCompletions.length > 0 && (
-                                        <div className="bg-purple-50 rounded-lg p-4">
+                                        <div className="bg-purple-50 rounded-2xl p-4 sm:p-5">
                                             <h4 className="font-semibold text-purple-900 mb-3">{t('completedJobsLabel')}</h4>
                                             <div className="space-y-2">
                                                 {confirmedCompletions.map(c => (
-                                                    <div key={c.id} className="bg-white p-3 rounded border border-purple-200">
+                                                    <div key={c.id} className="profile-list-card border-purple-200">
                                                         <p className="font-medium text-gray-900">{c.job?.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
                                                             <span>📍 {c.job?.location}</span>
                                                             {c.final_price && <span className="ml-3">💰 CFA {c.final_price}</span>}
                                                         </div>
-                                                        <div className="text-xs text-purple-600 mt-1">✅ {t('confirmedOn') || 'Confirmed'}: <span className="font-semibold">{c.confirmed_at ? new Date(c.confirmed_at).toLocaleDateString() : '—'}</span></div>
+                                                        <div className="text-xs text-purple-600 mt-1">✅ {t('confirmedOn')}: <span className="font-semibold">{c.confirmed_at ? new Date(c.confirmed_at).toLocaleDateString() : '—'}</span></div>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1260,10 +1281,10 @@ export default function WorkerProfilePage() {
                     // Edit Mode
                     <form onSubmit={handleUpdate} className="space-y-6">
                         {/* Profile Picture Edit */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('profilePictureLabel')}</h3>
-                            <div className="flex items-start gap-6">
-                                <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-4">{t('profilePictureLabel')}</h3>
+                            <div className="flex flex-col sm:flex-row items-start gap-6">
+                                <div className="profile-avatar w-24 h-24 bg-indigo-200 flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
                                     {profilePicturePreview ? (
                                         <img
                                             src={profilePicturePreview}
@@ -1288,9 +1309,9 @@ export default function WorkerProfilePage() {
                         </div>
 
                         {/* Basic Information Edit */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('basicInformation')}</h3>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-4">{t('basicInformation')}</h3>
+                            <div className="profile-grid-2">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('firstName')}</label>
                                     <input
@@ -1337,10 +1358,10 @@ export default function WorkerProfilePage() {
                         </div>
 
                         {/* Professional Information Edit */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('professionalInfoLabel')}</h3>
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-4">{t('professionalInfoLabel')}</h3>
                             <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="profile-grid-2">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{t('jobTitleLabel')}</label>
                                         <input
@@ -1395,9 +1416,9 @@ export default function WorkerProfilePage() {
                         </div>
 
                         {/* Services Edit */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('servicesHandworks')}</h3>
-                            <div className="flex gap-2 mb-2">
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-4">{t('servicesHandworks')}</h3>
+                            <div className="flex flex-col sm:flex-row gap-2 mb-2">
                                 <select
                                     value={newService}
                                     onChange={(e) => setNewService(e.target.value)}
@@ -1434,8 +1455,8 @@ export default function WorkerProfilePage() {
                         </div>
 
                         {/* Portfolio Edit */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h3 className="text-lg font-semibold mb-4">{t('portfolioLabel')}</h3>
+                        <div className="profile-section">
+                            <h3 className="profile-title text-xl font-semibold mb-4">{t('portfolioLabel')}</h3>
                             <div className="mb-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">{t('uploadClearPhotosLabel')}</label>
                                 <input
@@ -1450,7 +1471,7 @@ export default function WorkerProfilePage() {
                                     {t('uploadPhotosHint')}
                                 </p>
                             </div>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="profile-grid-3">
                                 {(formData.portfolio || []).map((img, idx) => {
                                     // Handle both array of strings and array of objects
                                     const imageUrl = typeof img === 'string' ? img : (img?.url || '')
@@ -1458,7 +1479,7 @@ export default function WorkerProfilePage() {
                                     const isValidImage = imageUrl && (imageUrl.startsWith('data:image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(imageUrl))
 
                                     return (
-                                        <div key={idx} className="relative bg-gray-100 h-40 rounded-lg overflow-hidden group border border-gray-200">
+                                        <div key={idx} className="relative profile-list-card bg-gray-100 h-40 overflow-hidden group border border-gray-200">
                                             {isValidImage ? (
                                                 <img src={imageUrl} alt={`portfolio-${idx}`} className="w-full h-full object-cover" onError={(e) => {
                                                     e.target.style.display = 'none'
@@ -1483,18 +1504,18 @@ export default function WorkerProfilePage() {
                         </div>
 
                         {/* Form Actions */}
-                        <div className="flex gap-3">
+                        <div className="profile-actions">
                             <button
                                 type="submit"
                                 disabled={updateLoading}
-                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium"
+                                className="primary-action px-6 py-2.5 rounded-xl disabled:opacity-50 transition font-medium"
                             >
                                 {updateLoading ? t('saving') : t('saveChanges')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsEditing(false)}
-                                className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium"
+                                className="profile-button-secondary px-6 py-2.5 rounded-xl transition font-medium"
                             >
                                 {t('cancel')}
                             </button>

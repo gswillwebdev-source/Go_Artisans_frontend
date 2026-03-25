@@ -6,8 +6,10 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useRouter } from 'next/navigation'
 import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
+import { useLanguage } from '@/context/LanguageContext'
 
 export default function FollowersPage() {
+    const { t } = useLanguage()
     const params = useParams()
     const userId = params.userId
     const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
@@ -38,12 +40,12 @@ export default function FollowersPage() {
                 )
 
                 if (response.status === 403) {
-                    setError('You can only view your own followers')
+                    setError(t('youCanOnlyViewYourOwnFollowers'))
                     return
                 }
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch followers')
+                    throw new Error(t('failedToFetchFollowers'))
                 }
 
                 const data = await response.json()
@@ -56,7 +58,7 @@ export default function FollowersPage() {
 
             } catch (err) {
                 console.error('Failed to fetch followers:', err)
-                setError('Failed to load followers')
+                setError(t('failedToLoadFollowers'))
             } finally {
                 setLoading(false)
             }
@@ -96,12 +98,12 @@ export default function FollowersPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-50 py-8">
+            <div className="min-h-screen py-8">
                 <div className="max-w-4xl mx-auto px-4">
-                    <div className="bg-white rounded-lg shadow p-8 text-center">
-                        <p className="text-gray-900 mb-4">{error}</p>
-                        <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700">
-                            Back to browse
+                    <div className="glass-surface rounded-2xl shadow p-8 text-center border border-white/80">
+                        <p className="text-slate-900 mb-4">{error}</p>
+                        <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                            {t('backToBrowse')}
                         </Link>
                     </div>
                 </div>
@@ -110,25 +112,25 @@ export default function FollowersPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+        <div className="min-h-screen py-8">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                <Link href="/worker-profile" className="text-indigo-600 hover:text-indigo-700 mb-6 inline-block">
-                    ← Back to profile
+                <Link href="/worker-profile" className="text-blue-700 hover:text-blue-800 mb-6 inline-block font-semibold">
+                    ← {t('backToProfile')}
                 </Link>
 
-                <div className="bg-white rounded-lg shadow-lg p-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Your Followers</h1>
-                    <p className="text-gray-600 mb-8">You have {followers.length} follower{followers.length !== 1 ? 's' : ''}</p>
+                <div className="glass-surface rounded-2xl shadow-lg p-8 border border-white/80">
+                    <h1 className="display-font text-3xl font-bold text-slate-900 mb-2 tracking-tight">{t('yourFollowers')}</h1>
+                    <p className="text-slate-600 mb-8">{t('yourFollowersCount').replace('{{count}}', followers.length).replace('{{label}}', followers.length === 1 ? t('followersLabelSingular') : t('followersLabelPlural'))}</p>
 
                     {loading ? (
                         <div className="text-center py-12">
-                            <p className="text-gray-500">Loading followers...</p>
+                            <p className="text-slate-500">{t('loadingFollowers')}</p>
                         </div>
                     ) : followers.length === 0 ? (
                         <div className="text-center py-12">
-                            <p className="text-gray-500 mb-4">You don't have any followers yet</p>
-                            <Link href="/browse-workers" className="text-indigo-600 hover:text-indigo-700">
-                                Browse workers to get started
+                            <p className="text-slate-500 mb-4">{t('noFollowersYet')}</p>
+                            <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                                {t('browseWorkersToGetStarted')}
                             </Link>
                         </div>
                     ) : (
@@ -138,9 +140,9 @@ export default function FollowersPage() {
                                     key={follower.id}
                                     href={`/workers/${follower.id}`}
                                 >
-                                    <div className="bg-gray-50 rounded-lg p-6 hover:shadow-lg transition cursor-pointer">
+                                    <div className="elevated-card interactive-rise rounded-2xl p-6 cursor-pointer">
                                         {/* Profile Picture */}
-                                        <div className="w-24 h-24 rounded-full bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-3xl mb-4 mx-auto overflow-hidden">
+                                        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-3xl mb-4 mx-auto overflow-hidden ring-4 ring-blue-50">
                                             {follower.profile_picture ? (
                                                 <img
                                                     src={follower.profile_picture}
@@ -153,18 +155,18 @@ export default function FollowersPage() {
                                         </div>
 
                                         {/* Info */}
-                                        <h3 className="font-bold text-gray-900 text-center mb-1">
+                                        <h3 className="font-bold text-slate-900 text-center mb-1">
                                             {follower.first_name} {follower.last_name}
                                         </h3>
 
                                         {follower.job_title && (
-                                            <p className="text-sm text-gray-600 text-center mb-2">
+                                            <p className="text-sm text-slate-600 text-center mb-2">
                                                 {follower.job_title}
                                             </p>
                                         )}
 
                                         {follower.location && (
-                                            <p className="text-sm text-gray-500 text-center">
+                                            <p className="text-sm text-slate-500 text-center">
                                                 📍 {follower.location}
                                             </p>
                                         )}

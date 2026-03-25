@@ -18,18 +18,18 @@ export default function CompletionRequest({
         try {
             await onConfirm(completion.id)
         } catch (err) {
-            setError(err.message || 'Failed to confirm')
+            setError(err.message || t('failedConfirmCompletion'))
         }
-    }, [completion.id, onConfirm])
+    }, [completion.id, onConfirm, t])
 
     const handleDeclineClick = useCallback(async () => {
         setError('')
         try {
             await onDecline(completion.id)
         } catch (err) {
-            setError(err.message || 'Failed to decline')
+            setError(err.message || t('failedDecline'))
         }
-    }, [completion.id, onDecline])
+    }, [completion.id, onDecline, t])
 
     const isPending = completion.status === 'pending'
     const isConfirmed = completion.status === 'confirmed'
@@ -37,13 +37,12 @@ export default function CompletionRequest({
 
     return (
         <>
-            <div className={`border-2 rounded-lg p-3 sm:p-6 transition-all overflow-hidden ${
-                isPending
+            <div className={`border-2 rounded-lg p-3 sm:p-6 transition-all overflow-hidden ${isPending
                     ? 'border-yellow-300 bg-yellow-50'
                     : isConfirmed
-                    ? 'border-green-300 bg-green-50'
-                    : 'border-red-300 bg-red-50'
-            }`}>
+                        ? 'border-green-300 bg-green-50'
+                        : 'border-red-300 bg-red-50'
+                }`}>
                 {/* Header Section */}
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4">
                     <div className="flex-1 min-w-0">
@@ -56,13 +55,12 @@ export default function CompletionRequest({
                             {isDeclined && `✕ ${t('declined')}`}
                         </p>
                     </div>
-                    <span className={`flex-shrink-0 px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
-                        isPending
+                    <span className={`flex-shrink-0 px-2 sm:px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${isPending
                             ? 'bg-yellow-200 text-yellow-900 animate-pulse'
                             : isConfirmed
-                            ? 'bg-green-200 text-green-900'
-                            : 'bg-red-200 text-red-900'
-                    }`}>
+                                ? 'bg-green-200 text-green-900'
+                                : 'bg-red-200 text-red-900'
+                        }`}>
                         {isPending && t('needsReview')}
                         {isConfirmed && t('confirmed')}
                         {isDeclined && t('declined')}
@@ -87,12 +85,11 @@ export default function CompletionRequest({
                                 onClick={handleConfirmClick}
                                 disabled={isProcessing}
                                 type="button"
-                                title="Confirm completion"
-                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                                    isProcessing
+                                title={t('confirmCompletion')}
+                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${isProcessing
                                         ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
                                         : 'bg-green-600 text-white hover:bg-green-700 active:scale-95 shadow hover:shadow-md'
-                                }`}
+                                    }`}
                                 aria-busy={isProcessing}
                             >
                                 {isProcessing ? (
@@ -104,7 +101,7 @@ export default function CompletionRequest({
                                     <>
                                         <span>✓</span>
                                         <span className="hidden xs:inline">{t('confirmCompleted')}</span>
-                                        <span className="xs:hidden">Confirm</span>
+                                        <span className="xs:hidden">{t('confirmCompletion')}</span>
                                     </>
                                 )}
                             </button>
@@ -112,12 +109,11 @@ export default function CompletionRequest({
                                 onClick={handleDeclineClick}
                                 disabled={isProcessing}
                                 type="button"
-                                title="Decline completion"
-                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${
-                                    isProcessing
+                                title={t('declineCompletion')}
+                                className={`w-full py-2.5 sm:py-3 px-2 sm:px-4 rounded-lg font-semibold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap ${isProcessing
                                         ? 'bg-gray-400 text-white cursor-not-allowed opacity-70'
                                         : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow hover:shadow-md'
-                                }`}
+                                    }`}
                                 aria-busy={isProcessing}
                             >
                                 {isProcessing ? (
@@ -129,7 +125,7 @@ export default function CompletionRequest({
                                     <>
                                         <span>✕</span>
                                         <span className="hidden xs:inline">{t('decline')}</span>
-                                        <span className="xs:hidden">Decline</span>
+                                        <span className="xs:hidden">{t('decline')}</span>
                                     </>
                                 )}
                             </button>

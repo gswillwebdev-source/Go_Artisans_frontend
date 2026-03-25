@@ -75,7 +75,7 @@ function AdminUsersContent() {
 
             let query = supabase
                 .from('users')
-                .select('*', { count: 'exact' })
+                .select('id,first_name,last_name,phone_number,email,user_type,is_suspended,suspension_reason,email_verified,created_at', { count: 'exact' })
                 .order('created_at', { ascending: false })
                 .range((currentPage - 1) * 10, currentPage * 10 - 1)
 

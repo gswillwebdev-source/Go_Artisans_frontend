@@ -16,12 +16,12 @@ export default function DeclineReasonModal({
     const { t } = useLanguage()
 
     const commonReasons = [
-        'Work quality not acceptable',
-        'Incomplete deliverables',
-        'Does not meet requirements',
-        'Timeline issues',
-        'Communication problems',
-        'Other'
+        t('declineReasonQuality'),
+        t('declineReasonIncomplete'),
+        t('declineReasonRequirements'),
+        t('declineReasonTimeline'),
+        t('declineReasonCommunication'),
+        t('other')
     ]
 
     const handleSubmit = async (e) => {
@@ -58,8 +58,7 @@ export default function DeclineReasonModal({
 
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                     <p className="text-xs sm:text-sm text-amber-900">
-                        <strong>Tell the worker why:</strong> Providing constructive feedback helps them improve
-                        and understand what went wrong. This helps maintain quality standards on GoArtisans.
+                        <strong>{t('tellWorkerWhy')}</strong> {t('declineFeedbackHelp')}
                     </p>
                 </div>
 
@@ -72,7 +71,7 @@ export default function DeclineReasonModal({
                 <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
                     {/* Quick reason buttons */}
                     <div>
-                        <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">Quick reasons:</p>
+                        <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">{t('quickReasons')}</p>
                         <div className="grid grid-cols-2 gap-2">
                             {commonReasons.map((commonReason) => (
                                 <button
@@ -98,13 +97,13 @@ export default function DeclineReasonModal({
                         <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
-                            placeholder="Explain why the job completion doesn't meet requirements..."
+                            placeholder={t('reasonPlaceholder')}
                             maxLength={500}
                             className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600 focus:border-transparent resize-none text-xs sm:text-sm"
                             rows={3}
                         />
                         <p className="text-xs text-gray-500 mt-1 sm:mt-2">
-                            {reason.length}/500 characters
+                            {t('charactersCount').replace('{{count}}', reason.length)}
                         </p>
                     </div>
 
@@ -130,7 +129,7 @@ export default function DeclineReasonModal({
                                 </>
                             ) : (
                                 <>
-                                    ✕ <span className="hidden sm:inline">{t('declineAndSendReason')}</span> <span className="sm:hidden">Decline</span>
+                                    ✕ <span className="hidden sm:inline">{t('declineAndSendReason')}</span> <span className="sm:hidden">{t('decline')}</span>
                                 </>
                             )}
                         </button>

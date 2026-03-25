@@ -106,7 +106,7 @@ export default function ClientProfilePage() {
     const [updatingAppId, setUpdatingAppId] = useState(null)
     const [processingCompletionId, setProcessingCompletionId] = useState(null)
     const timeoutsRef = useRef([])
-    const PROFILE_SAVE_TIMEOUT_MS = 120000
+    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -144,7 +144,7 @@ export default function ClientProfilePage() {
                     if (isMounted) {
                         setLoading(false)
                         setJobsLoading(false)
-                        setError('Profile took too long to load. Please refresh the page.')
+                        setError(t('profileTookTooLong'))
                     }
                 }, 15000)
 
@@ -322,11 +322,11 @@ export default function ClientProfilePage() {
                     details: err.details
                 })
 
-                let errorMessage = 'Failed to load profile'
+                let errorMessage = t('failedLoadProfileMsg')
                 if (err.code === 'ECONNABORTED') {
-                    errorMessage = 'Request timeout. The server is not responding. Please check your connection.'
+                    errorMessage = t('requestTimeoutMsg')
                 } else if (err.message === 'Network Error') {
-                    errorMessage = 'Network error. Please check your internet connection.'
+                    errorMessage = t('networkErrorMsg')
                 } else if (err.message) {
                     errorMessage = err.message
                 }
@@ -572,37 +572,35 @@ export default function ClientProfilePage() {
 
         // Validation
         if (!jobFormData.title?.trim()) {
-            setJobFormError('Project title is required')
+            setJobFormError(t('projectTitleRequired'))
             return
         }
         if (!jobFormData.description?.trim()) {
-            setJobFormError('Project description is required')
+            setJobFormError(t('projectDescriptionRequired'))
             return
         }
         if (!jobFormData.location?.trim()) {
-            setJobFormError('Location is required')
+            setJobFormError(t('projectLocationRequired'))
             return
         }
         if (!jobFormData.jobType?.trim()) {
-            setJobFormError('Project type/category is required')
+            setJobFormError(t('projectTypeRequired'))
             return
         }
         if (!jobFormData.salary || jobFormData.salary === '') {
-            setJobFormError('Budget is required')
+            setJobFormError(t('projectBudgetRequired'))
             return
         }
 
         setJobFormLoading(true)
 
         try {
-            const jobPayload = {
+            const baseJobPayload = {
                 title: jobFormData.title.trim(),
                 description: jobFormData.description.trim(),
                 budget: parseFloat(jobFormData.salary),
                 location: jobFormData.location.trim(),
-                category: jobFormData.jobType.trim(),
-                client_id: user.id,
-                status: 'open'
+                category: jobFormData.jobType.trim()
             }
 
             // Set timeout for database operation (3 seconds)
@@ -612,10 +610,25 @@ export default function ClientProfilePage() {
             const savePromise = new Promise(async (resolve, reject) => {
                 try {
                     if (editingJobId) {
-                        // Update existing job
+                        const existingJob = jobs.find(j => j.id === editingJobId)
+                        const updateJobPayload = {}
+
+                        for (const [key, nextValue] of Object.entries(baseJobPayload)) {
+                            if (!existingJob || existingJob[key] !== nextValue) {
+                                updateJobPayload[key] = nextValue
+                            }
+                        }
+
+                        if (Object.keys(updateJobPayload).length === 0) {
+                            setEditingJobId(null)
+                            setShowJobModal(false)
+                            resolve()
+                            return
+                        }
+
                         const { data, error } = await supabase
                             .from('jobs')
-                            .update(jobPayload)
+                            .update(updateJobPayload)
                             .eq('id', editingJobId)
                             .select()
                             .single()
@@ -624,10 +637,16 @@ export default function ClientProfilePage() {
                         setJobs(jobs.map(j => j.id === editingJobId ? data : j))
                         setEditingJobId(null)
                     } else {
+                        const createJobPayload = {
+                            ...baseJobPayload,
+                            client_id: user.id,
+                            status: 'open'
+                        }
+
                         // Create new job
                         const { data, error } = await supabase
                             .from('jobs')
-                            .insert([jobPayload])
+                            .insert([createJobPayload])
                             .select()
                             .single()
 
@@ -658,25 +677,21 @@ export default function ClientProfilePage() {
             console.error('Failed to save job', err)
 
             // Specific error messages
-            let errorMessage = 'Failed to save project. Please try again.'
+            let errorMessage = t('failedSaveProject')
 
             if (err.message === 'TIMEOUT') {
-                errorMessage = 'Project save took too long (over 3 seconds). This usually means:\n\n' +
-                    '1. Your internet connection is slow or unstable\n' +
-                    '2. The server is experiencing high traffic\n' +
-                    '3. Your data quota is exceeded\n\n' +
-                    'Please check your connection and try again. If the problem persists, contact support.'
+                errorMessage = t('projectSaveTimeout')
             } else if (err.message?.includes('unique')) {
-                errorMessage = 'A project with this title already exists. Please use a different title.'
+                errorMessage = t('projectDuplicateTitle')
             } else if (err.message?.includes('permission')) {
-                errorMessage = 'You do not have permission to create projects. Please verify your account status.'
+                errorMessage = t('projectNoPermission')
             } else if (err.message?.includes('connection') || err.message?.includes('ECONNREFUSED')) {
-                errorMessage = 'Connection failed. Please check your internet connection and try again.'
+                errorMessage = t('projectConnectionFailed')
             } else if (err.message?.includes('budget') || err.message?.includes('salary')) {
-                errorMessage = 'The budget value is invalid. Please enter a valid number.'
+                errorMessage = t('projectBudgetInvalid')
             } else {
                 // Fallback to actual error if available
-                errorMessage = err.message || 'Failed to save project. Please try again.'
+                errorMessage = err.message || t('failedSaveProject')
             }
 
             setJobFormError(errorMessage)
@@ -698,7 +713,7 @@ export default function ClientProfilePage() {
     }
 
     const handleDeleteJob = async (jobId) => {
-        if (!window.confirm('Are you sure you want to delete this project?')) return
+        if (!window.confirm(t('confirmDeleteProject'))) return
 
         try {
             const { error } = await supabase
@@ -711,7 +726,7 @@ export default function ClientProfilePage() {
             setJobs(jobs.filter(j => j.id !== jobId))
         } catch (err) {
             console.error('Failed to delete job', err)
-            alert('Failed to delete project')
+            alert(t('failedDeleteProject'))
         }
     }
 
@@ -756,7 +771,7 @@ export default function ClientProfilePage() {
             const nextProfilePicture = formData.profilePicture || null
             const hasProfilePictureChanged = nextProfilePicture !== currentProfilePicture
 
-            const updatePayload = {
+            const nextBasePayload = {
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 phone_number: formData.phoneNumber,
@@ -764,8 +779,23 @@ export default function ClientProfilePage() {
                 bio: formData.bio
             }
 
+            const updatePayload = {}
+            for (const [key, nextValue] of Object.entries(nextBasePayload)) {
+                const currentValue = profile?.[key]
+                if (nextValue === currentValue) continue
+                updatePayload[key] = nextValue
+            }
+
             if (hasProfilePictureChanged) {
                 updatePayload.profile_picture = nextProfilePicture
+            }
+
+            if (Object.keys(updatePayload).length === 0) {
+                setIsEditing(false)
+                setUpdateSuccess(true)
+                const id = setTimeout(() => setUpdateSuccess(false), 3000)
+                timeoutsRef.current.push(id)
+                return
             }
 
             const saveController = new AbortController()
@@ -807,9 +837,9 @@ export default function ClientProfilePage() {
         } catch (err) {
             console.error('Failed to update profile', err)
             if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
-                setUpdateError('Profile save is taking too long. Please check your connection and try again.')
+                setUpdateError(t('profileSaveTooLong'))
             } else {
-                setUpdateError(err.message || 'Failed to update profile')
+                setUpdateError(err.message || t('failedLoadProfileMsg'))
             }
         } finally {
             setUpdateLoading(false)
@@ -825,7 +855,7 @@ export default function ClientProfilePage() {
             if (error) throw error
 
             if (!session?.user?.email_confirmed_at) {
-                setEmailVerificationError('Email not verified yet. Please click the link in your verification email first.')
+                setEmailVerificationError(t('emailNotVerifiedYet'))
                 return
             }
 
@@ -841,7 +871,7 @@ export default function ClientProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Verification status check failed')
+            setEmailVerificationError(err.message || t('verificationStatusCheckFailed'))
         } finally {
             setVerifyingEmail(false)
         }
@@ -863,7 +893,7 @@ export default function ClientProfilePage() {
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
             timeoutsRef.current.push(id)
         } catch (err) {
-            setEmailVerificationError(err.message || 'Failed to resend verification email')
+            setEmailVerificationError(err.message || t('failedResendVerificationEmail'))
         } finally {
             setEmailResendLoading(false)
         }
@@ -890,7 +920,7 @@ export default function ClientProfilePage() {
             timeoutsRef.current.push(id1)
         } catch (err) {
             console.error('Completion confirmation failed:', err)
-            const errorMsg = err.message || 'Failed to confirm completion'
+            const errorMsg = err.message || t('failedConfirmCompletion')
             setCompletionOperationError(errorMsg)
             setUpdateError(errorMsg)
             const id2 = setTimeout(() => {
@@ -934,12 +964,12 @@ export default function ClientProfilePage() {
                 <div className="inline-block mb-4">
                     <div className="animate-spin h-12 w-12 border-b-2 border-indigo-600 rounded-full"></div>
                 </div>
-                <p className="text-gray-600 text-lg mb-2">Loading your profile...</p>
-                <p className="text-gray-500 text-sm">This may take a few moments</p>
+                <p className="text-gray-600 text-lg mb-2">{t('loadingProfile')}</p>
+                <p className="text-gray-500 text-sm">{t('loadingMoments')}</p>
                 {timeoutWarning && (
                     <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md">
-                        <p className="text-yellow-800 font-semibold">Still loading...</p>
-                        <p className="text-yellow-700 text-sm mt-1">If this takes longer, your connection might be slow. Waiting up to 30 seconds.</p>
+                        <p className="text-yellow-800 font-semibold">{t('stillLoading')}</p>
+                        <p className="text-yellow-700 text-sm mt-1">{t('slowConnection')}</p>
                     </div>
                 )}
             </div>
@@ -953,21 +983,21 @@ export default function ClientProfilePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
-                <p className="text-red-600 text-lg font-semibold mb-2">Something went wrong</p>
+                <p className="text-red-600 text-lg font-semibold mb-2">{t('somethingWentWrong')}</p>
                 <p className="text-gray-600 mb-6">{error}</p>
                 <button
                     onClick={() => window.location.reload()}
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
                 >
-                    Try Again
+                    {t('tryAgain')}
                 </button>
             </div>
         </div>
     )
 
     return (
-        <div className="min-h-screen bg-gray-50 py-12">
-            <div className="max-w-4xl mx-auto">
+        <div className="profile-page">
+            <div className="profile-container">
                 {/* Main Error Alert */}
                 {error && (
                     <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-r">
@@ -1002,7 +1032,7 @@ export default function ClientProfilePage() {
                             </div>
                             <div className="ml-3 flex-1">
                                 <h3 className="text-sm font-medium text-yellow-800">{t('loadingTakingLong') || 'Taking longer than expected'}</h3>
-                                <p className="text-sm text-yellow-700 mt-2">The page is taking longer to load. Please wait or refresh the page.</p>
+                                <p className="text-sm text-yellow-700 mt-2">{t('loadingTakingLongBody')}</p>
                             </div>
                             <button
                                 onClick={() => setTimeoutWarning(false)}
@@ -1015,18 +1045,19 @@ export default function ClientProfilePage() {
                 )}
 
                 {/* Header */}
-                <div className="bg-white shadow rounded-lg p-8 mb-6">
-                    <div className="flex justify-between items-start mb-6">
+                <div className="profile-hero fade-in-up mb-6">
+                    <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between mb-6 relative">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">{t('yourClientProfile')}</h1>
-                            <p className="text-gray-600 mt-1">{t('manageInformation')}</p>
+                            <span className="profile-chip mb-3">{t('clientProfile')}</span>
+                            <h1 className="profile-title text-3xl sm:text-4xl font-bold text-gray-900">{t('yourClientProfile')}</h1>
+                            <p className="profile-muted mt-2 max-w-2xl">{t('manageInformation')}</p>
                         </div>
                         {!isEditing && (
-                            <div className="flex items-center gap-3">
+                            <div className="profile-actions lg:justify-end">
                                 <FollowNotificationBell userId={user?.id} />
                                 <button
                                     onClick={() => setIsEditing(true)}
-                                    className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+                                    className="primary-action px-4 py-2 rounded-xl font-semibold shadow-sm"
                                 >
                                     {t('editProfile')}
                                 </button>
@@ -1091,7 +1122,7 @@ export default function ClientProfilePage() {
                                 <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-yellow-800 mb-2">{t('verifyYourEmail')}</h3>
                                     <p className="text-sm text-yellow-700 mb-4">
-                                        Verification is link-based. Open the verification email sent to {profile.email}, click the link, then use the button below to refresh your status.
+                                        {t('verifyEmailLinkInstructions').replace('{{email}}', profile.email)}
                                     </p>
                                     <form onSubmit={handleVerifyEmail} className="flex gap-2 mb-3">
                                         <button
@@ -1099,7 +1130,7 @@ export default function ClientProfilePage() {
                                             disabled={verifyingEmail}
                                             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
                                         >
-                                            {verifyingEmail ? 'Checking...' : 'I clicked the verification link'}
+                                            {verifyingEmail ? t('checkingVerification') : t('verificationLinkClicked')}
                                         </button>
                                     </form>
                                     {emailVerificationError && (
@@ -1135,9 +1166,9 @@ export default function ClientProfilePage() {
                     // View Mode
                     <div className="space-y-6">
                         {/* Profile Picture Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <div className="flex items-center gap-6">
-                                <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
+                        <div className="profile-section profile-section-soft">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+                                <div className="profile-avatar w-24 h-24 bg-indigo-200 flex items-center justify-center text-4xl overflow-hidden flex-shrink-0">
                                     {profilePicturePreview || profile?.profile_picture || profile?.profilePicture ? (
                                         <img
                                             src={profilePicturePreview || profile?.profile_picture || profile?.profilePicture}
@@ -1149,7 +1180,7 @@ export default function ClientProfilePage() {
                                     )}
                                 </div>
                                 <div>
-                                    <p className="text-lg font-semibold text-gray-900">
+                                    <p className="text-xl font-semibold text-gray-900">
                                         {profile?.first_name} {profile?.last_name}
                                     </p>
                                     <p className="text-gray-600 text-sm mt-1">{profile?.location || t('notProvided')}</p>
@@ -1159,19 +1190,19 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Basic Information Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('basicInfo')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('basicInformation')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('basicInformation')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.basicInfo ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.basicInfo && (
-                                <div className="px-8 pb-6 pt-2 border-t">
-                                    <div className="grid grid-cols-2 gap-6">
+                                <div className="profile-accordion-body">
+                                    <div className="profile-grid-2 pt-4">
                                         <div>
                                             <label className="text-sm font-medium text-gray-700">{t('firstName')}</label>
                                             <p className="text-gray-900 mt-1">{profile?.first_name || t('notProvided')}</p>
@@ -1196,12 +1227,12 @@ export default function ClientProfilePage() {
                                 </div>
                             )}
                         </div>
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('about')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('aboutMe')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('aboutMe')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.about ? '▶' : '▼'}
                                 </span>
@@ -1219,18 +1250,18 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Ratings Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('ratings')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('yourRatingsAsClient')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('yourRatingsAsClient')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.ratings ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.ratings && (
-                                <div className="px-8 pb-6 pt-2 border-t">
+                                <div className="profile-accordion-body">
                                     <p className="text-sm text-gray-600 mb-6">
                                         {t('workersSeeyourRatings')}
                                     </p>
@@ -1240,26 +1271,26 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Your Projects Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('projects')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('yourProjects')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('yourProjects')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.projects ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.projects && (
-                                <div className="px-8 pb-6 pt-2 border-t">
-                                    <div className="flex justify-between items-center mb-6">
+                                <div className="profile-accordion-body">
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pt-4">
                                         <button
                                             onClick={() => {
                                                 setEditingJobId(null)
                                                 setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
                                                 setShowJobModal(true)
                                             }}
-                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition text-sm"
+                                            className="primary-action px-4 py-2 rounded-xl transition text-sm font-semibold shadow-sm"
                                         >
                                             {t('postNewProject')}
                                         </button>
@@ -1276,8 +1307,8 @@ export default function ClientProfilePage() {
                                     ) : (
                                         <div className="space-y-4">
                                             {jobs.map(job => (
-                                                <div key={job.id} className="border border-gray-200 rounded-lg p-6 hover:shadow-lg transition">
-                                                    <div className="flex justify-between items-start mb-2">
+                                                <div key={job.id} className="profile-list-card hover:shadow-lg transition">
+                                                    <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start mb-2">
                                                         <div>
                                                             <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
                                                             <p className="text-sm text-gray-600 mt-1">{job.location}</p>
@@ -1285,20 +1316,20 @@ export default function ClientProfilePage() {
                                                         <div className="flex gap-2">
                                                             <button
                                                                 onClick={() => handleEditJob(job)}
-                                                                className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100 transition"
+                                                                className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-sm hover:bg-blue-100 transition font-medium"
                                                             >
                                                                 {t('editProfile')}
                                                             </button>
                                                             <button
                                                                 onClick={() => handleDeleteJob(job.id)}
-                                                                className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100 transition"
+                                                                className="bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-sm hover:bg-red-100 transition font-medium"
                                                             >
                                                                 {t('delete')}
                                                             </button>
                                                         </div>
                                                     </div>
                                                     <p className="text-gray-700 mt-3">{job.description}</p>
-                                                    <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
+                                                    <div className="profile-grid-3 mt-4 pt-4 border-t border-gray-200">
                                                         <div>
                                                             <span className="text-xs font-medium text-gray-600 uppercase">{t('type')}</span>
                                                             <p className="text-sm text-gray-900 mt-1">{job.category || t('notSpecified')}</p>
@@ -1321,18 +1352,18 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Completion Requests Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('completions')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('activeProjectsCompletion')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('activeProjectsCompletion')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.completions ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.completions && (
-                                <div className="px-8 pb-6 pt-2 border-t">
+                                <div className="profile-accordion-body">
                                     <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-r mb-4">
                                         <div className="flex items-start">
                                             <div className="flex-shrink-0">
@@ -1341,7 +1372,7 @@ export default function ClientProfilePage() {
                                                 </svg>
                                             </div>
                                             <div className="ml-3 flex-1">
-                                                <h3 className="text-sm font-medium text-red-800">Completion operation failed</h3>
+                                                <h3 className="text-sm font-medium text-red-800">{t('completionOperationFailed')}</h3>
                                                 <p className="text-sm text-red-700 mt-2">{completionOperationError}</p>
                                             </div>
                                             <button
@@ -1362,7 +1393,7 @@ export default function ClientProfilePage() {
                                                     </svg>
                                                 </div>
                                                 <div className="ml-3 flex-1">
-                                                    <h3 className="text-sm font-medium text-red-800">Completion operation failed</h3>
+                                                    <h3 className="text-sm font-medium text-red-800">{t('completionOperationFailed')}</h3>
                                                     <p className="text-sm text-red-700 mt-2">{completionOperationError}</p>
                                                 </div>
                                                 <button
@@ -1405,20 +1436,20 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Job Applicants Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('applicants')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('projectApplicants')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.applicants ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.applicants && (
-                                <div className="px-8 pb-6 pt-2 border-t">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h2 className="text-xl font-semibold">{t('projectApplicants')}</h2>
+                                <div className="profile-accordion-body">
+                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pt-4">
+                                        <h2 className="profile-title text-xl font-semibold">{t('projectApplicants')}</h2>
                                         <button
                                             onClick={() => setShowApplicants(!showApplicants)}
                                             className="text-sm text-gray-600 hover:text-gray-900"
@@ -1436,7 +1467,7 @@ export default function ClientProfilePage() {
                                                     </svg>
                                                 </div>
                                                 <div className="ml-3 flex-1">
-                                                    <h3 className="text-sm font-medium text-red-800">Application operation failed</h3>
+                                                    <h3 className="text-sm font-medium text-red-800">{t('applicationOperationFailed')}</h3>
                                                     <p className="text-sm text-red-700 mt-2">{applicationOperationError}</p>
                                                 </div>
                                                 <button
@@ -1462,7 +1493,7 @@ export default function ClientProfilePage() {
                                                             </svg>
                                                         </div>
                                                         <div className="ml-3 flex-1">
-                                                            <h3 className="text-sm font-medium text-yellow-800">Failed to load applicants</h3>
+                                                            <h3 className="text-sm font-medium text-yellow-800">{t('failedLoadApplicants')}</h3>
                                                             <p className="text-sm text-yellow-700 mt-2">{applicantsError}</p>
                                                         </div>
                                                         <button
@@ -1485,11 +1516,11 @@ export default function ClientProfilePage() {
                                                         if (applicants.length === 0) return null
 
                                                         return (
-                                                            <div key={job.id} className="border border-gray-200 rounded-lg p-6">
+                                                            <div key={job.id} className="profile-list-card">
                                                                 <h3 className="text-lg font-semibold text-gray-900 mb-4">{job.title}</h3>
                                                                 <div className="space-y-3">
                                                                     {applicants.map(applicant => (
-                                                                        <div key={applicant.id} className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-b-0 gap-4">
+                                                                        <div key={applicant.id} className="flex flex-col lg:flex-row lg:items-center lg:justify-between border-b border-gray-100 pb-4 last:border-b-0 gap-4">
                                                                             <div className="flex-1">
                                                                                 <p className="font-medium text-gray-900">
                                                                                     {applicant.first_name} {applicant.last_name}
@@ -1562,18 +1593,18 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Completed Projects Section */}
-                        <div className="bg-white shadow rounded-lg">
+                        <div className="profile-section">
                             <button
                                 onClick={() => toggleSection('completedProjects')}
-                                className="w-full px-8 py-6 flex items-center justify-between hover:bg-gray-50 transition"
+                                className="profile-accordion-button"
                             >
-                                <h2 className="text-xl font-semibold">{t('completedJobs')}</h2>
+                                <h2 className="profile-title text-xl font-semibold">{t('completedJobs')}</h2>
                                 <span className="text-2xl text-gray-600">
                                     {collapsedSections.completedProjects ? '▶' : '▼'}
                                 </span>
                             </button>
                             {!collapsedSections.completedProjects && (
-                                <div className="px-8 pb-6 pt-2 border-t">
+                                <div className="profile-accordion-body">
 
                                     {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').length === 0 ? (
                                         <div className="text-center py-12">
@@ -1585,8 +1616,8 @@ export default function ClientProfilePage() {
                                             {jobs.filter(job => job.completions && job.completions.length > 0 && job.completions[0].status === 'confirmed').map(job => {
                                                 const completion = job.completions[0]
                                                 return (
-                                                    <div key={job.id} className="border border-gray-200 rounded-lg p-6 bg-green-50">
-                                                        <div className="flex justify-between items-start mb-2">
+                                                    <div key={job.id} className="profile-list-card bg-green-50 border-green-200">
+                                                        <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start mb-2">
                                                             <div>
                                                                 <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
                                                                 <p className="text-sm text-gray-600 mt-1">{job.location}</p>
@@ -1596,7 +1627,7 @@ export default function ClientProfilePage() {
                                                             </span>
                                                         </div>
                                                         <p className="text-gray-700 mt-3">{job.description}</p>
-                                                        <div className="flex gap-6 mt-4 pt-4 border-t border-gray-200">
+                                                        <div className="profile-grid-2 mt-4 pt-4 border-t border-gray-200">
                                                             <div>
                                                                 <span className="text-xs font-medium text-gray-600 uppercase">{t('finalPrice')}</span>
                                                                 <p className="text-sm text-gray-900 mt-1 font-semibold">CFA {completion.final_price || job.budget}</p>
@@ -1619,10 +1650,10 @@ export default function ClientProfilePage() {
                     // Edit Mode
                     <form onSubmit={handleUpdate} className="space-y-6">
                         {/* Edit Profile Picture Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('profilePicture')}</h2>
-                            <div className="flex items-center gap-6">
-                                <div className="w-24 h-24 bg-indigo-200 rounded-full flex items-center justify-center text-4xl overflow-hidden">
+                        <div className="profile-section">
+                            <h2 className="profile-title text-xl font-semibold mb-6">{t('profilePicture')}</h2>
+                            <div className="flex flex-col sm:flex-row items-center gap-6">
+                                <div className="profile-avatar w-24 h-24 bg-indigo-200 flex items-center justify-center text-4xl overflow-hidden">
                                     {profilePicturePreview || profile?.profile_picture || profile?.profilePicture ? (
                                         <img
                                             src={profilePicturePreview || profile?.profile_picture || profile?.profilePicture}
@@ -1647,9 +1678,9 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Edit Basic Information Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('basicInformation')}</h2>
-                            <div className="grid grid-cols-2 gap-6">
+                        <div className="profile-section">
+                            <h2 className="profile-title text-xl font-semibold mb-6">{t('basicInformation')}</h2>
+                            <div className="profile-grid-2">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('firstName')}</label>
                                     <input
@@ -1692,7 +1723,7 @@ export default function ClientProfilePage() {
                                         placeholder="+228 XXXX XXXX"
                                     />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
                                     <select
                                         name="location"
@@ -1700,7 +1731,7 @@ export default function ClientProfilePage() {
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                     >
-                                        <option value="">Select a location...</option>
+                                        <option value="">{t('selectLocation')}</option>
                                         {togoLocations.map(loc => (
                                             <option key={loc.value} value={loc.value}>{loc.label}</option>
                                         ))}
@@ -1710,8 +1741,8 @@ export default function ClientProfilePage() {
                         </div>
 
                         {/* Edit About Section */}
-                        <div className="bg-white shadow rounded-lg p-8">
-                            <h2 className="text-xl font-semibold mb-6">{t('aboutMe')}</h2>
+                        <div className="profile-section">
+                            <h2 className="profile-title text-xl font-semibold mb-6">{t('aboutMe')}</h2>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">{t('skillsYouNeed')}</label>
                                 <textarea
@@ -1720,25 +1751,25 @@ export default function ClientProfilePage() {
                                     onChange={handleInputChange}
                                     rows="4"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                    placeholder="Describe the skills and services you're looking for. Example: I need a web developer to build an ecommerce site, a designer for logos, etc."
+                                    placeholder={t('aboutNeedPlaceholder')}
                                 />
                                 <p className="text-xs text-gray-500 mt-2">{t('helpServiceProviders')}</p>
                             </div>
                         </div>
 
                         {/* Form Actions */}
-                        <div className="flex gap-3">
+                        <div className="profile-actions">
                             <button
                                 type="submit"
                                 disabled={updateLoading}
-                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition font-medium"
+                                className="primary-action px-6 py-2.5 rounded-xl disabled:opacity-50 transition font-medium"
                             >
-                                {updateLoading ? 'Saving...' : t('saveChanges')}
+                                {updateLoading ? t('saving') : t('saveChanges')}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setIsEditing(false)}
-                                className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium"
+                                className="profile-button-secondary px-6 py-2.5 rounded-xl transition font-medium"
                             >
                                 {t('cancel')}
                             </button>
@@ -1749,9 +1780,9 @@ export default function ClientProfilePage() {
                 {/* Job Modal */}
                 {showJobModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-                                <h2 className="text-2xl font-semibold">{editingJobId ? 'Edit Project' : 'Post New Project'}</h2>
+                        <div className="glass-surface rounded-3xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/80">
+                            <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-200 p-6 flex justify-between items-center">
+                                <h2 className="profile-title text-2xl font-semibold">{editingJobId ? t('editProjectTitle') : t('postNewProject')}</h2>
                                 <button
                                     onClick={() => setShowJobModal(false)}
                                     className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
@@ -1770,7 +1801,7 @@ export default function ClientProfilePage() {
                                                 </svg>
                                             </div>
                                             <div className="ml-3 flex-1">
-                                                <h3 className="text-sm font-medium text-red-800">{editingJobId ? 'Failed to update project' : 'Failed to post project'}</h3>
+                                                <h3 className="text-sm font-medium text-red-800">{editingJobId ? t('failedUpdateProject') : t('failedPostProject')}</h3>
                                                 <p className="text-sm text-red-700 mt-2">{jobFormError}</p>
                                             </div>
                                             <button
@@ -1793,8 +1824,8 @@ export default function ClientProfilePage() {
                                                 </svg>
                                             </div>
                                             <div className="ml-3 flex-1">
-                                                <h3 className="text-sm font-medium text-green-800">{editingJobId ? 'Project updated' : 'Project posted'}</h3>
-                                                <p className="text-sm text-green-700 mt-2">Project {editingJobId ? 'updated' : 'posted'} successfully!</p>
+                                                <h3 className="text-sm font-medium text-green-800">{editingJobId ? t('projectUpdated') : t('projectPosted')}</h3>
+                                                <p className="text-sm text-green-700 mt-2">{editingJobId ? t('projectUpdatedSuccess') : t('projectPostedSuccess')}</p>
                                             </div>
                                             <button
                                                 onClick={() => setJobFormSuccess(false)}
@@ -1808,7 +1839,7 @@ export default function ClientProfilePage() {
                                 )}
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Project Title *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('projectTitleField')} *</label>
                                     <input
                                         type="text"
                                         name="title"
@@ -1821,7 +1852,7 @@ export default function ClientProfilePage() {
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Project Description *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('projectDescriptionField')} *</label>
                                     <textarea
                                         name="description"
                                         value={jobFormData.description}
@@ -1829,7 +1860,7 @@ export default function ClientProfilePage() {
                                         required
                                         rows="5"
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="Describe what you need. Include specific requirements, timeline, and expectations."
+                                        placeholder={t('aboutNeedPlaceholder')}
                                     />
                                 </div>
 
@@ -1842,7 +1873,7 @@ export default function ClientProfilePage() {
                                             onChange={handleJobInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                         >
-                                            <option value="">Select a location...</option>
+                                            <option value="">{t('selectLocation')}</option>
                                             {togoLocations.map(loc => (
                                                 <option key={loc.value} value={loc.value}>{loc.label}</option>
                                             ))}
@@ -1850,31 +1881,31 @@ export default function ClientProfilePage() {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Project Type</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">{t('projectTypeField')}</label>
                                         <select
                                             name="jobType"
                                             value={jobFormData.jobType}
                                             onChange={handleJobInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                         >
-                                            <option value="">Select type...</option>
-                                            <option value="one-time">One-time</option>
-                                            <option value="ongoing">Ongoing</option>
-                                            <option value="part-time">Part-time</option>
-                                            <option value="full-time">Full-time</option>
+                                            <option value="">{t('selectType')}</option>
+                                            <option value="one-time">{t('oneTime')}</option>
+                                            <option value="ongoing">{t('ongoing')}</option>
+                                            <option value="part-time">{t('partTime')}</option>
+                                            <option value="full-time">{t('fullTime')}</option>
                                         </select>
                                     </div>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Hiring Rate / Budget</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">{t('hiringRateBudget')}</label>
                                     <input
                                         type="text"
                                         name="salary"
                                         value={jobFormData.salary}
                                         onChange={handleJobInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="e.g., $500-1000, 250,000 CFA, Negotiable"
+                                        placeholder={t('budgetPlaceholder')}
                                     />
                                 </div>
 
@@ -1884,7 +1915,7 @@ export default function ClientProfilePage() {
                                         disabled={jobFormLoading}
                                         className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition font-medium flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        {jobFormLoading ? 'Posting...' : editingJobId ? 'Update Project' : 'Post Project'}
+                                        {jobFormLoading ? t('postingProject') : editingJobId ? t('updateProject') : t('postProject')}
                                     </button>
                                     <button
                                         type="button"
@@ -1892,7 +1923,7 @@ export default function ClientProfilePage() {
                                         onClick={() => setShowJobModal(false)}
                                         className="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400 transition font-medium flex-1 disabled:opacity-50"
                                     >
-                                        Cancel
+                                        {t('cancel')}
                                     </button>
                                 </div>
                             </form>
