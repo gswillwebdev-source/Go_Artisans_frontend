@@ -181,8 +181,8 @@ export default function AdminDashboardPage() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`px-4 py-4 font-medium transition border-b-2 whitespace-nowrap ${activeTab === tab.id
-                                        ? 'border-indigo-600 text-indigo-600'
-                                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-gray-600 hover:text-gray-900'
                                     }`}
                             >
                                 {tab.label}
@@ -299,8 +299,8 @@ export default function AdminDashboardPage() {
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{user.email}</td>
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${user.user_type === 'worker' ? 'bg-blue-100 text-blue-800' :
-                                                                    user.user_type === 'client' ? 'bg-green-100 text-green-800' :
-                                                                        'bg-gray-100 text-gray-800'
+                                                                user.user_type === 'client' ? 'bg-green-100 text-green-800' :
+                                                                    'bg-gray-100 text-gray-800'
                                                                 }`}>
                                                                 {user.user_type}
                                                             </span>
@@ -368,8 +368,8 @@ export default function AdminDashboardPage() {
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{job.budget}</td>
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${job.status === 'active' ? 'bg-blue-100 text-blue-800' :
-                                                                    job.status === 'completed' ? 'bg-green-100 text-green-800' :
-                                                                        'bg-gray-100 text-gray-800'
+                                                                job.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                    'bg-gray-100 text-gray-800'
                                                                 }`}>
                                                                 {job.status}
                                                             </span>
@@ -420,8 +420,8 @@ export default function AdminDashboardPage() {
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">{app.worker_id.substring(0, 8)}...</td>
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    app.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                                                        'bg-red-100 text-red-800'
+                                                                app.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                                                                    'bg-red-100 text-red-800'
                                                                 }`}>
                                                                 {app.status}
                                                             </span>
@@ -465,8 +465,8 @@ export default function AdminDashboardPage() {
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">{completion.worker_id.substring(0, 8)}...</td>
                                                         <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${completion.status === 'completed' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    completion.status === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                                                        'bg-red-100 text-red-800'
+                                                                completion.status === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                                                    'bg-red-100 text-red-800'
                                                                 }`}>
                                                                 {completion.status}
                                                             </span>

@@ -249,11 +249,10 @@ export default function JobDetailsPage() {
                         <button
                             onClick={handleApply}
                             disabled={applying || appliedAlready}
-                            className={`w-full py-3 rounded-lg font-semibold text-lg transition ${
-                                appliedAlready
+                            className={`w-full py-3 rounded-lg font-semibold text-lg transition ${appliedAlready
                                     ? 'bg-gray-400 text-white cursor-not-allowed'
                                     : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                            } ${applying ? 'opacity-50' : ''}`}
+                                } ${applying ? 'opacity-50' : ''}`}
                         >
                             {appliedAlready ? '✓ Already Applied' : (applying ? `${t('applying')}...` : `${t('applyNow')}`)}
                         </button>
