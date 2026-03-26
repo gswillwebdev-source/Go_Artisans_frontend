@@ -1182,21 +1182,21 @@ export default function WorkerProfilePage() {
                                                                     <button
                                                                         onClick={() => handleRequestCompletion(jobId)}
                                                                         disabled={requestingCompletion[jobId]}
-                                                                        className="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 whitespace-nowrap text-sm"
+                                                                        className="mt-2 lg:mt-0 lg:ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
                                                                     >
                                                                         {requestingCompletion[jobId] ? t('requesting') : t('markAsCompleted')}
                                                                     </button>
                                                                 ) : status.status === 'pending' ? (
-                                                                    <div className="ml-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm whitespace-nowrap flex items-center gap-2">
+                                                                    <div className="mt-2 lg:mt-0 lg:ml-4 px-4 py-2 bg-yellow-100 text-yellow-800 rounded-lg text-sm flex items-center gap-2">
                                                                         <span className="animate-spin">⏳</span> {t('pendingReviewStatus')}
                                                                     </div>
                                                                 ) : status.status === 'declined' ? (
-                                                                    <div className="ml-4 px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm">
+                                                                    <div className="mt-2 lg:mt-0 lg:ml-4 px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm">
                                                                         <p className="font-semibold">{t('declined')}</p>
                                                                         <p className="text-xs mt-1">{status.reason_for_decline}</p>
                                                                     </div>
                                                                 ) : isCompleted ? (
-                                                                    <div className="ml-4 px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm whitespace-nowrap">
+                                                                    <div className="mt-2 lg:mt-0 lg:ml-4 px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm">
                                                                         <p className="font-semibold">{t('completedStatus')}</p>
                                                                     </div>
                                                                 ) : null}

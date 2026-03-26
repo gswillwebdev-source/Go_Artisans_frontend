@@ -148,11 +148,11 @@ export default function JobDetailsPage() {
                 </div>
             </nav>
 
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white rounded-lg shadow p-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2">{job.title}</h1>
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                <div className="bg-white rounded-lg shadow p-4 sm:p-6 lg:p-8">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 break-words">{job.title}</h1>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-8 mt-4">
                         <div className="bg-gray-50 p-4 rounded">
                             <p className="text-sm text-gray-600">{t('location')}</p>
                             <p className="font-semibold">{job.location}</p>
@@ -228,7 +228,7 @@ export default function JobDetailsPage() {
                     {!user && (
                         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <p className="text-blue-700 font-medium mb-4">{t('loginToApply')}</p>
-                            <div className="flex gap-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
                                 <button
                                     onClick={() => router.push('/login')}
                                     className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-semibold transition"

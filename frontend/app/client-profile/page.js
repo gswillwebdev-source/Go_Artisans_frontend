@@ -1757,7 +1757,7 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
                                         <select
@@ -1802,7 +1802,7 @@ export default function ClientProfilePage() {
                                     />
                                 </div>
 
-                                <div className="flex gap-3 pt-6 border-t border-gray-200">
+                                <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
                                     <button
                                         type="submit"
                                         disabled={jobFormLoading}

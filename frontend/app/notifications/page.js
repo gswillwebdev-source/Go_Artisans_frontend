@@ -15,7 +15,7 @@ export default function NotificationsPage() {
     const [statusFilter, setStatusFilter] = useState('new')
     const [page, setPage] = useState(1)
     const [totalPages, setTotalPages] = useState(1)
-    const [showPreferences, setShowPreferences] = useState(false)
+    const [showSettings, setShowSettings] = useState(false)
     const [notifTab, setNotifTab] = useState('job_alerts') // 'job_alerts' | 'followers'
     const [followNotifications, setFollowNotifications] = useState([])
     const [followLoading, setFollowLoading] = useState(false)
@@ -233,23 +233,23 @@ export default function NotificationsPage() {
     }
 
     return (
-        <div className="min-h-screen p-4 sm:p-6">
+        <div className="min-h-screen p-3 sm:p-4 lg:p-6">
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8 fade-in-up">
-                    <div>
-                        <h1 className="display-font text-4xl font-bold text-slate-900 tracking-tight">{t('notificationsTitle')}</h1>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8 fade-in-up">
+                    <div className="min-w-0">
+                        <h1 className="display-font text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">{t('notificationsTitle')}</h1>
                         {unreadCount > 0 && (
-                            <p className="text-slate-600 mt-2">
+                            <p className="text-slate-600 mt-2 text-sm sm:text-base leading-relaxed">
                                 {t('youHaveNewNotifications').replace('{{count}}', unreadCount)}
                             </p>
                         )}
                     </div>
                     <button
-                        onClick={() => setShowPreferences(true)}
-                        className="text-slate-600 hover:text-slate-900 font-semibold text-sm flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 border border-transparent"
+                        onClick={() => setShowSettings(true)}
+                        className="w-full sm:w-auto text-slate-600 hover:text-slate-900 font-semibold text-sm flex items-center justify-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 border border-transparent"
                     >
-                        ⚙️ {t('preferences')}
+                        ⚙️ {t('settings')}
                     </button>
                 </div>
 
@@ -260,30 +260,32 @@ export default function NotificationsPage() {
                 )}
 
                 {/* Main Tab Switcher */}
-                <div className="flex gap-1 mb-6 bg-slate-100 rounded-xl p-1 w-fit">
-                    <button
-                        onClick={() => setNotifTab('job_alerts')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${notifTab === 'job_alerts' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
-                    >
-                        📋 Job Alerts
-                    </button>
-                    <button
-                        onClick={() => setNotifTab('followers')}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 ${notifTab === 'followers' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
-                    >
-                        👥 Followers
-                        {followNotifications.filter(n => !n.is_read).length > 0 && (
-                            <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
-                                {followNotifications.filter(n => !n.is_read).length}
-                            </span>
-                        )}
-                    </button>
+                <div className="mb-6 overflow-x-auto pb-1">
+                    <div className="flex gap-1 bg-slate-100 rounded-xl p-1 w-max min-w-full sm:min-w-0 sm:w-fit">
+                        <button
+                            onClick={() => setNotifTab('job_alerts')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${notifTab === 'job_alerts' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
+                        >
+                            📋 Job Alerts
+                        </button>
+                        <button
+                            onClick={() => setNotifTab('followers')}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 ${notifTab === 'followers' ? 'bg-white shadow text-blue-700' : 'text-slate-600 hover:text-slate-900'}`}
+                        >
+                            👥 Followers
+                            {followNotifications.filter(n => !n.is_read).length > 0 && (
+                                <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 leading-none">
+                                    {followNotifications.filter(n => !n.is_read).length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
                 </div>
 
                 {/* ── JOB ALERTS TAB ── */}
                 {notifTab === 'job_alerts' && (<>
                     {/* Status Filter Tabs */}
-                    <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto">
+                    <div className="flex gap-2 mb-6 border-b border-slate-200 overflow-x-auto pb-1">
                         {['new', 'viewed', 'applied', 'dismissed'].map(status => (
                             <button
                                 key={status}
@@ -303,7 +305,7 @@ export default function NotificationsPage() {
 
                     {/* Notifications List */}
                     {notifications.length === 0 ? (
-                        <div className="glass-surface rounded-2xl shadow p-12 text-center border border-white/80">
+                        <div className="glass-surface rounded-2xl shadow p-8 sm:p-12 text-center border border-white/80">
                             <svg className="h-16 w-16 text-slate-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                             </svg>
@@ -319,20 +321,20 @@ export default function NotificationsPage() {
                             {notifications.map(notif => (
                                 <div
                                     key={notif.id}
-                                    className={`elevated-card interactive-rise rounded-2xl p-6 cursor-pointer ${notif.status === 'new' ? 'border-l-4 border-blue-600' : ''
+                                    className={`elevated-card interactive-rise rounded-2xl p-4 sm:p-6 cursor-pointer ${notif.status === 'new' ? 'border-l-4 border-blue-600' : ''
                                         }`}
                                     onClick={() => notif.status === 'new' && handleMarkAsViewed(notif.id)}
                                 >
-                                    <div className="flex items-start justify-between mb-3">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
                                         <div className="flex-1">
-                                            <h3 className="text-lg font-semibold text-slate-900">
+                                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 break-words">
                                                 {notif.job_title}
                                             </h3>
                                             <p className="text-sm text-slate-600 mt-1">
                                                 {t('fromAlert')} <span className="font-medium">{notif.alert_name}</span>
                                             </p>
                                         </div>
-                                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${notif.status === 'new'
+                                        <span className={`self-start px-3 py-1 rounded-full text-xs font-semibold ${notif.status === 'new'
                                             ? 'bg-blue-100 text-blue-800 border border-blue-200'
                                             : notif.status === 'viewed'
                                                 ? 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -346,7 +348,7 @@ export default function NotificationsPage() {
 
                                     {/* Job Details */}
                                     <div className="bg-slate-50 p-3 rounded-xl mb-3 text-sm border border-slate-200">
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <div>
                                                 <p className="text-slate-600">📍 <strong>{t('location')}:</strong></p>
                                                 <p className="text-slate-900">{notif.job_location || t('notSpecified')}</p>
@@ -370,7 +372,7 @@ export default function NotificationsPage() {
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex gap-3">
+                                    <div className="flex flex-col sm:flex-row gap-3">
                                         <Link
                                             href={`/jobs/${notif.job_id}`}
                                             className="flex-1 text-center primary-action text-white py-2 px-4 rounded-xl font-semibold transition text-sm shadow-sm"
@@ -379,7 +381,7 @@ export default function NotificationsPage() {
                                         </Link>
                                         <button
                                             onClick={() => handleDismiss(notif.id)}
-                                            className="text-slate-600 hover:text-slate-900 px-4 py-2 border border-slate-300 rounded-xl font-semibold transition text-sm hover:bg-slate-100"
+                                            className="w-full sm:w-auto text-slate-600 hover:text-slate-900 px-4 py-2 border border-slate-300 rounded-xl font-semibold transition text-sm hover:bg-slate-100"
                                         >
                                             {t('dismiss')}
                                         </button>
@@ -396,16 +398,16 @@ export default function NotificationsPage() {
 
                     {/* Pagination */}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-8">
+                        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mt-8">
                             <button
                                 onClick={() => setPage(Math.max(1, page - 1))}
                                 disabled={page === 1}
-                                className="px-3 py-2 border border-slate-300 rounded-xl text-slate-700 disabled:opacity-50 hover:bg-slate-100"
+                                className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-xl text-slate-700 disabled:opacity-50 hover:bg-slate-100"
                             >
                                 ← {t('previous')}
                             </button>
 
-                            <div className="flex gap-1">
+                            <div className="flex flex-wrap justify-center gap-1">
                                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                                     <button
                                         key={p}
@@ -423,7 +425,7 @@ export default function NotificationsPage() {
                             <button
                                 onClick={() => setPage(Math.min(totalPages, page + 1))}
                                 disabled={page === totalPages}
-                                className="px-3 py-2 border border-slate-300 rounded-xl text-slate-700 disabled:opacity-50 hover:bg-slate-100"
+                                className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-xl text-slate-700 disabled:opacity-50 hover:bg-slate-100"
                             >
                                 {t('next')} →
                             </button>
@@ -435,7 +437,7 @@ export default function NotificationsPage() {
                 {/* ── FOLLOWERS TAB ── */}
                 {notifTab === 'followers' && (
                     <div>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
                             <p className="text-sm text-slate-500">
                                 {followNotifications.filter(n => !n.is_read).length > 0
                                     ? `${followNotifications.filter(n => !n.is_read).length} unread`
@@ -454,7 +456,7 @@ export default function NotificationsPage() {
                         {followLoading ? (
                             <div className="text-center py-12 text-slate-500">Loading...</div>
                         ) : followNotifications.length === 0 ? (
-                            <div className="glass-surface rounded-2xl shadow p-12 text-center border border-white/80">
+                            <div className="glass-surface rounded-2xl shadow p-8 sm:p-12 text-center border border-white/80">
                                 <span className="text-5xl">👥</span>
                                 <h3 className="text-xl font-semibold text-slate-900 mt-4 mb-2">No followers yet</h3>
                                 <p className="text-slate-600">You will be notified here when someone follows you.</p>
@@ -464,7 +466,7 @@ export default function NotificationsPage() {
                                 {followNotifications.map(notif => (
                                     <div
                                         key={notif.id}
-                                        className={`elevated-card rounded-2xl p-5 flex items-center gap-4 cursor-pointer transition ${!notif.is_read ? 'border-l-4 border-blue-500' : ''}`}
+                                        className={`elevated-card rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer transition ${!notif.is_read ? 'border-l-4 border-blue-500' : ''}`}
                                         onClick={() => !notif.is_read && handleMarkFollowRead(notif.id)}
                                     >
                                         <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl shrink-0">
@@ -486,7 +488,7 @@ export default function NotificationsPage() {
                                             <Link
                                                 href={notif.action_url}
                                                 onClick={e => e.stopPropagation()}
-                                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap shrink-0"
+                                                className="text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap shrink-0 self-start sm:self-auto"
                                             >
                                                 View Profile →
                                             </Link>
@@ -498,10 +500,10 @@ export default function NotificationsPage() {
                     </div>
                 )}
 
-                {/* Preferences Modal */}
-                {showPreferences && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                        <NotificationPreferencesModal onClose={() => setShowPreferences(false)} />
+                {/* Settings Modal */}
+                {showSettings && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start sm:items-center justify-center overflow-y-auto p-3 sm:p-4 z-50">
+                        <NotificationPreferencesModal onClose={() => setShowSettings(false)} />
                     </div>
                 )}
             </div>

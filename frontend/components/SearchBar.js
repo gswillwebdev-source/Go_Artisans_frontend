@@ -42,7 +42,7 @@ export default function SearchBar({ onSearch, isSearching = false }) {
 
     return (
         <form onSubmit={handleSubmit} className="glass-surface p-6 rounded-2xl border border-white/80 shadow-lg fade-in-up">
-            <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
                 <p className="text-sm text-slate-600">Type to search, results update automatically.</p>
                 <div className="flex items-center gap-3">
                     {isSearching && <span className="text-sm font-semibold text-blue-700">Searching...</span>}

@@ -135,14 +135,14 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                 </div>
             )}
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
                 <Link href={`/jobs/${job.id}`} className="flex-1 primary-action py-2 rounded-xl text-center font-semibold text-sm shadow-sm">
                     {t('viewDetails')}
                 </Link>
                 <button
                     onClick={handleApply}
                     disabled={isApplying || hasApplied}
-                    className={`px-4 py-2 rounded font-medium text-sm transition ${hasApplied
+                    className={`w-full sm:w-auto px-4 py-2 rounded font-medium text-sm transition ${hasApplied
                         ? 'bg-slate-100 text-slate-500 cursor-not-allowed rounded-xl'
                         : 'border border-blue-600 text-blue-700 hover:bg-blue-50 rounded-xl'
                         }`}
@@ -152,7 +152,7 @@ export default function JobCard({ job, onApplicationSuccess, onSaveToggle, isSav
                 <button
                     onClick={handleSaveToggle}
                     disabled={isSaving}
-                    className={`px-4 py-2 rounded font-medium text-sm transition ${isSaved
+                    className={`w-full sm:w-auto px-4 py-2 rounded font-medium text-sm transition ${isSaved
                         ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-xl'
                         : 'border border-slate-300 text-slate-600 hover:bg-slate-100 rounded-xl'
                         }`}

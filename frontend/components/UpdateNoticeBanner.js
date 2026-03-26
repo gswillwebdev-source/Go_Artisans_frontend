@@ -15,7 +15,7 @@ function isMissingUpdateNoticeRpc(error) {
         Number(error?.status) === 404
         || /PGRST202/i.test(code)
         || /get_active_update_notice/i.test(message + details + hint)
-            && /does not exist|not found|schema cache/i.test(message + details + hint)
+        && /does not exist|not found|schema cache/i.test(message + details + hint)
     )
 }
 

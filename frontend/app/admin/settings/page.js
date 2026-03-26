@@ -146,18 +146,18 @@ export default function AdminSettingsPage() {
             </nav>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">Admin Settings</h1>
-                    <p className="text-gray-600 mt-2">Manage your admin account settings</p>
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 lg:px-8 py-8 sm:py-12">
+                <div className="mb-6 sm:mb-8">
+                    <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Admin Settings</h1>
+                    <p className="text-sm sm:text-base text-gray-600 mt-2">Manage your admin account settings</p>
                 </div>
 
                 {/* Tabs */}
-                <div className="mb-6 border-b border-gray-200">
-                    <div className="flex gap-4">
+                <div className="mb-6 border-b border-gray-200 overflow-x-auto">
+                    <div className="flex gap-2 sm:gap-4 w-max sm:w-full">
                         <button
                             onClick={() => setActiveTab('password')}
-                            className={`px-6 py-3 font-medium border-b-2 transition ${activeTab === 'password'
+                            className={`px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium border-b-2 transition whitespace-nowrap ${activeTab === 'password'
                                 ? 'border-red-600 text-red-600'
                                 : 'border-transparent text-gray-600 hover:text-gray-900'
                                 }`}
@@ -166,7 +166,7 @@ export default function AdminSettingsPage() {
                         </button>
                         <button
                             onClick={() => setActiveTab('updateNotice')}
-                            className={`px-6 py-3 font-medium border-b-2 transition ${activeTab === 'updateNotice'
+                            className={`px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium border-b-2 transition whitespace-nowrap ${activeTab === 'updateNotice'
                                 ? 'border-red-600 text-red-600'
                                 : 'border-transparent text-gray-600 hover:text-gray-900'
                                 }`}
@@ -183,7 +183,7 @@ export default function AdminSettingsPage() {
                     )}
 
                     {activeTab === 'updateNotice' && (
-                        <div className="max-w-2xl bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+                        <div className="max-w-2xl bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-6">
                             <h2 className="text-xl font-semibold text-gray-900 mb-2">Pre-Deployment Push Notice</h2>
                             <p className="text-sm text-gray-600 mb-6">
                                 Turn this on before deployment to warn users in-app. Users can also enable browser alerts from the banner.

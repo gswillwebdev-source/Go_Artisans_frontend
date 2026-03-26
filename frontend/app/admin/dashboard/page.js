@@ -168,8 +168,8 @@ export default function AdminDashboardPage() {
 
             {/* Tab Navigation */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex gap-8 overflow-x-auto">
+                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 lg:px-8">
+                    <div className="flex gap-4 sm:gap-6 lg:gap-8 overflow-x-auto pb-px">
                         {[
                             { id: 'overview', label: '📊 Overview' },
                             { id: 'users', label: '👥 Users' },
@@ -193,7 +193,7 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 lg:px-8 py-6 sm:py-8">
                 {error && (
                     <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
                         {error}
@@ -218,9 +218,9 @@ export default function AdminDashboardPage() {
                         {/* Overview Tab */}
                         {activeTab === 'overview' && stats && (
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard Overview</h1>
+                                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-6 sm:mb-8">Dashboard Overview</h1>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                                     {/* Stats Cards */}
                                     <div className="bg-white shadow-lg rounded-lg p-6 border-t-4 border-blue-600">
                                         <p className="text-gray-500 text-sm font-medium">Total Users</p>
@@ -264,40 +264,40 @@ export default function AdminDashboardPage() {
                         {/* Users Tab */}
                         {activeTab === 'users' && (
                             <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold text-gray-900">Users Management</h2>
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6">
+                                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Users Management</h2>
                                     <input
                                         type="text"
                                         placeholder="Search users..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                                        className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
                                     />
                                 </div>
 
-                                <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+                                    <table className="w-full min-w-max">
                                         <thead className="bg-gray-100 border-b border-gray-200">
                                             <tr>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Name</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Email</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Type</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Phone</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Actions</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Name</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Email</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Type</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Phone</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Status</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredUsers.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No users found</td>
+                                                    <td colSpan="6" className="px-4 sm:px-6 py-4 text-center text-xs sm:text-sm text-gray-500">No users found</td>
                                                 </tr>
                                             ) : (
                                                 filteredUsers.map(user => (
                                                     <tr key={user.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{user.first_name} {user.last_name}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-900">{user.first_name} {user.last_name}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{user.email}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${user.user_type === 'worker' ? 'bg-blue-100 text-blue-800' :
                                                                     user.user_type === 'client' ? 'bg-green-100 text-green-800' :
                                                                         'bg-gray-100 text-gray-800'
@@ -305,17 +305,17 @@ export default function AdminDashboardPage() {
                                                                 {user.user_type}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{user.phone_number || '—'}</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{user.phone_number || '—'}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${user.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                                                                 }`}>
                                                                 {user.is_active ? 'Active' : 'Inactive'}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <button
                                                                 onClick={() => handleDeleteUser(user.id)}
-                                                                className="text-red-600 hover:text-red-900 font-medium"
+                                                                className="text-red-600 hover:text-red-900 font-medium whitespace-nowrap"
                                                             >
                                                                 Delete
                                                             </button>
@@ -332,41 +332,41 @@ export default function AdminDashboardPage() {
                         {/* Jobs Tab */}
                         {activeTab === 'jobs' && (
                             <div>
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-bold text-gray-900">Jobs Management</h2>
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-6">
+                                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Jobs Management</h2>
                                     <input
                                         type="text"
                                         placeholder="Search jobs..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                                        className="w-full sm:w-auto px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
                                     />
                                 </div>
 
-                                <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+                                    <table className="w-full min-w-max">
                                         <thead className="bg-gray-100 border-b border-gray-200">
                                             <tr>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Title</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Category</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Budget</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Created</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Actions</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Title</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Category</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Budget</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Status</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Created</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {filteredJobs.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No jobs found</td>
+                                                    <td colSpan="6" className="px-4 sm:px-6 py-4 text-center text-xs sm:text-sm text-gray-500">No jobs found</td>
                                                 </tr>
                                             ) : (
                                                 filteredJobs.map(job => (
                                                     <tr key={job.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{job.title}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{job.category}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{job.budget}</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">{job.title}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{job.category}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{job.budget}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${job.status === 'active' ? 'bg-blue-100 text-blue-800' :
                                                                     job.status === 'completed' ? 'bg-green-100 text-green-800' :
                                                                         'bg-gray-100 text-gray-800'
@@ -374,11 +374,11 @@ export default function AdminDashboardPage() {
                                                                 {job.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(job.created_at).toLocaleDateString()}</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{new Date(job.created_at).toLocaleDateString()}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <button
                                                                 onClick={() => handleDeleteJob(job.id)}
-                                                                className="text-red-600 hover:text-red-900 font-medium"
+                                                                className="text-red-600 hover:text-red-900 font-medium whitespace-nowrap"
                                                             >
                                                                 Delete
                                                             </button>
@@ -395,30 +395,30 @@ export default function AdminDashboardPage() {
                         {/* Applications Tab */}
                         {activeTab === 'applications' && (
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-6">Applications Management</h2>
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Applications Management</h2>
 
-                                <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+                                    <table className="w-full min-w-max">
                                         <thead className="bg-gray-100 border-b border-gray-200">
                                             <tr>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Job ID</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Worker ID</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Price</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Applied</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Job ID</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Worker ID</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Status</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Price</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Applied</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {applications.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">No applications</td>
+                                                    <td colSpan="5" className="px-4 sm:px-6 py-4 text-center text-xs sm:text-sm text-gray-500">No applications</td>
                                                 </tr>
                                             ) : (
                                                 applications.map(app => (
                                                     <tr key={app.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{app.job_id.substring(0, 8)}...</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{app.worker_id.substring(0, 8)}...</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">{app.job_id.substring(0, 8)}...</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">{app.worker_id.substring(0, 8)}...</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${app.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
                                                                     app.status === 'accepted' ? 'bg-green-100 text-green-800' :
                                                                         'bg-red-100 text-red-800'
@@ -426,8 +426,8 @@ export default function AdminDashboardPage() {
                                                                 {app.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{app.proposed_price}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(app.created_at).toLocaleDateString()}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{app.proposed_price}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{new Date(app.created_at).toLocaleDateString()}</td>
                                                     </tr>
                                                 ))
                                             )}
@@ -440,30 +440,30 @@ export default function AdminDashboardPage() {
                         {/* Completions Tab */}
                         {activeTab === 'completions' && (
                             <div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-6">Job Completions Management</h2>
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Job Completions Management</h2>
 
-                                <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-                                    <table className="w-full">
+                                <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+                                    <table className="w-full min-w-max">
                                         <thead className="bg-gray-100 border-b border-gray-200">
                                             <tr>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Job ID</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Worker</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Status</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Final Price</th>
-                                                <th className="px-6 py-3 text-left text-sm font-medium text-gray-900">Completed</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Job ID</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Worker</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Status</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Final Price</th>
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-900">Completed</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {completions.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="5" className="px-6 py-4 text-center text-gray-500">No completions</td>
+                                                    <td colSpan="5" className="px-4 sm:px-6 py-4 text-center text-xs sm:text-sm text-gray-500">No completions</td>
                                                 </tr>
                                             ) : (
                                                 completions.map(completion => (
                                                     <tr key={completion.id} className="border-b border-gray-200 hover:bg-gray-50">
-                                                        <td className="px-6 py-4 text-sm text-gray-900">{completion.job_id.substring(0, 8)}...</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{completion.worker_id.substring(0, 8)}...</td>
-                                                        <td className="px-6 py-4 text-sm">
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-900 whitespace-nowrap">{completion.job_id.substring(0, 8)}...</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">{completion.worker_id.substring(0, 8)}...</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm">
                                                             <span className={`px-2 py-1 rounded text-xs font-medium ${completion.status === 'completed' ? 'bg-yellow-100 text-yellow-800' :
                                                                     completion.status === 'confirmed' ? 'bg-green-100 text-green-800' :
                                                                         'bg-red-100 text-red-800'
@@ -471,8 +471,8 @@ export default function AdminDashboardPage() {
                                                                 {completion.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{completion.final_price}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600">{new Date(completion.created_at).toLocaleDateString()}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{completion.final_price}</td>
+                                                        <td className="px-4 sm:px-6 py-4 text-xs sm:text-sm text-gray-600">{new Date(completion.created_at).toLocaleDateString()}</td>
                                                     </tr>
                                                 ))
                                             )}

@@ -134,19 +134,19 @@ export default function WorkerProfilePage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+        <div className="min-h-screen bg-gray-50 py-6 sm:py-8">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                 <Link href="/all-users" className="text-indigo-600 hover:text-indigo-700 mb-6 inline-block">
                     ← Back to workers
                 </Link>
 
-                <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 lg:p-8">
                     {/* Profile Header */}
-                    <div className="flex flex-col md:flex-row gap-8 mb-8">
+                    <div className="flex flex-col md:flex-row gap-6 sm:gap-8 mb-8">
                         {/* Profile Picture */}
-                        <div>
+                        <div className="self-center md:self-start">
                             {worker.profile_picture ? (
-                                <div className="w-48 h-48 rounded-lg overflow-hidden bg-gray-200">
+                                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-lg overflow-hidden bg-gray-200">
                                     <img
                                         src={worker.profile_picture}
                                         alt={`${worker.first_name} ${worker.last_name}`}
@@ -154,7 +154,7 @@ export default function WorkerProfilePage() {
                                     />
                                 </div>
                             ) : (
-                                <div className="w-48 h-48 rounded-lg bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-6xl">
+                                <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 rounded-lg bg-indigo-200 flex items-center justify-center text-indigo-600 font-bold text-4xl sm:text-5xl md:text-6xl">
                                     {worker.first_name?.charAt(0)}{worker.last_name?.charAt(0)}
                                 </div>
                             )}
@@ -162,10 +162,10 @@ export default function WorkerProfilePage() {
 
                         {/* Worker Info */}
                         <div className="flex-1">
-                            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 break-words">
                                 {worker.first_name} {worker.last_name}
                             </h1>
-                            <p className="text-2xl text-indigo-600 font-semibold mb-4">
+                            <p className="text-lg sm:text-xl lg:text-2xl text-indigo-600 font-semibold mb-4 break-words">
                                 {worker.job_title || 'No title specified'}
                             </p>
 

@@ -305,19 +305,19 @@ function AdminUsersContent() {
             </nav>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-                <div className="flex justify-between items-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900">User Management</h1>
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 lg:px-8 py-8 sm:py-12">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
+                    <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">User Management</h1>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold"
+                        className="w-full sm:w-auto bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-semibold text-sm sm:text-base"
                     >
                         + Add User
                     </button>
                 </div>
 
                 {/* Filter Buttons */}
-                <div className="flex gap-2 mb-6">
+                <div className="flex flex-wrap gap-2 mb-6">
                     {['all', 'worker', 'client'].map((type) => (
                         <button
                             key={type}
@@ -325,7 +325,7 @@ function AdminUsersContent() {
                                 setUserType(type)
                                 setCurrentPage(1)
                             }}
-                            className={`px-4 py-2 rounded-lg font-semibold capitalize transition ${userType === type
+                            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 text-xs sm:text-sm rounded-lg font-semibold capitalize transition ${userType === type
                                 ? 'bg-red-600 text-white'
                                 : 'bg-white text-gray-700 hover:bg-gray-100'
                                 }`}
@@ -344,8 +344,8 @@ function AdminUsersContent() {
                         <p className="text-gray-600 mt-4">Loading users...</p>
                     </div>
                 ) : users.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow p-8 text-center">
-                        <p className="text-gray-600 mb-4">No users found</p>
+                    <div className="bg-white rounded-lg shadow p-6 sm:p-8 text-center">
+                        <p className="text-sm sm:text-base text-gray-600 mb-4">No users found</p>
                         <button
                             onClick={() => setShowAddModal(true)}
                             className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
