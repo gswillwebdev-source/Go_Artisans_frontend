@@ -106,7 +106,6 @@ export default function ClientProfilePage() {
     const [updatingAppId, setUpdatingAppId] = useState(null)
     const [processingCompletionId, setProcessingCompletionId] = useState(null)
     const timeoutsRef = useRef([])
-    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -355,15 +354,25 @@ export default function ClientProfilePage() {
         if (!user?.id) return
 
         async function fetchFollowCounts() {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+
+            let requestTimeoutId
             try {
-                const response = await fetch(`/api/user/${user.id}`)
+                const controller = new AbortController()
+                requestTimeoutId = setTimeout(() => controller.abort(), 8000)
+                const response = await fetch(`/api/user/${user.id}`, { signal: controller.signal })
+
                 if (response.ok) {
                     const data = await response.json()
                     setFollowerCount(data.follower_count || 0)
                     setFollowingCount(data.following_count || 0)
                 }
             } catch (err) {
-                console.error('Failed to fetch follow counts:', err)
+                if (!/Failed to fetch|NetworkError|ERR_INTERNET_DISCONNECTED/i.test(err?.message || '')) {
+                    console.error('Failed to fetch follow counts:', err)
+                }
+            } finally {
+                clearTimeout(requestTimeoutId)
             }
         }
 
@@ -384,114 +393,7 @@ export default function ClientProfilePage() {
         }
     }, [emailResendCooldown])
 
-    // Real-time subscription for completions
-    useEffect(() => {
-        if (!user?.id || loading) return
-
-        // Subscribe to completions changes for this client
-        const completionsSubscription = supabase
-            .channel(`completions-${user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'completions',
-                    filter: `client_id=eq.${user.id}`
-                },
-                async (payload) => {
-                    // When a completion changes, refresh jobs with completions
-                    try {
-                        const { data: jobsData } = await supabase
-                            .from('jobs')
-                            .select('id,title,description,budget,location,status,category,client_id,created_at,updated_at')
-                            .eq('client_id', user.id)
-                            .order('created_at', { ascending: false })
-
-                        const { data: completionsData } = await supabase
-                            .from('completions')
-                            .select('id,job_id,status,worker_id,confirmed_at,declined_at,decline_reason,created_at')
-                            .eq('client_id', user.id)
-                            .order('created_at', { ascending: false })
-
-                        if (jobsData && completionsData) {
-                            const jobsWithCompletions = jobsData.map(job => ({
-                                ...job,
-                                completions: completionsData.filter(c => c.job_id === job.id)
-                            }))
-                            setJobs(jobsWithCompletions)
-                        }
-                    } catch (err) {
-                        console.error('Error refreshing completions:', err)
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            completionsSubscription?.unsubscribe()
-        }
-    }, [user?.id, loading])
-
-    // Real-time subscription for job applicants
-    useEffect(() => {
-        if (!user?.id || loading) return
-
-        const jobIds = jobs.map(job => job.id)
-
-        // Subscribe to application changes
-        const applicationsSubscription = supabase
-            .channel(`applications-${user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'applications'
-                },
-                async (payload) => {
-                    // When applications change, refresh applicants
-                    try {
-                        if (jobIds.length === 0) {
-                            setJobApplicants({})
-                            return
-                        }
-
-                        const { data: applicationsData } = await supabase
-                            .from('applications')
-                            .select(`id,job_id,worker_id,status,proposed_price,message,created_at,
-                                worker:worker_id(id,first_name,last_name,email,phone_number)`)
-                            .in('job_id', jobIds)
-                            .order('created_at', { ascending: false })
-                            .limit(200)
-
-                        if (applicationsData) {
-                            const applicantsMap = {}
-                            applicationsData.forEach(application => {
-                                if (!applicantsMap[application.job_id]) {
-                                    applicantsMap[application.job_id] = []
-                                }
-                                applicantsMap[application.job_id].push({
-                                    ...application,
-                                    first_name: application.worker?.first_name,
-                                    last_name: application.worker?.last_name,
-                                    email: application.worker?.email,
-                                    phone_number: application.worker?.phone_number
-                                })
-                            })
-                            setJobApplicants(applicantsMap)
-                        }
-                    } catch (err) {
-                        console.error('Error refreshing applications:', err)
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            applicationsSubscription?.unsubscribe()
-        }
-    }, [user?.id, loading, jobs])
+    // No realtime subscriptions here: profile flows use explicit fetch/write only.
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target
@@ -767,6 +669,10 @@ export default function ClientProfilePage() {
         setUpdateSuccess(false)
 
         try {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                throw new Error('NETWORK_OFFLINE')
+            }
+
             const currentProfilePicture = profile?.profile_picture || profile?.profilePicture || null
             const nextProfilePicture = formData.profilePicture || null
             const hasProfilePictureChanged = nextProfilePicture !== currentProfilePicture
@@ -798,26 +704,10 @@ export default function ClientProfilePage() {
                 return
             }
 
-            const saveController = new AbortController()
-            let saveTimeoutId
-
-            const saveRequest = supabase
+            const { error } = await supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
-                .abortSignal(saveController.signal)
-
-            const { error } = await Promise.race([
-                saveRequest,
-                new Promise((_, reject) => {
-                    saveTimeoutId = setTimeout(() => {
-                        saveController.abort()
-                        reject(new Error('SAVE_TIMEOUT'))
-                    }, PROFILE_SAVE_TIMEOUT_MS)
-                })
-            ])
-
-            clearTimeout(saveTimeoutId)
 
             if (error) throw error
 
@@ -836,8 +726,11 @@ export default function ClientProfilePage() {
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to update profile', err)
-            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
-                setUpdateError(t('profileSaveTooLong'))
+            if (
+                /NETWORK_OFFLINE|Failed to fetch|NetworkError|ERR_INTERNET_DISCONNECTED/i.test(err?.message || '')
+                || err?.name === 'TypeError'
+            ) {
+                setUpdateError(t('networkErrorMsg') || 'Network error. Please check your connection and try again.')
             } else {
                 setUpdateError(err.message || t('failedLoadProfileMsg'))
             }

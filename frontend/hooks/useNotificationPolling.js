@@ -3,6 +3,21 @@ import { supabase } from '@/lib/supabase'
 
 let notificationUpdateCallbacks = []
 const sentEmailsCache = new Set()
+let emailEndpointUnavailable = false
+
+function isOffline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
+function isLikelyNetworkError(err) {
+    const message = String(err?.message || '')
+    return (
+        err?.name === 'TypeError'
+        || /Failed to fetch/i.test(message)
+        || /NetworkError/i.test(message)
+        || /ERR_INTERNET_DISCONNECTED/i.test(message)
+    )
+}
 
 // Singleton notification manager
 const notificationManager = {
@@ -31,8 +46,16 @@ export function useNotificationPolling() {
     const [isPolling, setIsPolling] = useState(false)
     const [error, setError] = useState(null)
     const sendingRef = useRef(false)
+    const pollingRef = useRef(false)
 
     const fetchUnreadCount = useCallback(async () => {
+        if (pollingRef.current) return
+        if (isOffline()) {
+            setError(null)
+            return
+        }
+
+        pollingRef.current = true
         try {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
@@ -68,14 +91,18 @@ export function useNotificationPolling() {
             // Send unsent job notification emails (non-blocking)
             sendUnsentEmails(session.user.id)
         } catch (err) {
-            console.error('[Poll Error]', err)
-            setError(err.message)
+            if (!isLikelyNetworkError(err)) {
+                console.error('[Poll Error]', err)
+            }
+            setError(err?.message || null)
+        } finally {
+            pollingRef.current = false
         }
     }, [])
 
     const sendUnsentEmails = useCallback(async (workerId) => {
         // Prevent concurrent email sending
-        if (sendingRef.current) return
+        if (sendingRef.current || emailEndpointUnavailable || isOffline()) return
         sendingRef.current = true
 
         try {
@@ -139,7 +166,9 @@ export function useNotificationPolling() {
                 }
             }
         } catch (err) {
-            console.error('[Send Emails Error]', err)
+            if (!isLikelyNetworkError(err)) {
+                console.error('[Send Emails Error]', err)
+            }
         } finally {
             sendingRef.current = false
         }
@@ -149,6 +178,7 @@ export function useNotificationPolling() {
         const { notificationId, workerEmail, workerName, jobTitle, jobDescription, jobBudget, jobLocation, jobId, frequency } = emailData
 
         if (!workerEmail || !jobTitle) return
+        if (emailEndpointUnavailable || isOffline()) return
 
         const response = await fetch('/api/send-job-notification', {
             method: 'POST',
@@ -167,6 +197,10 @@ export function useNotificationPolling() {
         })
 
         if (!response.ok) {
+            if (response.status === 404) {
+                emailEndpointUnavailable = true
+                return
+            }
             throw new Error(`Failed to send email: ${response.statusText}`)
         }
 
@@ -178,6 +212,8 @@ export function useNotificationPolling() {
         const channels = []
 
         const setupRealtime = async () => {
+            if (isOffline()) return
+
             const { data: { session } } = await supabase.auth.getSession()
             if (!session || !isMounted) return
             const userId = session.user.id
@@ -212,6 +248,13 @@ export function useNotificationPolling() {
         setIsPolling(true)
         setupRealtime()
 
+        const handleOnline = () => {
+            if (!isMounted) return
+            fetchUnreadCount()
+            setupRealtime()
+        }
+        window.addEventListener('online', handleOnline)
+
         // Polling as 30-second fallback
         const pollInterval = setInterval(fetchUnreadCount, 30000)
 
@@ -222,6 +265,7 @@ export function useNotificationPolling() {
         return () => {
             isMounted = false
             clearInterval(pollInterval)
+            window.removeEventListener('online', handleOnline)
             notificationManager.unregisterCallback(handleUpdate)
             channels.forEach(ch => supabase.removeChannel(ch))
             setIsPolling(false)
@@ -246,8 +290,8 @@ function showBrowserNotification(newCount) {
     if (Notification.permission === 'granted') {
         new Notification('New Job Opportunities!', {
             body: `You have ${newCount} new job ${newCount === 1 ? 'alert' : 'alerts'}`,
-            icon: '/logo.png', // Update with your app logo
-            badge: '/logo.png',
+            icon: '/favicon.svg',
+            badge: '/favicon.svg',
             tag: 'job-notification',
             requireInteraction: false
         })
@@ -257,8 +301,8 @@ function showBrowserNotification(newCount) {
             if (permission === 'granted') {
                 new Notification('New Job Opportunities!', {
                     body: `You have ${newCount} new job ${newCount === 1 ? 'alert' : 'alerts'}`,
-                    icon: '/logo.png',
-                    badge: '/logo.png',
+                    icon: '/favicon.svg',
+                    badge: '/favicon.svg',
                     tag: 'job-notification',
                     requireInteraction: false
                 })

@@ -5,6 +5,20 @@ import { supabase } from '@/lib/supabase'
 
 const POLL_INTERVAL_MS = 30000
 
+function isMissingUpdateNoticeRpc(error) {
+    const code = String(error?.code || '')
+    const message = String(error?.message || '')
+    const details = String(error?.details || '')
+    const hint = String(error?.hint || '')
+
+    return (
+        Number(error?.status) === 404
+        || /PGRST202/i.test(code)
+        || /get_active_update_notice/i.test(message + details + hint)
+            && /does not exist|not found|schema cache/i.test(message + details + hint)
+    )
+}
+
 function toReadableDate(value) {
     if (!value) return ''
     const parsed = new Date(value)
@@ -17,6 +31,7 @@ export default function UpdateNoticeBanner() {
     const [dismissed, setDismissed] = useState(false)
     const [notificationPermission, setNotificationPermission] = useState('default')
     const notifiedVersionRef = useRef('')
+    const noticePollingEnabledRef = useRef(true)
 
     useEffect(() => {
         if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -38,13 +53,28 @@ export default function UpdateNoticeBanner() {
 
     useEffect(() => {
         let isMounted = true
+        let intervalId
+
+        const disablePolling = () => {
+            noticePollingEnabledRef.current = false
+            if (intervalId) clearInterval(intervalId)
+        }
 
         const fetchActiveNotice = async () => {
+            if (!noticePollingEnabledRef.current) return
+
             const { data, error } = await supabase.rpc('get_active_update_notice')
 
             if (!isMounted) return
 
             if (error) {
+                if (isMissingUpdateNoticeRpc(error)) {
+                    // Disable repeated polling when migration/RPC is missing.
+                    setNotice(null)
+                    disablePolling()
+                    return
+                }
+
                 // Keep UI quiet when migration has not been applied yet.
                 setNotice(null)
                 return
@@ -54,11 +84,11 @@ export default function UpdateNoticeBanner() {
         }
 
         fetchActiveNotice()
-        const id = setInterval(fetchActiveNotice, POLL_INTERVAL_MS)
+        intervalId = setInterval(fetchActiveNotice, POLL_INTERVAL_MS)
 
         return () => {
             isMounted = false
-            clearInterval(id)
+            if (intervalId) clearInterval(intervalId)
         }
     }, [])
 

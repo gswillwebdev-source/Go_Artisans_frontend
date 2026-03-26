@@ -29,7 +29,6 @@ export default function ProfilePage() {
     const [updateError, setUpdateError] = useState(null)
     const [updateSuccess, setUpdateSuccess] = useState(false)
     const [newService, setNewService] = useState('')
-    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     useEffect(() => {
         async function initProfile() {
@@ -117,6 +116,10 @@ export default function ProfilePage() {
             setUpdateLoading(true)
             setUpdateError(null)
 
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                throw new Error('NETWORK_OFFLINE')
+            }
+
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) throw new Error('Not authenticated')
 
@@ -152,26 +155,10 @@ export default function ProfilePage() {
                 return
             }
 
-            const saveController = new AbortController()
-            let saveTimeoutId
-
-            const saveRequest = supabase
+            const { error: updateError } = await supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
-                .abortSignal(saveController.signal)
-
-            const { error: updateError } = await Promise.race([
-                saveRequest,
-                new Promise((_, reject) => {
-                    saveTimeoutId = setTimeout(() => {
-                        saveController.abort()
-                        reject(new Error('SAVE_TIMEOUT'))
-                    }, PROFILE_SAVE_TIMEOUT_MS)
-                })
-            ])
-
-            clearTimeout(saveTimeoutId)
 
             if (updateError) throw updateError
 
@@ -181,8 +168,11 @@ export default function ProfilePage() {
             setTimeout(() => setUpdateSuccess(false), 3000)
         } catch (err) {
             console.error('Failed to update profile', err)
-            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
-                setUpdateError(t('profileSaveTooLong'))
+            if (
+                /NETWORK_OFFLINE|Failed to fetch|NetworkError|ERR_INTERNET_DISCONNECTED/i.test(err?.message || '')
+                || err?.name === 'TypeError'
+            ) {
+                setUpdateError(t('networkErrorMsg') || 'Network error. Please check your connection and try again.')
             } else {
                 setUpdateError(err.message || t('profileUpdateFailed'))
             }

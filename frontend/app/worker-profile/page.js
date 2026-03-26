@@ -129,7 +129,6 @@ export default function WorkerProfilePage() {
     const [isAvailabilityToggling, setIsAvailabilityToggling] = useState(false)
     const [availabilityError, setAvailabilityError] = useState('')
     const timeoutsRef = useRef([])
-    const PROFILE_SAVE_TIMEOUT_MS = 2900
 
     // Cleanup all timeouts on unmount
     useEffect(() => {
@@ -422,15 +421,25 @@ export default function WorkerProfilePage() {
         if (!user?.id) return
 
         async function fetchFollowCounts() {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+
+            let requestTimeoutId
             try {
-                const response = await fetch(`/api/user/${user.id}`)
+                const controller = new AbortController()
+                requestTimeoutId = setTimeout(() => controller.abort(), 8000)
+                const response = await fetch(`/api/user/${user.id}`, { signal: controller.signal })
+
                 if (response.ok) {
                     const data = await response.json()
                     setFollowerCount(data.follower_count || 0)
                     setFollowingCount(data.following_count || 0)
                 }
             } catch (err) {
-                console.error('Failed to fetch follow counts:', err)
+                if (!/Failed to fetch|NetworkError|ERR_INTERNET_DISCONNECTED/i.test(err?.message || '')) {
+                    console.error('Failed to fetch follow counts:', err)
+                }
+            } finally {
+                clearTimeout(requestTimeoutId)
             }
         }
 
@@ -441,47 +450,7 @@ export default function WorkerProfilePage() {
         return () => clearInterval(interval)
     }, [user?.id])
 
-    // Real-time subscription for application status changes
-    useEffect(() => {
-        if (!user?.id || loading) return
-
-        // Subscribe to applications changes for this worker
-        const applicationsSubscription = supabase
-            .channel(`applications-worker-${user.id}`)
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'applications',
-                    filter: `worker_id=eq.${user.id}`
-                },
-                (payload) => {
-                    const { status, job_id } = payload.new || {}
-
-                    if (!job_id || !status) return
-
-                    // Remove from all lists first
-                    setAppliedJobs(prev => prev.filter(app => app.id !== job_id))
-                    setPendingJobs(prev => prev.filter(app => app.id !== job_id))
-                    setFinishedJobs(prev => prev.filter(app => app.id !== job_id))
-
-                    // Add to appropriate list based on status
-                    if (status === 'pending') {
-                        setAppliedJobs(prev => [...prev, { ...payload.new, id: job_id }])
-                    } else if (status === 'accepted') {
-                        setPendingJobs(prev => [...prev, { ...payload.new, id: job_id }])
-                    } else if (status === 'completed') {
-                        setFinishedJobs(prev => [...prev, { ...payload.new, id: job_id }])
-                    }
-                }
-            )
-            .subscribe()
-
-        return () => {
-            applicationsSubscription?.unsubscribe()
-        }
-    }, [user?.id, loading])
+    // No realtime subscriptions here: profile flows use explicit fetch/write only.
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target
@@ -589,6 +558,10 @@ export default function WorkerProfilePage() {
         setUpdateSuccess(false)
 
         try {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+                throw new Error('NETWORK_OFFLINE')
+            }
+
             const portfolioData = normalizeStringArray(formData.portfolio)
             const currentPortfolio = normalizeStringArray(profile?.portfolio)
             const hasPortfolioChanged =
@@ -638,26 +611,10 @@ export default function WorkerProfilePage() {
                 return
             }
 
-            const saveController = new AbortController()
-            let saveTimeoutId
-
-            const saveRequest = supabase
+            const { error } = await supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
-                .abortSignal(saveController.signal)
-
-            const { error } = await Promise.race([
-                saveRequest,
-                new Promise((_, reject) => {
-                    saveTimeoutId = setTimeout(() => {
-                        saveController.abort()
-                        reject(new Error('SAVE_TIMEOUT'))
-                    }, PROFILE_SAVE_TIMEOUT_MS)
-                })
-            ])
-
-            clearTimeout(saveTimeoutId)
 
             if (error) throw error
 
@@ -678,8 +635,11 @@ export default function WorkerProfilePage() {
             timeoutsRef.current.push(id)
         } catch (err) {
             console.error('Failed to update profile', err)
-            if (err?.name === 'AbortError' || /SAVE_TIMEOUT/i.test(err?.message || '')) {
-                setUpdateError(t('profileSaveTooLong'))
+            if (
+                /NETWORK_OFFLINE|Failed to fetch|NetworkError|ERR_INTERNET_DISCONNECTED/i.test(err?.message || '')
+                || err?.name === 'TypeError'
+            ) {
+                setUpdateError(t('networkErrorMsg') || 'Network error. Please check your connection and try again.')
             } else {
                 setUpdateError(err.message || t('failedLoadProfileMsg'))
             }
