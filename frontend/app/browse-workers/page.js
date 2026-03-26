@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { buildBilingualQuery } from '@/lib/bilingualSearch'
 import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
@@ -53,7 +54,11 @@ export default function BrowseWorkersPage() {
                 .eq('is_active', true)
 
             if (searchFilters.keyword) {
-                query = query.or(`job_title.ilike.%${searchFilters.keyword}%,bio.ilike.%${searchFilters.keyword}%`)
+                // Use bilingual search to match French and English worker skills/titles
+                const bilingualOr = buildBilingualQuery(searchFilters.keyword, ['job_title', 'bio'])
+                if (bilingualOr) {
+                    query = query.or(bilingualOr)
+                }
             }
             if (searchFilters.location) {
                 query = query.ilike('location', `%${searchFilters.location}%`)

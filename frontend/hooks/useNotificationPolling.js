@@ -37,30 +37,35 @@ export function useNotificationPolling() {
             const { data: { session } } = await supabase.auth.getSession()
             if (!session) return
 
-            // Get unread count
-            const { count, error: err } = await supabase
+            // Count unread job alert notifications
+            const { count: jobCount, error: jobErr } = await supabase
                 .from('job_notifications')
                 .select('*', { count: 'exact', head: true })
                 .eq('worker_id', session.user.id)
                 .eq('status', 'new')
 
-            if (err) throw err
+            if (jobErr) throw jobErr
 
-            const countValue = count || 0
+            // Count unread follow/general notifications (non-fatal if table missing)
+            const { count: followCount } = await supabase
+                .from('notifications')
+                .select('*', { count: 'exact', head: true })
+                .eq('user_id', session.user.id)
+                .eq('is_read', false)
 
-            // Update singleton and notify all listeners
-            notificationManager.updateAll(countValue)
-            setUnreadCount(countValue)
+            const countValue = (jobCount || 0) + (followCount || 0)
 
-            // Show browser notification if we have new notifications
+            // Show browser notification if count increased
             if (countValue > 0 && notificationManager.lastCheck !== null && countValue > notificationManager.lastCheck) {
                 showBrowserNotification(countValue - notificationManager.lastCheck)
             }
 
             notificationManager.lastCheck = countValue
+            notificationManager.updateAll(countValue)
+            setUnreadCount(countValue)
             setError(null)
 
-            // Send unsent emails (non-blocking)
+            // Send unsent job notification emails (non-blocking)
             sendUnsentEmails(session.user.id)
         } catch (err) {
             console.error('[Poll Error]', err)
@@ -169,48 +174,56 @@ export function useNotificationPolling() {
     }, [])
 
     useEffect(() => {
-        // Initial fetch
-        fetchUnreadCount()
+        let isMounted = true
+        const channels = []
 
-        // Set up polling interval
-        setIsPolling(true)
-        const pollInterval = setInterval(() => {
-            fetchUnreadCount()
-        }, 30000) // Poll every 30 seconds
+        const setupRealtime = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session || !isMounted) return
+            const userId = session.user.id
 
-        // Register this component's callback
-        const handleUpdate = (count) => setUnreadCount(count)
-        notificationManager.registerCallback(handleUpdate)
+            // Real-time: new job alert notifications
+            const jobChannel = supabase
+                .channel(`job-notifs-rt-${userId}`)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'job_notifications',
+                    filter: `worker_id=eq.${userId}`
+                }, () => { if (isMounted) fetchUnreadCount() })
+                .subscribe()
 
-        // Cleanup
-        return () => {
-            clearInterval(pollInterval)
-            notificationManager.unregisterCallback(handleUpdate)
-            setIsPolling(false)
+            // Real-time: new follower / general notifications
+            const notifChannel = supabase
+                .channel(`user-notifs-rt-${userId}`)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'notifications',
+                    filter: `user_id=eq.${userId}`
+                }, () => { if (isMounted) fetchUnreadCount() })
+                .subscribe()
+
+            channels.push(jobChannel, notifChannel)
         }
-    }, [fetchUnreadCount])
 
-    return { unreadCount, isPolling, error }
-}
-
-    useEffect(() => {
         // Initial fetch
         fetchUnreadCount()
-
-        // Set up polling interval
         setIsPolling(true)
-        const pollInterval = setInterval(() => {
-            fetchUnreadCount()
-        }, 30000) // Poll every 30 seconds
+        setupRealtime()
+
+        // Polling as 30-second fallback
+        const pollInterval = setInterval(fetchUnreadCount, 30000)
 
         // Register this component's callback
-        const handleUpdate = (count) => setUnreadCount(count)
+        const handleUpdate = (count) => { if (isMounted) setUnreadCount(count) }
         notificationManager.registerCallback(handleUpdate)
 
-        // Cleanup
         return () => {
+            isMounted = false
             clearInterval(pollInterval)
             notificationManager.unregisterCallback(handleUpdate)
+            channels.forEach(ch => supabase.removeChannel(ch))
             setIsPolling(false)
         }
     }, [fetchUnreadCount])

@@ -1,24 +1,29 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@supabase/supabase-js'
 import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
 import FollowButton from '@/components/FollowButton'
+import UserCardSkeleton from '@/components/UserCardSkeleton'
 
 export default function AllUsersPage() {
+    const searchParams = useSearchParams()
     const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
     const [displayUsers, setDisplayUsers] = useState([])
     const [followingIds, setFollowingIds] = useState([])
     const [initialLoading, setInitialLoading] = useState(true)
     const [loadingMore, setLoadingMore] = useState(false)
     const [error, setError] = useState(null)
-    const [searchTerm, setSearchTerm] = useState('')
-    const [filterType, setFilterType] = useState('all')
+    const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
+    const [filterType, setFilterType] = useState(searchParams.get('type') || 'all')
     const [offset, setOffset] = useState(0)
     const [hasMore, setHasMore] = useState(true)
+    const [isSearching, setIsSearching] = useState(false)
     const loaderRef = useRef(null)
+    const didMountRef = useRef(false)
 
     // Fetch user's follows ONCE on mount
     useEffect(() => {
@@ -27,12 +32,38 @@ export default function AllUsersPage() {
         }
     }, [currentUser?.id])
 
-    // Fetch initial 30 users
+    // Fetch initial users
     useEffect(() => {
         if (!authLoading) {
             fetchInitialUsers()
         }
-    }, [authLoading, currentUser?.id])
+    }, [authLoading])
+
+    // Update URL without triggering Next.js navigation (replaceState avoids re-renders)
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams()
+        if (searchTerm) params.set('q', searchTerm)
+        if (filterType !== 'all') params.set('type', filterType)
+        const query = params.toString()
+        window.history.replaceState(null, '', query ? `/all-users?${query}` : '/all-users')
+    }, [searchTerm, filterType])
+
+    // Debounced fetch when search/filter changes
+    useEffect(() => {
+        if (authLoading) return
+
+        if (!didMountRef.current) {
+            didMountRef.current = true
+            return
+        }
+
+        const timer = setTimeout(() => {
+            fetchInitialUsers(true)
+        }, 350)
+
+        return () => clearTimeout(timer)
+    }, [searchTerm, filterType, authLoading])
 
     // Infinite scroll observer
     useEffect(() => {
@@ -109,13 +140,23 @@ export default function AllUsersPage() {
         }
     }
 
-    const fetchInitialUsers = async () => {
+    const fetchInitialUsers = async (fromSearch = false) => {
         try {
-            setInitialLoading(true)
+            if (fromSearch) {
+                setIsSearching(true)
+            } else {
+                setInitialLoading(true)
+            }
             setError(null)
             console.log('[ALL USERS] Fetching initial 30 users...')
 
-            const response = await fetch('/api/all-users?limit=30&offset=0')
+            const params = new URLSearchParams({
+                limit: '30',
+                offset: '0',
+                q: searchTerm,
+                type: filterType
+            })
+            const response = await fetch(`/api/all-users?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch users')
 
             const data = await response.json()
@@ -128,6 +169,7 @@ export default function AllUsersPage() {
             setError('Failed to load users')
         } finally {
             setInitialLoading(false)
+            setIsSearching(false)
         }
     }
 
@@ -136,7 +178,13 @@ export default function AllUsersPage() {
             setLoadingMore(true)
             console.log('[ALL USERS] Loading more users from offset:', offset)
 
-            const response = await fetch(`/api/all-users?limit=15&offset=${offset}`)
+            const params = new URLSearchParams({
+                limit: '15',
+                offset: String(offset),
+                q: searchTerm,
+                type: filterType
+            })
+            const response = await fetch(`/api/all-users?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch more users')
 
             const data = await response.json()
@@ -169,21 +217,41 @@ export default function AllUsersPage() {
         }
     }
 
-    // Filter users based on search and type
+    // Trigger immediate search without waiting for debounce
+    const handleImmediateSearch = async () => {
+        setIsSearching(true)
+        setInitialLoading(true)
+        setOffset(0)
+        setDisplayUsers([])
+
+        try {
+            const params = new URLSearchParams({
+                limit: '30',
+                offset: '0',
+                q: searchTerm,
+                type: filterType
+            })
+            const response = await fetch(`/api/all-users?${params.toString()}`)
+            if (!response.ok) throw new Error('Failed to fetch users')
+
+            const data = await response.json()
+            console.log('[ALL USERS] Search results:', data.users?.length, 'users')
+            setDisplayUsers(data.users || [])
+            setOffset(30)
+            setHasMore(data.total > 30)
+        } catch (err) {
+            console.error('Failed to fetch users:', err)
+            setError('Failed to load users')
+        } finally {
+            setInitialLoading(false)
+            setIsSearching(false)
+        }
+    }
+
+    // Keep current user hidden from list
     const filteredUsers = usersWithFollowStatus.filter(user => {
-        const matchesSearch =
-            user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.job_title?.toLowerCase().includes(searchTerm.toLowerCase())
-
-        const matchesType =
-            filterType === 'all' ||
-            (filterType === 'workers' && user.user_type === 'worker') ||
-            (filterType === 'clients' && user.user_type === 'client')
-
         if (currentUser?.id === user.id) return false
-
-        return matchesSearch && matchesType
+        return true
     })
 
     return (
@@ -196,24 +264,54 @@ export default function AllUsersPage() {
                 </div>
 
                 {/* Search and Filters */}
-                <div className="bg-white rounded-lg shadow p-6 mb-8">
+                <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6 mb-8">
                     <div className="flex flex-col gap-4">
-                        {/* Search Input */}
-                        <input
-                            type="text"
-                            placeholder="Search by name or skill..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        />
+                        <div className="relative">
+                            <input
+                                type="text"
+                                placeholder="Search by name, skill, bio or location..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        handleImmediateSearch()
+                                    }
+                                }}
+                                className="w-full pl-11 pr-28 py-3 border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition"
+                            />
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-2">
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        className="text-xs font-semibold text-gray-500 hover:text-indigo-600 px-2"
+                                    >
+                                        Clear
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleImmediateSearch}
+                                    className="bg-indigo-600 text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-indigo-700 transition"
+                                >
+                                    Send
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-sm">
+                            <p className="text-gray-500">Results update automatically as you type.</p>
+                            {isSearching && <p className="text-indigo-600 font-medium">Searching...</p>}
+                        </div>
 
                         {/* Filter Buttons */}
                         <div className="flex gap-2 flex-wrap">
                             <button
                                 onClick={() => setFilterType('all')}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'all'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                                     }`}
                             >
                                 All Users
@@ -221,8 +319,8 @@ export default function AllUsersPage() {
                             <button
                                 onClick={() => setFilterType('workers')}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'workers'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                                     }`}
                             >
                                 Workers
@@ -230,8 +328,8 @@ export default function AllUsersPage() {
                             <button
                                 onClick={() => setFilterType('clients')}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'clients'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                                    ? 'bg-indigo-600 text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                                     }`}
                             >
                                 Clients
@@ -256,6 +354,14 @@ export default function AllUsersPage() {
                     <div className="text-center py-12">
                         <p className="text-red-600">{error}</p>
                     </div>
+                ) : isSearching && displayUsers.length === 0 && searchTerm ? (
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <UserCardSkeleton key={i} />
+                            ))}
+                        </div>
+                    </>
                 ) : filteredUsers.length === 0 ? (
                     <div className="text-center py-12">
                         <p className="text-gray-500">No users found</p>

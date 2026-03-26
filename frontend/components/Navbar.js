@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/LanguageContext'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function Navbar() {
     const { user, isLoading: authLoading } = useAuth({ redirectToLogin: false })
@@ -138,6 +139,7 @@ export default function Navbar() {
                                     >
                                         🚪 {t('logout')}
                                     </button>
+                                    <NotificationBell />
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-slate-300 flex-wrap justify-end min-w-0">
