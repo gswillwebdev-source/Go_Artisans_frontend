@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -9,7 +9,7 @@ import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
 import FollowButton from '@/components/FollowButton'
 import UserCardSkeleton from '@/components/UserCardSkeleton'
 
-export default function AllClientsPage() {
+function AllClientsPageContent() {
     const searchParams = useSearchParams()
     const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
     const [displayClients, setDisplayClients] = useState([])
@@ -450,5 +450,13 @@ export default function AllClientsPage() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function AllClientsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8" />}>
+            <AllClientsPageContent />
+        </Suspense>
     )
 }

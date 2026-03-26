@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { Suspense, useEffect, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { buildBilingualQuery } from '@/lib/bilingualSearch'
@@ -9,7 +9,7 @@ import JobCardSkeleton from '@/components/JobCardSkeleton'
 import SearchBar from '@/components/SearchBar'
 import { useLanguage } from '@/context/LanguageContext'
 
-export default function JobsPage() {
+function JobsPageContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const [jobs, setJobs] = useState([])
@@ -182,5 +182,13 @@ export default function JobsPage() {
                 )}
             </div>
         </div>
+    )
+}
+
+export default function JobsPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen py-8 sm:py-10" />}>
+            <JobsPageContent />
+        </Suspense>
     )
 }
