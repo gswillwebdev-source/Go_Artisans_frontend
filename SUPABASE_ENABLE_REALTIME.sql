@@ -11,8 +11,29 @@ ALTER TABLE public.job_notifications REPLICA IDENTITY FULL;
 ALTER TABLE public.notifications REPLICA IDENTITY FULL;
 
 -- 2. Add both tables to the supabase_realtime publication
-ALTER PUBLICATION supabase_realtime ADD TABLE public.job_notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+--    Safe to rerun: only adds tables that are not already present
+DO $$
+BEGIN
+	IF NOT EXISTS (
+		SELECT 1
+		FROM pg_publication_tables
+		WHERE pubname = 'supabase_realtime'
+		AND schemaname = 'public'
+		AND tablename = 'job_notifications'
+	) THEN
+		ALTER PUBLICATION supabase_realtime ADD TABLE public.job_notifications;
+	END IF;
+
+	IF NOT EXISTS (
+		SELECT 1
+		FROM pg_publication_tables
+		WHERE pubname = 'supabase_realtime'
+		AND schemaname = 'public'
+		AND tablename = 'notifications'
+	) THEN
+		ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+	END IF;
+END $$;
 
 -- ============================================================================
 -- VERIFY (optional — run these to confirm)
