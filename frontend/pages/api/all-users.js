@@ -11,7 +11,42 @@ function errorDetails(error) {
   }
 }
 
-async function fetchUsersWithFallback(supabase) {
+function escapeIlike(value) {
+  return String(value).replace(/[%_,]/g, '').trim()
+}
+
+function applyTypeFilter(query, normalizedType) {
+  if (normalizedType === 'workers') {
+    return query.eq('user_type', 'worker').eq('is_active', true)
+  }
+
+  if (normalizedType === 'clients') {
+    return query.eq('user_type', 'client')
+  }
+
+  // all = clients + active workers
+  return query.or('user_type.eq.client,and(user_type.eq.worker,is_active.eq.true)')
+}
+
+function applySearchFilter(query, variants) {
+  if (!Array.isArray(variants) || variants.length === 0) return query
+
+  const conditions = []
+  for (const rawVariant of variants) {
+    const variant = escapeIlike(rawVariant)
+    if (!variant) continue
+    conditions.push(`first_name.ilike.%${variant}%`)
+    conditions.push(`last_name.ilike.%${variant}%`)
+    conditions.push(`job_title.ilike.%${variant}%`)
+    conditions.push(`bio.ilike.%${variant}%`)
+    conditions.push(`location.ilike.%${variant}%`)
+  }
+
+  if (conditions.length === 0) return query
+  return query.or(conditions.join(','))
+}
+
+async function fetchUsersWithFallback(supabase, { normalizedType, searchVariants, limitNum, offsetNum }) {
   const selectCandidates = [
     // Full payload expected by newer UI
     `
@@ -33,10 +68,16 @@ async function fetchUsersWithFallback(supabase) {
   let lastError = null
 
   for (const selectClause of selectCandidates) {
-    const result = await supabase
+    let resultQuery = supabase
       .from('users')
-      .select(selectClause)
+      .select(selectClause, { count: 'exact' })
       .order('created_at', { ascending: false })
+      .range(offsetNum, offsetNum + limitNum - 1)
+
+    resultQuery = applyTypeFilter(resultQuery, normalizedType)
+    resultQuery = applySearchFilter(resultQuery, searchVariants)
+
+    const result = await resultQuery
 
     if (!result.error) {
       return result
@@ -95,62 +136,35 @@ export default async function handler(req, res) {
     )
 
     const { limit = 30, offset = 0, q = '', type = 'all' } = req.query
+    const limitNum = Math.max(1, Math.min(50, parseInt(limit, 10) || 30))
+    const offsetNum = Math.max(0, parseInt(offset, 10) || 0)
     const normalizedSearch = String(q).trim().toLowerCase()
     const normalizedType = String(type).toLowerCase()
     const searchVariants = getSearchVariants(normalizedSearch)
 
-    console.log('[ALL USERS API] Fetching users - limit:', limit, 'offset:', offset, 'q:', q, 'type:', type, 'variants:', searchVariants)
+    console.log('[ALL USERS API] Fetching users - limit:', limitNum, 'offset:', offsetNum, 'q:', q, 'type:', type, 'variants:', searchVariants)
 
-    // Fetch all users (clients + workers) - filter after
-    const { data: allUsers, error: usersError } = await fetchUsersWithFallback(supabase)
+    const { data: users, count, error: usersError } = await fetchUsersWithFallback(supabase, {
+      normalizedType,
+      searchVariants,
+      limitNum,
+      offsetNum
+    })
 
     if (usersError) {
       console.error('[ALL USERS API] Error:', usersError)
       throw usersError
     }
 
-    // Per-field substring match — checks each field individually so names always match correctly
-    function matchesVariants(value, variants) {
-      if (!value) return false
-      const lv = String(value).toLowerCase()
-      return variants.some(v => lv.includes(v))
-    }
+    const total = typeof count === 'number' ? count : (users || []).length
 
-    function userMatchesSearch(user) {
-      if (!normalizedSearch) return true
-      return (
-        matchesVariants(user.first_name, searchVariants) ||
-        matchesVariants(user.last_name, searchVariants) ||
-        matchesVariants(user.job_title, searchVariants) ||
-        matchesVariants(user.bio, searchVariants) ||
-        matchesVariants(user.location, searchVariants) ||
-        (Array.isArray(user.services) && user.services.some(s => matchesVariants(s, searchVariants)))
-      )
-    }
-
-    // Filter: Show all clients + only active workers
-    const filteredUsers = (allUsers || []).filter(user => {
-      if (normalizedType === 'workers' && user.user_type !== 'worker') return false
-      if (normalizedType === 'clients' && user.user_type !== 'client') return false
-      if (user.user_type === 'client') return userMatchesSearch(user)
-      if (user.user_type === 'worker' && user.is_active === true) return userMatchesSearch(user)
-      return false
-    })
-
-    // Apply pagination
-    const paginatedUsers = filteredUsers.slice(
-      parseInt(offset),
-      parseInt(offset) + parseInt(limit)
-    )
-    const total = filteredUsers.length
-
-    console.log('[ALL USERS API] Returning', paginatedUsers.length, 'users')
+    console.log('[ALL USERS API] Returning', users?.length || 0, 'users')
 
     return res.status(200).json({
-      users: paginatedUsers,
+      users: users || [],
       total: total,
-      limit: parseInt(limit),
-      offset: parseInt(offset)
+      limit: limitNum,
+      offset: offsetNum
     })
 
   } catch (error) {
