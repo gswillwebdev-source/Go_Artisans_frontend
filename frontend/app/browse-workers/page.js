@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
 import WorkerSearchBar from '@/components/WorkerSearchBar'
+import UserCardSkeleton from '@/components/UserCardSkeleton'
 
 export default function BrowseWorkersPage() {
     const PAGE_SIZE = 24
@@ -99,7 +100,11 @@ export default function BrowseWorkersPage() {
                 <WorkerSearchBar onSearch={handleSearch} />
 
                 {loading ? (
-                    <div className="text-center py-8 text-slate-600 font-semibold">{t('loading')}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                            <UserCardSkeleton key={`worker-skeleton-${index}`} />
+                        ))}
+                    </div>
                 ) : workers.length === 0 ? (
                     <div className="glass-surface rounded-2xl p-10 text-center text-slate-600 mt-6">{t('noWorkersFound')}</div>
                 ) : (
