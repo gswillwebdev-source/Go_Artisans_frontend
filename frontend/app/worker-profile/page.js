@@ -611,24 +611,36 @@ export default function WorkerProfilePage() {
                 return
             }
 
-            const { error } = await supabase
+            const { data: updatedData, error } = await supabase
                 .from('users')
                 .update(updatePayload)
                 .eq('id', user.id)
+                .select('id,email,first_name,last_name,phone_number,job_title,location,bio,years_experience,portfolio,services,rating,user_type,completed_jobs,is_active,profile_picture,created_at,updated_at')
+                .single()
 
             if (error) throw error
 
-            const nextPortfolio = hasPortfolioChanged ? portfolioData : currentPortfolio
-            const updatedUser = {
-                ...(profile || {}),
-                ...updatePayload,
-                portfolio: nextPortfolio,
-                profile_picture: hasProfilePictureChanged ? nextProfilePicture : currentProfilePicture
-            }
-
-            const normalizedUpdatedUser = normalizeWorkerProfile(updatedUser, profile?.email || user?.email)
+            // Use the actual saved row from the database instead of reconstructing locally
+            const normalizedUpdatedUser = normalizeWorkerProfile(updatedData || profile, profile?.email || user?.email)
             setProfile(normalizedUpdatedUser)
             setProfilePicturePreview(normalizedUpdatedUser.profilePicture)
+
+            // Sync formData so the edit form reflects what was actually saved
+            setFormData({
+                email: normalizedUpdatedUser.email,
+                firstName: normalizedUpdatedUser.firstName,
+                lastName: normalizedUpdatedUser.lastName,
+                phoneNumber: normalizedUpdatedUser.phoneNumber,
+                isWorker: normalizedUpdatedUser.user_type === 'worker',
+                jobTitle: normalizedUpdatedUser.jobTitle,
+                location: normalizedUpdatedUser.location,
+                bio: normalizedUpdatedUser.bio,
+                yearsExperience: normalizedUpdatedUser.yearsExperience,
+                services: normalizedUpdatedUser.services,
+                portfolio: normalizedUpdatedUser.portfolio,
+                profilePicture: normalizedUpdatedUser.profilePicture
+            })
+
             setIsEditing(false)
             setUpdateSuccess(true)
             const id = setTimeout(() => setUpdateSuccess(false), 3000)
