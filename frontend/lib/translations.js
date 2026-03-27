@@ -171,6 +171,7 @@ export const translations = {
 
         // general
         loading: 'Loading...',
+        loadMore: 'Load More',
         noWorkersFound: 'No workers found matching your criteria',
         error: 'Error',
         success: 'Success',
@@ -715,6 +716,7 @@ export const translations = {
 
         // general
         loading: 'Chargement...',
+        loadMore: 'Charger plus',
         noWorkersFound: 'Aucun artisan trouvé correspondant à vos critères',
         error: 'Erreur',
         success: 'Succès',

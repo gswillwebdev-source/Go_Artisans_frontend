@@ -10,10 +10,14 @@ import SearchBar from '@/components/SearchBar'
 import { useLanguage } from '@/context/LanguageContext'
 
 function JobsPageContent() {
+    const PAGE_SIZE = 24
     const router = useRouter()
     const searchParams = useSearchParams()
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(true)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [hasMore, setHasMore] = useState(false)
+    const [page, setPage] = useState(1)
     const { t } = useLanguage()
     const [activeFilters, setActiveFilters] = useState({
         keyword: searchParams.get('keyword') || '',
@@ -31,22 +35,9 @@ function JobsPageContent() {
         }
 
         checkAuth()
-        // Initial fetch - will be overridden by search if query params exist
-        if (!searchParams.get('keyword') && !searchParams.get('location') && !searchParams.get('jobType')) {
-            fetchJobs()
-        }
+        fetchJobs(activeFilters, 1, false)
         didMountRef.current = true
     }, [])
-
-    // Trigger search when activeFilters change from URL params
-    useEffect(() => {
-        if (!didMountRef.current) return
-
-        // If any filters are set, trigger search
-        if (activeFilters.keyword || activeFilters.location || activeFilters.jobType) {
-            handleSearch(activeFilters)
-        }
-    }, [activeFilters.keyword, activeFilters.location, activeFilters.jobType])
 
     // Update URL when filters change
     useEffect(() => {
@@ -60,45 +51,13 @@ function JobsPageContent() {
         router.push(query ? `/jobs?${query}` : '/jobs')
     }, [activeFilters, router])
 
-    const fetchJobs = async () => {
+    const fetchJobs = async (searchFilters = activeFilters, nextPage = 1, append = false) => {
         try {
-            setLoading(true)
-            const { data: jobsData, error } = await supabase
-                .from('jobs')
-                .select(`
-                    id,
-                    title,
-                    description,
-                    budget,
-                    location,
-                    category,
-                    status,
-                    created_at,
-                    client:client_id (
-                        id,
-                        first_name,
-                        last_name
-                    )
-                `)
-                .eq('status', 'active')
-                .order('created_at', { ascending: false })
-
-            if (error) {
-                throw error
+            if (append) {
+                setLoadingMore(true)
+            } else {
+                setLoading(true)
             }
-
-            setJobs(jobsData || [])
-        } catch (err) {
-            console.error(t('failedToFetchJobs'), err)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const handleSearch = async (searchFilters) => {
-        try {
-            setLoading(true)
-            setActiveFilters(searchFilters)
 
             let query = supabase
                 .from('jobs')
@@ -118,10 +77,9 @@ function JobsPageContent() {
                     )
                 `)
                 .eq('status', 'active')
+                .order('created_at', { ascending: false })
 
-            // Apply filters
             if (searchFilters.keyword) {
-                // Use bilingual search to match French and English job titles
                 const bilingualOr = buildBilingualQuery(searchFilters.keyword, ['title', 'description'])
                 if (bilingualOr) {
                     query = query.or(bilingualOr)
@@ -134,18 +92,39 @@ function JobsPageContent() {
                 query = query.eq('category', searchFilters.jobType)
             }
 
-            const { data: jobsData, error } = await query.order('created_at', { ascending: false })
+            const start = (nextPage - 1) * PAGE_SIZE
+            const end = start + PAGE_SIZE - 1
+
+            const { data: jobsData, error } = await query.range(start, end)
 
             if (error) {
                 throw error
             }
 
-            setJobs(jobsData || [])
+            const safeJobs = jobsData || []
+            setJobs(prev => (append ? [...prev, ...safeJobs] : safeJobs))
+            setHasMore(safeJobs.length === PAGE_SIZE)
+            setPage(nextPage)
         } catch (err) {
-            console.error(t('searchFailed'), err)
+            console.error(t('failedToFetchJobs'), err)
         } finally {
             setLoading(false)
+            setLoadingMore(false)
         }
+    }
+
+    const handleSearch = async (searchFilters) => {
+        try {
+            setActiveFilters(searchFilters)
+            await fetchJobs(searchFilters, 1, false)
+        } catch (err) {
+            console.error(t('searchFailed'), err)
+        }
+    }
+
+    const handleLoadMore = async () => {
+        if (!hasMore || loading || loadingMore) return
+        await fetchJobs(activeFilters, page + 1, true)
     }
 
     return (
@@ -174,11 +153,25 @@ function JobsPageContent() {
                 ) : jobs.length === 0 ? (
                     <div className="glass-surface rounded-2xl p-10 text-center text-slate-600 mt-6">{t('noJobsFound')}</div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-                        {jobs.map((job) => (
-                            <JobCard key={job.id} job={job} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                            {jobs.map((job) => (
+                                <JobCard key={job.id} job={job} />
+                            ))}
+                        </div>
+                        {hasMore && (
+                            <div className="mt-8 flex justify-center">
+                                <button
+                                    type="button"
+                                    onClick={handleLoadMore}
+                                    disabled={loadingMore}
+                                    className="px-6 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 disabled:opacity-60"
+                                >
+                                    {loadingMore ? t('loading') : t('loadMore')}
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

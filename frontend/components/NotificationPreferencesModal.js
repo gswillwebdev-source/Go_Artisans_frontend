@@ -19,6 +19,10 @@ function createDefaultPreferences(userId = null) {
     }
 }
 
+function isAuthSessionMissing(err) {
+    return err?.name === 'AuthSessionMissingError' || err?.message?.toLowerCase?.().includes('auth session missing')
+}
+
 export default function NotificationPreferencesModal({ onClose }) {
     const { t } = useLanguage()
     const router = useRouter()
@@ -38,11 +42,21 @@ export default function NotificationPreferencesModal({ onClose }) {
     const fetchPreferences = async () => {
         try {
             setLoading(true)
-            const { data: { user }, error: authError } = await supabase.auth.getUser()
+            const { data: { session }, error: authError } = await supabase.auth.getSession()
 
-            if (authError || !user) {
-                throw authError || new Error('Not authenticated')
+            if (authError) {
+                throw authError
             }
+
+            if (!session?.user) {
+                const defaults = createDefaultPreferences()
+                setPreferences(defaults)
+                setInitialPreferences(defaults)
+                setError('')
+                return
+            }
+
+            const user = session.user
 
             let { data, error: err } = await supabase
                 .from('notification_preferences')
@@ -63,7 +77,9 @@ export default function NotificationPreferencesModal({ onClose }) {
             setInitialPreferences(resolvedPreferences)
             setError('')
         } catch (err) {
-            console.error('[Fetch Preferences Error]', err)
+            if (!isAuthSessionMissing(err)) {
+                console.error('[Fetch Preferences Error]', err)
+            }
             setError(t('failedLoadPreferences'))
         } finally {
             setLoading(false)
@@ -105,8 +121,9 @@ export default function NotificationPreferencesModal({ onClose }) {
                 return
             }
 
-            const { data: { user }, error: authError } = await supabase.auth.getUser()
-            if (authError || !user) throw authError || new Error('Not authenticated')
+            const { data: { session }, error: authError } = await supabase.auth.getSession()
+            if (authError || !session?.user) throw authError || new Error('Not authenticated')
+            const user = session.user
 
             const { data: savedPreferences, error: err } = await supabase
                 .from('notification_preferences')

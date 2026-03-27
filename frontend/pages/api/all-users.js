@@ -1,5 +1,54 @@
 import { createClient } from '@supabase/supabase-js'
 
+function errorDetails(error) {
+  if (!error) return null
+  return {
+    message: error.message,
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+    name: error.name
+  }
+}
+
+async function fetchUsersWithFallback(supabase) {
+  const selectCandidates = [
+    // Full payload expected by newer UI
+    `
+      id, first_name, last_name, profile_picture, job_title, location,
+      user_type, rating, bio, services, portfolio, completed_jobs, is_active, created_at
+    `,
+    // Common payload when advanced portfolio fields are absent
+    `
+      id, first_name, last_name, profile_picture, job_title, location,
+      user_type, rating, bio, completed_jobs, is_active, created_at
+    `,
+    // Minimal safe payload
+    `
+      id, first_name, last_name, profile_picture, job_title, location,
+      user_type, bio, is_active, created_at
+    `
+  ]
+
+  let lastError = null
+
+  for (const selectClause of selectCandidates) {
+    const result = await supabase
+      .from('users')
+      .select(selectClause)
+      .order('created_at', { ascending: false })
+
+    if (!result.error) {
+      return result
+    }
+
+    lastError = result.error
+    console.warn('[ALL USERS API] Select fallback failed:', errorDetails(result.error))
+  }
+
+  return { data: null, error: lastError }
+}
+
 const frenchToEnglish = {
   peintre: 'painter', peinture: 'painting', maçon: 'mason', maçonnerie: 'masonry',
   carrelage: 'tiling', carreleur: 'tiler', plomberie: 'plumbing', plombier: 'plumber',
@@ -53,13 +102,7 @@ export default async function handler(req, res) {
     console.log('[ALL USERS API] Fetching users - limit:', limit, 'offset:', offset, 'q:', q, 'type:', type, 'variants:', searchVariants)
 
     // Fetch all users (clients + workers) - filter after
-    const { data: allUsers, error: usersError } = await supabase
-      .from('users')
-      .select(`
-        id, first_name, last_name, profile_picture, job_title, location,
-        user_type, rating, bio, services, portfolio, completed_jobs, is_active, created_at
-      `)
-      .order('created_at', { ascending: false })
+    const { data: allUsers, error: usersError } = await fetchUsersWithFallback(supabase)
 
     if (usersError) {
       console.error('[ALL USERS API] Error:', usersError)
@@ -111,7 +154,7 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[ALL USERS API] Error:', error)
+    console.error('[ALL USERS API] Error:', errorDetails(error))
     return res.status(500).json({ error: 'Failed to fetch users' })
   }
 }

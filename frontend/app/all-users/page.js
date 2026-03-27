@@ -49,7 +49,7 @@ function AllUsersPageContent() {
         window.history.replaceState(null, '', query ? `/all-users?${query}` : '/all-users')
     }, [searchTerm, filterType])
 
-    // Debounced fetch when search/filter changes
+    // Debounced fetch when search term changes
     useEffect(() => {
         if (authLoading) return
 
@@ -63,7 +63,7 @@ function AllUsersPageContent() {
         }, 350)
 
         return () => clearTimeout(timer)
-    }, [searchTerm, filterType, authLoading])
+    }, [searchTerm, authLoading])
 
     // Infinite scroll observer
     useEffect(() => {
@@ -140,7 +140,7 @@ function AllUsersPageContent() {
         }
     }
 
-    const fetchInitialUsers = async (fromSearch = false) => {
+    const fetchInitialUsers = async (fromSearch = false, overrideType = null) => {
         try {
             if (fromSearch) {
                 setIsSearching(true)
@@ -154,7 +154,7 @@ function AllUsersPageContent() {
                 limit: '30',
                 offset: '0',
                 q: searchTerm,
-                type: filterType
+                type: overrideType ?? filterType
             })
             const response = await fetch(`/api/all-users?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch users')
@@ -308,7 +308,7 @@ function AllUsersPageContent() {
                         {/* Filter Buttons */}
                         <div className="flex gap-2 flex-wrap">
                             <button
-                                onClick={() => setFilterType('all')}
+                                onClick={() => { setFilterType('all'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'all') }}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'all'
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -317,7 +317,7 @@ function AllUsersPageContent() {
                                 All Users
                             </button>
                             <button
-                                onClick={() => setFilterType('workers')}
+                                onClick={() => { setFilterType('workers'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'workers') }}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'workers'
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -326,7 +326,7 @@ function AllUsersPageContent() {
                                 Workers
                             </button>
                             <button
-                                onClick={() => setFilterType('clients')}
+                                onClick={() => { setFilterType('clients'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'clients') }}
                                 className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'clients'
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -347,8 +347,10 @@ function AllUsersPageContent() {
 
                 {/* Users Grid */}
                 {initialLoading ? (
-                    <div className="text-center py-12">
-                        <p className="text-gray-500">Loading users...</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {Array.from({ length: 8 }).map((_, i) => (
+                            <UserCardSkeleton key={i} />
+                        ))}
                     </div>
                 ) : error ? (
                     <div className="text-center py-12">
