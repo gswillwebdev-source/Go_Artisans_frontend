@@ -46,6 +46,15 @@ function applySearchFilter(query, variants) {
   return query.or(conditions.join(','))
 }
 
+function sanitizeListUser(user) {
+  const profilePicture = user?.profile_picture
+  const isLargeInlineImage =
+    typeof profilePicture === 'string' &&
+    profilePicture.startsWith('data:image/') &&
+    profilePicture.length > 5000
+  return { ...user, profile_picture: isLargeInlineImage ? null : profilePicture || null }
+}
+
 async function fetchUsersWithFallback(supabase, { normalizedType, searchVariants, limitNum, offsetNum }) {
   const selectCandidates = [
     // Full payload expected by newer UI
@@ -161,7 +170,7 @@ export default async function handler(req, res) {
     console.log('[ALL USERS API] Returning', users?.length || 0, 'users')
 
     return res.status(200).json({
-      users: users || [],
+      users: (users || []).map(sanitizeListUser),
       total: total,
       limit: limitNum,
       offset: offsetNum

@@ -15,6 +15,15 @@ const frenchToEnglish = {
 }
 const englishToFrench = Object.fromEntries(Object.entries(frenchToEnglish).map(([fr, en]) => [en, fr]))
 
+function sanitizeListUser(user) {
+  const profilePicture = user?.profile_picture
+  const isLargeInlineImage =
+    typeof profilePicture === 'string' &&
+    profilePicture.startsWith('data:image/') &&
+    profilePicture.length > 5000
+  return { ...user, profile_picture: isLargeInlineImage ? null : profilePicture || null }
+}
+
 function getSearchVariants(query) {
   if (!query || query.trim().length === 0) return []
   const normalized = query.toLowerCase().trim()
@@ -93,7 +102,7 @@ export default async function handler(req, res) {
     console.log('[ALL CLIENTS API] Returning', paginatedClients.length, 'clients')
 
     return res.status(200).json({
-      users: paginatedClients,
+      users: paginatedClients.map(sanitizeListUser),
       total: total,
       limit: parseInt(limit),
       offset: parseInt(offset)
