@@ -1,4 +1,10 @@
 {
     "buildCommand": "npm run build; cp frontend/.next/routes-manifest.json frontend/.next/routes-manifest-deterministic.json; rm -rf .next; cp -R frontend/.next .next; rm -rf node_modules; cp -R frontend/node_modules node_modules",
-    "installCommand": "npm install; npm --prefix frontend install"
+    "installCommand": "npm install; npm --prefix frontend install",
+    "crons": [
+        {
+            "path": "/api/cron/send-emails",
+            "schedule": "0 9 * * *"
+        }
+    ]
 }
