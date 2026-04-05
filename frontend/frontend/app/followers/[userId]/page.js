@@ -1,0 +1,188 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
+import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
+import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
+import { useLanguage } from '@/context/LanguageContext'
+
+export default function FollowersPage() {
+    const { t } = useLanguage()
+    const params = useParams()
+    const userId = params.userId
+    const { user: currentUser, isLoading: authLoading } = useAuth({ redirectToLogin: false })
+    const router = useRouter()
+
+    const [followers, setFollowers] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+    const [userName, setUserName] = useState('')
+
+    useEffect(() => {
+        // Wait for auth to load and userId to be available
+        if (!userId || authLoading) return
+
+        // Redirect if not viewing own followers
+        if (currentUser?.id !== userId) {
+            router.push('/browse-workers')
+            return
+        }
+
+        async function fetchFollowers() {
+            try {
+                setLoading(true)
+                setError(null)
+
+                const response = await fetch(
+                    `/api/followers/${userId}?viewer_id=${currentUser.id}&limit=50&offset=0`
+                )
+
+                if (response.status === 403) {
+                    setError(t('youCanOnlyViewYourOwnFollowers'))
+                    return
+                }
+
+                if (!response.ok) {
+                    throw new Error(t('failedToFetchFollowers'))
+                }
+
+                const data = await response.json()
+                setFollowers(data.followers || [])
+
+                // Fetch user name for title
+                if (data.followers.length > 0 || currentUser) {
+                    setUserName(currentUser?.first_name || '')
+                }
+
+            } catch (err) {
+                console.error('Failed to fetch followers:', err)
+                setError(t('failedToLoadFollowers'))
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchFollowers()
+    }, [userId, currentUser?.id, router])
+
+    // Listen for follow/unfollow events and refresh if needed
+    useEffect(() => {
+        const handleFollowChange = (event) => {
+            console.log('[FOLLOWERS PAGE] Follow event received')
+            // Refetch followers when any follow/unfollow happens
+            if (userId && currentUser?.id === userId) {
+                async function refreshFollowers() {
+                    try {
+                        const response = await fetch(
+                            `/api/followers/${userId}?viewer_id=${currentUser?.id}&limit=50&offset=0`
+                        )
+                        if (response.ok) {
+                            const data = await response.json()
+                            setFollowers(data.followers || [])
+                        }
+                    } catch (err) {
+                        console.error('Failed to refresh followers:', err)
+                    }
+                }
+                refreshFollowers()
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            window.addEventListener(FOLLOW_SYNC_EVENT, handleFollowChange)
+            return () => window.removeEventListener(FOLLOW_SYNC_EVENT, handleFollowChange)
+        }
+    }, [userId, currentUser?.id])
+
+    if (error) {
+        return (
+            <div className="min-h-screen py-8">
+                <div className="max-w-4xl mx-auto px-4">
+                    <div className="glass-surface rounded-2xl shadow p-8 text-center border border-white/80">
+                        <p className="text-slate-900 mb-4">{error}</p>
+                        <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                            {t('backToBrowse')}
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div className="min-h-screen py-8">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <Link href="/worker-profile" className="text-blue-700 hover:text-blue-800 mb-6 inline-block font-semibold">
+                    ← {t('backToProfile')}
+                </Link>
+
+                <div className="glass-surface rounded-2xl shadow-lg p-8 border border-white/80">
+                    <h1 className="display-font text-3xl font-bold text-slate-900 mb-2 tracking-tight">{t('yourFollowers')}</h1>
+                    <p className="text-slate-600 mb-8">{t('yourFollowersCount').replace('{{count}}', followers.length).replace('{{label}}', followers.length === 1 ? t('followersLabelSingular') : t('followersLabelPlural'))}</p>
+
+                    {loading ? (
+                        <div className="text-center py-12">
+                            <p className="text-slate-500">{t('loadingFollowers')}</p>
+                        </div>
+                    ) : followers.length === 0 ? (
+                        <div className="text-center py-12">
+                            <p className="text-slate-500 mb-4">{t('noFollowersYet')}</p>
+                            <Link href="/browse-workers" className="text-blue-700 hover:text-blue-800 font-semibold">
+                                {t('browseWorkersToGetStarted')}
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {followers.map((follower) => (
+                                <Link
+                                    key={follower.id}
+                                    href={`/workers/${follower.id}`}
+                                >
+                                    <div className="elevated-card interactive-rise rounded-2xl p-6 cursor-pointer">
+                                        {/* Profile Picture */}
+                                        <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-3xl mb-4 mx-auto overflow-hidden ring-4 ring-blue-50">
+                                            {follower.profile_picture ? (
+                                                <img
+                                                    src={follower.profile_picture}
+                                                    alt={`${follower.first_name} ${follower.last_name}`}
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <span>{follower.first_name?.charAt(0)}{follower.last_name?.charAt(0)}</span>
+                                            )}
+                                        </div>
+
+                                        {/* Info */}
+                                        <h3 className="font-bold text-slate-900 text-center mb-1">
+                                            {follower.first_name} {follower.last_name}
+                                        </h3>
+
+                                        {follower.job_title && (
+                                            <p className="text-sm text-slate-600 text-center mb-2">
+                                                {follower.job_title}
+                                            </p>
+                                        )}
+
+                                        {follower.location && (
+                                            <p className="text-sm text-slate-500 text-center">
+                                                📍 {follower.location}
+                                            </p>
+                                        )}
+
+                                        {follower.rating && (
+                                            <p className="text-sm text-yellow-500 text-center mt-2">
+                                                ⭐ {follower.rating.toFixed(1)} / 5.0
+                                            </p>
+                                        )}
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}

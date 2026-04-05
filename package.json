@@ -1,9 +1,9 @@
 {
   "scripts": {
-    "dev": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
-    "start": "npm --prefix frontend run start",
-    "vercel-build": "cd frontend && npm run vercel-build"
+    "dev": "npm --prefix frontend/frontend run dev",
+    "build": "npm --prefix frontend/frontend run build",
+    "start": "npm --prefix frontend/frontend run start",
+    "vercel-build": "cd frontend/frontend && npm run vercel-build"
   },
   "dependencies": {
     "next": "^16.2.1",
