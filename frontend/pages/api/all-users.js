@@ -24,8 +24,8 @@ function applyTypeFilter(query, normalizedType) {
     return query.eq('user_type', 'client')
   }
 
-  // all = clients + active workers
-  return query.or('user_type.eq.client,and(user_type.eq.worker,is_active.eq.true)')
+  // all = everyone
+  return query
 }
 
 function applySearchFilter(query, variants) {
