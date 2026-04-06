@@ -73,12 +73,14 @@ export default function ClientProfilePage() {
         description: '',
         location: '',
         jobType: '',
-        salary: ''
+        salary: '',
+        media: []
     })
     const [jobFormError, setJobFormError] = useState(null)
     const [jobFormSuccess, setJobFormSuccess] = useState(false)
     const [editingJobId, setEditingJobId] = useState(null)
     const [jobFormLoading, setJobFormLoading] = useState(false)
+    const [descriptionAutoFilled, setDescriptionAutoFilled] = useState(false)
     const [collapsedSections, setCollapsedSections] = useState({
         basicInfo: false,
         about: false,
@@ -452,12 +454,82 @@ export default function ClientProfilePage() {
         }
     }
 
+    const MAX_JOB_MEDIA = 5
+    const MAX_VIDEO_MB = 10
+
+    const handleJobMediaChange = async (e) => {
+        const files = Array.from(e.target.files || [])
+        if (!files.length) return
+        const remaining = MAX_JOB_MEDIA - (jobFormData.media?.length || 0)
+        if (remaining <= 0) return
+        const toProcess = files.slice(0, remaining)
+        const results = []
+        for (const file of toProcess) {
+            const isVideo = file.type.startsWith('video/')
+            const isImage = file.type.startsWith('image/')
+            if (!isVideo && !isImage) continue
+            if (isVideo && file.size > MAX_VIDEO_MB * 1024 * 1024) {
+                alert(t('jobMediaVideoTooLarge').replace('{{mb}}', MAX_VIDEO_MB))
+                continue
+            }
+            const data = await new Promise((resolve) => {
+                if (isImage) {
+                    compressImage(file).then(resolve)
+                } else {
+                    const reader = new FileReader()
+                    reader.onloadend = () => resolve(reader.result)
+                    reader.readAsDataURL(file)
+                }
+            })
+            results.push({ type: isImage ? 'image' : 'video', data, name: file.name })
+        }
+        e.target.value = ''
+        setJobFormData(prev => ({ ...prev, media: [...(prev.media || []), ...results] }))
+    }
+
+    const handleRemoveJobMedia = (index) => {
+        setJobFormData(prev => ({ ...prev, media: prev.media.filter((_, i) => i !== index) }))
+    }
+
+    const generateDescriptionFromTitle = (title) => {
+        if (!title || title.length < 3) return ''
+        const tl = title.toLowerCase()
+        if (/plumb|plom/i.test(tl)) return t('autoDescPlumber')
+        if (/electric|électric/i.test(tl)) return t('autoDescElectrician')
+        if (/paint|peintr/i.test(tl)) return t('autoDescPainter')
+        if (/clean|nettoy/i.test(tl)) return t('autoDescCleaner')
+        if (/driv|chauffeur/i.test(tl)) return t('autoDescDriver')
+        if (/carpe|menuis/i.test(tl)) return t('autoDescCarpenter')
+        if (/mason|maçon|bricklay/i.test(tl)) return t('autoDescMason')
+        if (/cook|chef|cuisinier/i.test(tl)) return t('autoDescCook')
+        if (/guard|secur|gardien/i.test(tl)) return t('autoDescGuard')
+        if (/garden|jardin/i.test(tl)) return t('autoDescGardener')
+        if (/teach|tutor|prof/i.test(tl)) return t('autoDescTeacher')
+        if (/web|app|software|logiciel/i.test(tl)) return t('autoDescDeveloper')
+        if (/design|graphic|graphiste/i.test(tl)) return t('autoDescDesigner')
+        if (/photo|video|film/i.test(tl)) return t('autoDescPhotographer')
+        if (/move|transport|déménag/i.test(tl)) return t('autoDescMover')
+        if (/repair|fix|réparat/i.test(tl)) return t('autoDescRepair')
+        return t('autoDescGeneric').replace('{{title}}', title)
+    }
+
     const handleJobInputChange = (e) => {
         const { name, value } = e.target
-        setJobFormData({
-            ...jobFormData,
-            [name]: value
-        })
+        if (name === 'title') {
+            const autoDesc = generateDescriptionFromTitle(value)
+            const shouldAutoFill = jobFormData.description === '' || descriptionAutoFilled
+            setJobFormData(prev => ({
+                ...prev,
+                title: value,
+                description: shouldAutoFill ? autoDesc : prev.description
+            }))
+            setDescriptionAutoFilled(shouldAutoFill && autoDesc.length > 0)
+        } else if (name === 'description') {
+            setDescriptionAutoFilled(false)
+            setJobFormData(prev => ({ ...prev, description: value }))
+        } else {
+            setJobFormData(prev => ({ ...prev, [name]: value }))
+        }
     }
 
     const toggleSection = (section) => {
@@ -502,7 +574,8 @@ export default function ClientProfilePage() {
                 description: jobFormData.description.trim(),
                 budget: parseFloat(jobFormData.salary),
                 location: jobFormData.location.trim(),
-                category: jobFormData.jobType.trim()
+                category: jobFormData.jobType.trim(),
+                media: jobFormData.media || []
             }
 
             // Set timeout for database operation (3 seconds)
@@ -516,7 +589,10 @@ export default function ClientProfilePage() {
                         const updateJobPayload = {}
 
                         for (const [key, nextValue] of Object.entries(baseJobPayload)) {
-                            if (!existingJob || existingJob[key] !== nextValue) {
+                            const currentValue = existingJob?.[key]
+                            const next = JSON.stringify(nextValue)
+                            const curr = JSON.stringify(currentValue)
+                            if (next !== curr) {
                                 updateJobPayload[key] = nextValue
                             }
                         }
@@ -570,7 +646,8 @@ export default function ClientProfilePage() {
             await Promise.race([savePromise, timeoutPromise])
             clearTimeout(timeoutId)
 
-            setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
+            setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '', media: [] })
+            setDescriptionAutoFilled(false)
             setShowJobModal(false)
             setJobFormSuccess(true)
             const id = setTimeout(() => setJobFormSuccess(false), 3000)
@@ -608,8 +685,10 @@ export default function ClientProfilePage() {
             description: job.description,
             location: job.location,
             jobType: job.category,
-            salary: job.budget
+            salary: job.budget,
+            media: Array.isArray(job.media) ? job.media : []
         })
+        setDescriptionAutoFilled(false)
         setEditingJobId(job.id)
         setShowJobModal(true)
     }
@@ -1176,26 +1255,51 @@ export default function ClientProfilePage() {
                             </button>
                             {!collapsedSections.projects && (
                                 <div className="profile-accordion-body">
-                                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pt-4">
-                                        <button
-                                            onClick={() => {
-                                                setEditingJobId(null)
-                                                setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
-                                                setShowJobModal(true)
-                                            }}
-                                            className="primary-action px-4 py-2 rounded-xl transition text-sm font-semibold shadow-sm"
-                                        >
-                                            {t('postNewProject')}
-                                        </button>
+                                    {/* Motivational Post Job Banner */}
+                                    <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl p-6 mb-6 text-white relative overflow-hidden">
+                                        <div className="absolute -top-4 -right-4 text-9xl opacity-10 pointer-events-none select-none leading-none">🚀</div>
+                                        <div className="relative z-10">
+                                            <p className="text-xs font-bold uppercase tracking-widest text-indigo-200 mb-1">{t('postJobBannerChip')}</p>
+                                            <h3 className="text-xl sm:text-2xl font-bold mb-2">{t('postJobBannerTitle')}</h3>
+                                            <p className="text-indigo-100 text-sm mb-4 max-w-lg">{t('postJobBannerDesc')}</p>
+                                            <div className="flex flex-wrap gap-2 mb-5">
+                                                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold">{t('postJobFeatureFree')}</span>
+                                                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold">{t('postJobFeatureInstant')}</span>
+                                                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold">{t('postJobFeatureWorkers')}</span>
+                                                <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold">{t('postJobFeatureMatching')}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingJobId(null)
+                                                    setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
+                                                    setDescriptionAutoFilled(false)
+                                                    setShowJobModal(true)
+                                                }}
+                                                className="bg-white text-indigo-700 px-7 py-2.5 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg text-sm active:scale-95"
+                                            >
+                                                {t('postJobNow')}
+                                            </button>
+                                        </div>
                                     </div>
 
                                     {jobsLoading ? (
                                         <div className="text-center py-12">{t('loadingProjects')}</div>
                                     ) : jobs.length === 0 ? (
-                                        <div className="text-center py-12">
-                                            <div className="text-4xl mb-4">📋</div>
-                                            <p className="text-gray-600">{t('noProjectsPosted')}</p>
-                                            <p className="text-sm text-gray-500 mt-2">{t('startPostingProject')}</p>
+                                        <div className="text-center py-14 bg-gradient-to-b from-indigo-50 to-white rounded-2xl border-2 border-dashed border-indigo-200">
+                                            <div className="text-5xl mb-3">💼</div>
+                                            <h4 className="text-gray-800 font-bold text-lg mb-2">{t('postJobEmptyTitle')}</h4>
+                                            <p className="text-gray-500 text-sm max-w-xs mx-auto mb-5">{t('postJobEmptyDesc')}</p>
+                                            <button
+                                                onClick={() => {
+                                                    setEditingJobId(null)
+                                                    setJobFormData({ title: '', description: '', location: '', jobType: '', salary: '' })
+                                                    setDescriptionAutoFilled(false)
+                                                    setShowJobModal(true)
+                                                }}
+                                                className="primary-action px-6 py-2.5 rounded-xl font-bold shadow text-sm"
+                                            >
+                                                {t('postJobFirstCta')}
+                                            </button>
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
@@ -1222,6 +1326,23 @@ export default function ClientProfilePage() {
                                                         </div>
                                                     </div>
                                                     <p className="text-gray-700 mt-3">{job.description}</p>
+                                                    {/* Job media */}
+                                                    {Array.isArray(job.media) && job.media.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2 mt-4">
+                                                            {job.media.map((item, i) => (
+                                                                <div key={i} className="relative w-20 h-20 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                                                                    {item.type === 'image' ? (
+                                                                        <img src={item.data} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        <video src={item.data} className="w-full h-full object-cover" muted playsInline />
+                                                                    )}
+                                                                    {item.type === 'video' && (
+                                                                        <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1 rounded">▶</div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                     <div className="profile-grid-3 mt-4 pt-4 border-t border-gray-200">
                                                         <div>
                                                             <span className="text-xs font-medium text-gray-600 uppercase">{t('type')}</span>
@@ -1674,14 +1795,25 @@ export default function ClientProfilePage() {
                 {showJobModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
                         <div className="glass-surface rounded-3xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/80">
-                            <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-gray-200 p-6 flex justify-between items-center">
-                                <h2 className="profile-title text-2xl font-semibold">{editingJobId ? t('editProjectTitle') : t('postNewProject')}</h2>
-                                <button
-                                    onClick={() => setShowJobModal(false)}
-                                    className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-                                >
-                                    ×
-                                </button>
+                            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-gray-200">
+                                <div className="p-6 flex justify-between items-center">
+                                    <div>
+                                        <h2 className="profile-title text-2xl font-semibold">{editingJobId ? t('editProjectTitle') : t('postNewProject')}</h2>
+                                        {!editingJobId && <p className="text-xs text-gray-500 mt-0.5">{t('postJobModalSubtitle')}</p>}
+                                    </div>
+                                    <button
+                                        onClick={() => setShowJobModal(false)}
+                                        className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                                {!editingJobId && (
+                                    <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 flex items-center gap-3">
+                                        <span className="text-xl flex-shrink-0">👷‍♂️</span>
+                                        <p className="text-sm text-white font-medium">{t('postJobModalBanner')}</p>
+                                    </div>
+                                )}
                             </div>
 
                             <form onSubmit={handleJobSubmit} className="p-6 space-y-6">
@@ -1739,9 +1871,13 @@ export default function ClientProfilePage() {
                                         value={jobFormData.title}
                                         onChange={handleJobInputChange}
                                         required
+                                        autoFocus={!editingJobId}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="e.g., Build an E-commerce Website"
+                                        placeholder={t('postJobTitlePlaceholder')}
                                     />
+                                    {!editingJobId && (
+                                        <p className="text-xs text-indigo-500 mt-1.5">{t('postJobTitleHint')}</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1752,9 +1888,12 @@ export default function ClientProfilePage() {
                                         onChange={handleJobInputChange}
                                         required
                                         rows="5"
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-colors ${descriptionAutoFilled ? 'border-indigo-300 bg-indigo-50/40' : 'border-gray-300'}`}
                                         placeholder={t('aboutNeedPlaceholder')}
                                     />
+                                    {descriptionAutoFilled && (
+                                        <p className="text-xs text-indigo-500 mt-1.5">{t('postJobDescAutoHint')}</p>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -1800,6 +1939,58 @@ export default function ClientProfilePage() {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
                                         placeholder={t('budgetPlaceholder')}
                                     />
+                                </div>
+
+                                {/* Media upload - optional */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        {t('jobMediaLabel')} <span className="text-gray-400 font-normal text-xs ml-1">({t('optional')})</span>
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-3">{t('jobMediaHint').replace('{{max}}', MAX_JOB_MEDIA).replace('{{mb}}', MAX_VIDEO_MB)}</p>
+
+                                    {/* Previews */}
+                                    {jobFormData.media?.length > 0 && (
+                                        <div className="flex flex-wrap gap-3 mb-3">
+                                            {jobFormData.media.map((item, i) => (
+                                                <div key={i} className="relative group w-24 h-24 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                                                    {item.type === 'image' ? (
+                                                        <img src={item.data} alt={item.name} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <video src={item.data} className="w-full h-full object-cover" muted playsInline />
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveJobMedia(i)}
+                                                            className="opacity-0 group-hover:opacity-100 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold transition-opacity"
+                                                            title={t('jobMediaRemove')}
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                    {item.type === 'video' && (
+                                                        <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1 rounded">▶</div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {(jobFormData.media?.length || 0) < MAX_JOB_MEDIA && (
+                                        <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-500 transition-colors">
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            {t('jobMediaUploadBtn')}
+                                            <input
+                                                type="file"
+                                                accept="image/*,video/*"
+                                                multiple
+                                                onChange={handleJobMediaChange}
+                                                className="hidden"
+                                            />
+                                        </label>
+                                    )}
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-200">
