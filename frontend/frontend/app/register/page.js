@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getAuthSuccessRedirectUrl } from '@/lib/authRedirect'
+import PhoneInput from '@/components/PhoneInput'
 
 export default function RegisterPage() {
     const router = useRouter()
@@ -204,19 +205,13 @@ export default function RegisterPage() {
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number (Togolese)</label>
-                        <input
-                            type="tel"
-                            name="phoneNumber"
+                        <label className="block text-sm font-semibold text-slate-700 mb-2">Phone Number</label>
+                        <PhoneInput
                             value={formData.phoneNumber}
-                            onChange={handleChange}
+                            onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
                             required
-                            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white/90 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="+228 XXXX XXXX"
-                            pattern="^(\+228)?[0-9]{8}$"
-                            title="Please enter a valid Togolese phone number (+228 followed by 8 digits)"
+                            className="w-full"
                         />
-                        <p className="text-xs text-slate-500 mt-1">Format: +228 or 8 digits</p>
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>

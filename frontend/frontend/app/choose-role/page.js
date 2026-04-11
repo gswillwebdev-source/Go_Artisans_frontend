@@ -73,7 +73,8 @@ export default function ChooseRolePage() {
                         first_name: user.first_name || '',
                         last_name: user.last_name || '',
                         phone_number: user.phone_number || null,
-                        user_type: selectedRole
+                        user_type: selectedRole,
+                        email_verified: Boolean(user.email_confirmed_at)
                     })
 
                 if (insertError) throw insertError

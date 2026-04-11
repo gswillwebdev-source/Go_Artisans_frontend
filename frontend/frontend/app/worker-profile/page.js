@@ -9,7 +9,8 @@ import RatingModal from '@/components/RatingModal'
 import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
 import FollowStats from '@/components/FollowStats'
 import FollowNotificationBell from '@/components/FollowNotificationBell'
-import { togoLocations, handworks } from '@/lib/togoData'
+import PhoneInput from '@/components/PhoneInput'
+import { handworks } from '@/lib/togoData'
 import { useLanguage } from '@/context/LanguageContext'
 
 function normalizeStringArray(value) {
@@ -1155,7 +1156,7 @@ export default function WorkerProfilePage() {
                                                             <p className="font-medium text-gray-900">{displayJob.title || t('jobFallbackApplied')}</p>
                                                             <div className="text-xs text-gray-600 mt-1">
                                                                 <span>📍 {displayJob.location || t('notProvided')}</span>
-                                                                {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
+                                                                {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 $ {displayJob.salary || displayJob.budget}</span>}
                                                             </div>
                                                             <div className="text-xs text-blue-600 mt-1">{t('status')}: <span className="font-semibold">{t('pendingReviewStatus')}</span></div>
                                                         </div>
@@ -1185,7 +1186,7 @@ export default function WorkerProfilePage() {
                                                                     <p className="font-medium text-gray-900">{displayJob.title || t('jobFallbackAccepted')}</p>
                                                                     <div className="text-xs text-gray-600 mt-1">
                                                                         <span>📍 {displayJob.location || t('notProvided')}</span>
-                                                                        {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 CFA {displayJob.salary || displayJob.budget}</span>}
+                                                                        {(displayJob.salary || displayJob.budget) && <span className="ml-3">💰 $ {displayJob.salary || displayJob.budget}</span>}
                                                                     </div>
                                                                 </div>
 
@@ -1230,7 +1231,7 @@ export default function WorkerProfilePage() {
                                                         <p className="font-medium text-gray-900">{c.job?.title}</p>
                                                         <div className="text-xs text-gray-600 mt-1">
                                                             <span>📍 {c.job?.location}</span>
-                                                            {c.final_price && <span className="ml-3">💰 CFA {c.final_price}</span>}
+                                                            {c.final_price && <span className="ml-3">💰 $ {c.final_price}</span>}
                                                         </div>
                                                         <div className="text-xs text-purple-600 mt-1">✅ {t('confirmedOn')}: <span className="font-semibold">{c.confirmed_at ? new Date(c.confirmed_at).toLocaleDateString() : '—'}</span></div>
                                                     </div>
@@ -1317,13 +1318,10 @@ export default function WorkerProfilePage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('phone')}</label>
-                                    <input
-                                        type="tel"
-                                        name="phoneNumber"
+                                    <PhoneInput
                                         value={formData.phoneNumber}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="+228 XXXX XXXX"
+                                        onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                                        className="w-full"
                                     />
                                 </div>
                             </div>
@@ -1347,17 +1345,14 @@ export default function WorkerProfilePage() {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{t('locationLabel')}</label>
-                                        <select
+                                        <input
+                                            type="text"
                                             name="location"
                                             value={formData.location}
                                             onChange={handleInputChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        >
-                                            <option value="">{t('selectLocation')}</option>
-                                            {togoLocations.map(loc => (
-                                                <option key={loc.value} value={loc.value}>{loc.label}</option>
-                                            ))}
-                                        </select>
+                                            placeholder={t('enterLocation')}
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{t('yearsExperienceLabel')}</label>

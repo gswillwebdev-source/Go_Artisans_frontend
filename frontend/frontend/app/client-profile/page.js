@@ -11,8 +11,8 @@ import RatingsDisplay from '@/components/RatingsDisplay'
 import CompletionRequest from '@/components/CompletionRequest'
 import FollowStats from '@/components/FollowStats'
 import FollowNotificationBell from '@/components/FollowNotificationBell'
+import PhoneInput from '@/components/PhoneInput'
 import { useLanguage } from '@/context/LanguageContext'
-import { togoLocations } from '@/lib/togoData'
 
 function normalizeClientProfile(rawProfile, fallbackEmail = '') {
     const firstName = rawProfile?.first_name ?? rawProfile?.firstName ?? ''
@@ -1644,7 +1644,7 @@ export default function ClientProfilePage() {
                                                         <div className="profile-grid-2 mt-4 pt-4 border-t border-gray-200">
                                                             <div>
                                                                 <span className="text-xs font-medium text-gray-600 uppercase">{t('finalPrice')}</span>
-                                                                <p className="text-sm text-gray-900 mt-1 font-semibold">CFA {completion.final_price || job.budget}</p>
+                                                                <p className="text-sm text-gray-900 mt-1 font-semibold">$ {completion.final_price || job.budget}</p>
                                                             </div>
                                                             <div>
                                                                 <span className="text-xs font-medium text-gray-600 uppercase">{t('completedOn')}</span>
@@ -1728,28 +1728,22 @@ export default function ClientProfilePage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('phoneNumber')}</label>
-                                    <input
-                                        type="tel"
-                                        name="phoneNumber"
+                                    <PhoneInput
                                         value={formData.phoneNumber}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder="+228 XXXX XXXX"
+                                        onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                                        className="w-full"
                                     />
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
-                                    <select
+                                    <input
+                                        type="text"
                                         name="location"
                                         value={formData.location}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                    >
-                                        <option value="">{t('selectLocation')}</option>
-                                        {togoLocations.map(loc => (
-                                            <option key={loc.value} value={loc.value}>{loc.label}</option>
-                                        ))}
-                                    </select>
+                                        placeholder={t('enterLocation')}
+                                    />
                                 </div>
                             </div>
                         </div>

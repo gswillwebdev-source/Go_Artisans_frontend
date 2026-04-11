@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import Modal from '@/components/Modal'
+import PhoneInput from '@/components/PhoneInput'
 
 function AdminUsersContent() {
     const router = useRouter()
@@ -515,12 +516,10 @@ function AdminUsersContent() {
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                                <input
-                                    type="tel"
+                                <PhoneInput
                                     value={formData.phoneNumber}
-                                    onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
-                                    placeholder="+228 XXXX XXXX"
+                                    onChange={(value) => setFormData({ ...formData, phoneNumber: value })}
+                                    className="w-full"
                                 />
                             </div>
 

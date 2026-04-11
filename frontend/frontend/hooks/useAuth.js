@@ -99,6 +99,95 @@ export function useAuth(options = {}) {
             return data.user_type
         }
 
+        const getBrowserLocation = () => new Promise((resolve, reject) => {
+            if (typeof window === 'undefined' || !navigator?.geolocation) {
+                return reject(new Error('Geolocation not available'))
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => resolve(position.coords),
+                (error) => reject(error),
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 600000
+                }
+            )
+        })
+
+        const getReadableLocation = async (latitude, longitude) => {
+            if (!latitude || !longitude) {
+                return null
+            }
+
+            const buildLabel = (address, displayName) => {
+                if (!address && !displayName) return null
+
+                const parts = [
+                    address?.city,
+                    address?.town,
+                    address?.village,
+                    address?.hamlet,
+                    address?.municipality,
+                    address?.county,
+                    address?.state_district,
+                    address?.state,
+                    address?.region,
+                    address?.country
+                ].filter(Boolean)
+
+                if (parts.length > 0) {
+                    return parts.join(', ')
+                }
+
+                if (displayName && !/^[-+]?\d+\.\d+,\s*[-+]?\d+\.\d+$/.test(displayName)) {
+                    return displayName
+                }
+
+                return null
+            }
+
+            try {
+                const nominatimResponse = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+                )
+                if (!nominatimResponse.ok) {
+                    return null
+                }
+
+                const nominatimData = await nominatimResponse.json()
+                const nominatimLabel = buildLabel(nominatimData.address, nominatimData.display_name)
+                return nominatimLabel || null
+            } catch {
+                return null
+            }
+        }
+
+        const updateLocationForUser = async (userId, currentLocation) => {
+            if (!userId) return null
+
+            try {
+                const coords = await getBrowserLocation()
+                const locationText = await getReadableLocation(coords.latitude, coords.longitude)
+                if (!locationText || locationText === currentLocation) return null
+
+                const { error } = await supabase
+                    .from('users')
+                    .update({ location: locationText })
+                    .eq('id', userId)
+
+                if (error) {
+                    console.warn('Failed to update user location:', error)
+                    return null
+                }
+
+                return locationText
+            } catch (error) {
+                console.warn('Location detection skipped:', error.message || error)
+                return null
+            }
+        }
+
         const routeForUser = async (user) => {
             let resolvedUser = user
 
@@ -200,6 +289,11 @@ export function useAuth(options = {}) {
                     user = await ensureProfileExists(session.user, fallbackUser)
                 }
 
+                const updatedLocation = await updateLocationForUser(user.id, user.location)
+                if (updatedLocation) {
+                    user = { ...user, location: updatedLocation }
+                }
+
                 setAuthState({
                     isLoggedIn: true,
                     user,
@@ -251,6 +345,11 @@ export function useAuth(options = {}) {
 
                     if (!profile) {
                         user = await ensureProfileExists(session.user, fallbackUser)
+                    }
+
+                    const updatedLocation = await updateLocationForUser(user.id, user.location)
+                    if (updatedLocation) {
+                        user = { ...user, location: updatedLocation }
                     }
 
                     setAuthState({
