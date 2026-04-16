@@ -54,7 +54,9 @@ export default function Navbar() {
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 min-h-16">
                         {/* Logo */}
                         <Link href="/" className="flex items-center shrink-0">
-                            <span className="display-font text-2xl font-bold text-blue-700 hover:text-blue-800 transition tracking-tight">GoArtisans</span>
+                            <span className="display-font text-3xl font-bold text-blue-700 hover:text-blue-800 transition tracking-tighter flex items-center">
+                                Go<img src="/app_icon.png" alt="A" className="w-9 h-9 rounded-md inline-block" style={{ marginLeft: '-4px', marginRight: '-4px' }} />rtisans
+                            </span>
                         </Link>
 
                         {/* Navigation Links - Center */}

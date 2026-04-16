@@ -10,7 +10,7 @@ export const metadata = {
     title: 'GoArtisans - Job Seeking Platform',
     description: 'Find your next opportunity on GoArtisans',
     icons: {
-        icon: '/favicon.svg',
+        icon: '/app_icon.png',
     },
 }
 

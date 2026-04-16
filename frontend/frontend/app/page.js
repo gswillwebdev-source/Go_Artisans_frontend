@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useLanguage } from '@/context/LanguageContext'
 import { supabase } from '@/lib/supabase'
 
@@ -145,12 +146,13 @@ export default function Home() {
               </a>
             </div>
 
-            <div className="footer-bottom footer-reveal mt-8 pt-5">
+            <div className="footer-bottom footer-reveal mt-8 pt-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <p className="text-xs sm:text-sm text-slate-400">© {new Date().getFullYear()} GoArtisans</p>
               <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
                 <span className="inline-block h-2 w-2 rounded-full bg-emerald-300 animate-pulse" aria-hidden="true" />
                 <span>{t('footerPlatformUpdates')}</span>
               </div>
+              <Link href="/privacy" className="text-slate-400 hover:text-slate-300 text-xs sm:text-sm transition">Privacy Policy</Link>
             </div>
           </div>
         </div>
