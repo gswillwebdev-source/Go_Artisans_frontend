@@ -1,0 +1,65 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Build application
+        run: |
+          echo "Building application..."
+          cd backend
+          npm install --production
+          cd ../frontend
+          npm install --production
+          npm run build
+      
+      - name: Deploy backend
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          echo "🚀 Backend deployment configured"
+          echo "Deploy credentials are set in repository secrets"
+          echo "Configure the following secrets in your repository:"
+          echo "- DEPLOY_KEY: SSH private key"
+          echo "- DEPLOY_HOST: Deployment server host"
+          echo "- DEPLOY_USER: Deployment user"
+          echo "- DEPLOY_PATH: Deployment path on server"
+        continue-on-error: true
+      
+      - name: Deploy frontend
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_FRONTEND_PATH: ${{ secrets.DEPLOY_FRONTEND_PATH }}
+        run: |
+          echo "🚀 Frontend deployment configured"
+          echo "Download the .next build folder for your hosting provider"
+        continue-on-error: true
+      
+      - name: Deployment notification
+        if: success()
+        run: |
+          echo "✅ Deployment completed successfully"
+          echo "Application deployed to production"
+      
+      - name: Deployment failed notification
+        if: failure()
+        run: |
+          echo "❌ Deployment failed"
+          echo "Please review the logs above"

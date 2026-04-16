@@ -13,6 +13,10 @@ ALTER TABLE public.completions ADD COLUMN IF NOT EXISTS declined_at TIMESTAMP WI
 -- Migration 4: Add decline_reason column to completions table
 ALTER TABLE public.completions ADD COLUMN IF NOT EXISTS decline_reason TEXT;
 
+-- Migration 5: Add media column to jobs table (pictures/videos as base64 JSONB array)
+ALTER TABLE public.jobs ADD COLUMN IF NOT EXISTS media JSONB DEFAULT '[]'::jsonb;
+
 -- Verify the migrations (optional - run to check the schema)
 -- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position;
 -- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'completions' ORDER BY ordinal_position;
+-- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'jobs' ORDER BY ordinal_position;
