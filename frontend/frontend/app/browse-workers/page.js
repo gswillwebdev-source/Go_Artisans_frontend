@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
 import WorkerSearchBar from '@/components/WorkerSearchBar'
 import UserCardSkeleton from '@/components/UserCardSkeleton'
+import PostJobModal from '@/components/PostJobModal'
 
 export default function BrowseWorkersPage() {
     const PAGE_SIZE = 24
@@ -23,6 +24,7 @@ export default function BrowseWorkersPage() {
         location: '',
         jobType: '',
     })
+    const [showPostJobModal, setShowPostJobModal] = useState(false)
 
     useEffect(() => {
         if (!authLoading) {
@@ -97,7 +99,26 @@ export default function BrowseWorkersPage() {
                     <p className="text-slate-600 mt-2">{t('browseWorkersSubtitle')}</p>
                 </div>
 
-                <WorkerSearchBar onSearch={handleSearch} />
+                <div className="relative">
+                    <WorkerSearchBar onSearch={handleSearch} />
+                    {user?.user_type === 'client' && (
+                        <div className="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowPostJobModal(true)}
+                                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md shadow-blue-500/20 text-sm"
+                            >
+                                + Post Job Now
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {showPostJobModal && (
+                    <PostJobModal
+                        onClose={() => setShowPostJobModal(false)}
+                    />
+                )}
 
                 {loading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">

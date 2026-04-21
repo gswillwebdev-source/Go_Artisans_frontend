@@ -8,6 +8,7 @@ import JobCard from '@/components/JobCard'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
 import SearchBar from '@/components/SearchBar'
 import AdBanner from '@/components/AdBanner'
+import PostJobModal from '@/components/PostJobModal'
 import { useLanguage } from '@/context/LanguageContext'
 
 function JobsPageContent() {
@@ -26,6 +27,8 @@ function JobsPageContent() {
         jobType: searchParams.get('jobType') || '',
     })
     const [isLoggedIn, setIsLoggedIn] = useState(false)
+    const [isClient, setIsClient] = useState(false)
+    const [showPostJobModal, setShowPostJobModal] = useState(false)
     const didMountRef = useRef(false)
 
     useEffect(() => {
@@ -33,6 +36,14 @@ function JobsPageContent() {
         const checkAuth = async () => {
             const { data: { session } } = await supabase.auth.getSession()
             setIsLoggedIn(!!session)
+            if (session?.user) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('user_type')
+                    .eq('id', session.user.id)
+                    .single()
+                setIsClient(profile?.user_type === 'client')
+            }
         }
 
         checkAuth()
@@ -136,7 +147,27 @@ function JobsPageContent() {
                     <p className="text-slate-600 mt-2">{t('findJobsSubtitle')}</p>
                 </div>
 
-                <SearchBar onSearch={handleSearch} isSearching={loading} />
+                <div className="relative">
+                    <SearchBar onSearch={handleSearch} isSearching={loading} />
+                    {isLoggedIn && isClient && (
+                        <div className="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setShowPostJobModal(true)}
+                                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md shadow-blue-500/20 text-sm"
+                            >
+                                + Post Job Now
+                            </button>
+                        </div>
+                    )}
+                </div>
+
+                {showPostJobModal && (
+                    <PostJobModal
+                        onClose={() => setShowPostJobModal(false)}
+                        onPosted={() => fetchJobs(activeFilters, 1, false)}
+                    />
+                )}
 
                 <AdBanner className="mt-4" />
 
