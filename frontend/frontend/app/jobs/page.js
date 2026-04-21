@@ -7,6 +7,7 @@ import { buildBilingualQuery } from '@/lib/bilingualSearch'
 import JobCard from '@/components/JobCard'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
 import SearchBar from '@/components/SearchBar'
+import AdBanner from '@/components/AdBanner'
 import { useLanguage } from '@/context/LanguageContext'
 
 function JobsPageContent() {
@@ -136,6 +137,8 @@ function JobsPageContent() {
                 </div>
 
                 <SearchBar onSearch={handleSearch} isSearching={loading} />
+
+                <AdBanner className="mt-4" />
 
                 {!loading && (
                     <p className="mt-4 text-sm text-slate-600">
