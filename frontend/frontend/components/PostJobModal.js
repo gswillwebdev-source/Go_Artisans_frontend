@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { handworks, togoLocations, getLocationsForProfile } from '@/lib/togoData'
+import { handworks, getLocationsForProfile } from '@/lib/togoData'
 import { useLanguage } from '@/context/LanguageContext'
 import { useRouter } from 'next/navigation'
 
@@ -11,7 +11,8 @@ export default function PostJobModal({ onClose, onPosted }) {
     const router = useRouter()
     const [user, setUser] = useState(null)
     const [isClient, setIsClient] = useState(false)
-    const [availableLocations, setAvailableLocations] = useState(togoLocations)
+    // null = loading or unknown country → free-text input; array = known country → dropdown
+    const [availableLocations, setAvailableLocations] = useState(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [success, setSuccess] = useState(false)
@@ -153,17 +154,27 @@ export default function PostJobModal({ onClose, onPosted }) {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-slate-700 mb-1">Location</label>
-                                    <select
-                                        name="location"
-                                        value={form.location}
-                                        onChange={handleChange}
-                                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                                    >
-                                        <option value="">Any location</option>
-                                        {availableLocations.map(loc => (
-                                            <option key={loc.value} value={loc.value}>{loc.label}</option>
-                                        ))}
-                                    </select>
+                                    {availableLocations ? (
+                                        <select
+                                            name="location"
+                                            value={form.location}
+                                            onChange={handleChange}
+                                            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        >
+                                            <option value="">Any location</option>
+                                            {availableLocations.map(loc => (
+                                                <option key={loc.value} value={loc.value}>{loc.label}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            name="location"
+                                            value={form.location}
+                                            onChange={handleChange}
+                                            placeholder="e.g. Paris, London, Dubai..."
+                                            className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                        />
+                                    )}
                                 </div>
                             </div>
 
