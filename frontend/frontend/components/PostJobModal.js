@@ -159,7 +159,7 @@ export default function PostJobModal({ onClose, onPosted }) {
                                     >
                                         <option value="">Any location</option>
                                         {togoLocations.map(loc => (
-                                            <option key={loc} value={loc}>{loc}</option>
+                                            <option key={loc.value} value={loc.value}>{loc.label}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -175,7 +175,7 @@ export default function PostJobModal({ onClose, onPosted }) {
                                 >
                                     <option value="">Select a category</option>
                                     {handworks.map(hw => (
-                                        <option key={hw} value={hw}>{hw}</option>
+                                        <option key={hw.value} value={hw.value}>{hw.label}</option>
                                     ))}
                                 </select>
                             </div>
