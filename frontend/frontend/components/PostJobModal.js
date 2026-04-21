@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { handworks, togoLocations } from '@/lib/togoData'
+import { handworks, togoLocations, getLocationsForProfile } from '@/lib/togoData'
 import { useLanguage } from '@/context/LanguageContext'
 import { useRouter } from 'next/navigation'
 
@@ -11,6 +11,7 @@ export default function PostJobModal({ onClose, onPosted }) {
     const router = useRouter()
     const [user, setUser] = useState(null)
     const [isClient, setIsClient] = useState(false)
+    const [availableLocations, setAvailableLocations] = useState(togoLocations)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState(null)
     const [success, setSuccess] = useState(false)
@@ -31,11 +32,12 @@ export default function PostJobModal({ onClose, onPosted }) {
             }
             const { data: profile } = await supabase
                 .from('users')
-                .select('user_type')
+                .select('user_type, location')
                 .eq('id', sessionUser.id)
                 .single()
             setUser(sessionUser)
             setIsClient(profile?.user_type === 'client')
+            setAvailableLocations(getLocationsForProfile(profile?.location))
         }
         checkUser()
     }, [router])
@@ -158,7 +160,7 @@ export default function PostJobModal({ onClose, onPosted }) {
                                         className="w-full px-4 py-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 outline-none"
                                     >
                                         <option value="">Any location</option>
-                                        {togoLocations.map(loc => (
+                                        {availableLocations.map(loc => (
                                             <option key={loc.value} value={loc.value}>{loc.label}</option>
                                         ))}
                                     </select>

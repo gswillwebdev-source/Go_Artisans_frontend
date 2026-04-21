@@ -46,8 +46,12 @@ export const handworks = [
     { value: 'other', label: 'Other / Autre' },
 ];
 
-// Popular locations in Togo
-export const togoLocations = [
+// Locations organized by country for profile-based filtering
+export const locationsByCountry = {
+    togo: {
+        countryName: 'Togo',
+        flag: '🇹🇬',
+        locations: [
     { value: 'lome', label: 'Lomé' },
     { value: 'sokode', label: 'Sokodé' },
     { value: 'kara', label: 'Kara' },
@@ -65,14 +69,11 @@ export const togoLocations = [
     { value: 'niamtougou', label: 'Niamtougou' },
     { value: 'sansanne-mango', label: 'Sansanné-Mango' },
     { value: 'dapaong', label: 'Dapaong' },
-    { value: 'kandé', label: 'Kandé' },
-    { value: 'yendi', label: 'Yendi' },
+    { value: 'kande', label: 'Kandé' },
     { value: 'bafilo', label: 'Bafilo' },
     { value: 'tchamba', label: 'Tchamba' },
     { value: 'sotouboua', label: 'Sotouboua' },
     { value: 'bassar', label: 'Bassar' },
-    { value: 'janon', label: 'Janon' },
-    { value: 'nokouke', label: 'Nokouke' },
     { value: 'glei', label: 'Gléi' },
     { value: 'dogbo', label: 'Dogbo' },
     { value: 'amlamadamedji', label: 'Amlamé' },
@@ -85,6 +86,137 @@ export const togoLocations = [
     { value: 'fiave', label: 'Fiavé' },
     { value: 'adeta', label: 'Adéta' },
     { value: 'notse', label: 'Notsé' },
-    { value: 'vli', label: 'Vli' },
-    { value: 'with-remote', label: 'Remote / À Domicile' },
-];
+    { value: 'remote', label: 'Remote / À Domicile' },
+        ],
+    },
+    ghana: {
+        countryName: 'Ghana',
+        flag: '🇬🇭',
+        locations: [
+            { value: 'accra', label: 'Accra' },
+            { value: 'kumasi', label: 'Kumasi' },
+            { value: 'tamale', label: 'Tamale' },
+            { value: 'takoradi', label: 'Takoradi' },
+            { value: 'cape-coast', label: 'Cape Coast' },
+            { value: 'sunyani', label: 'Sunyani' },
+            { value: 'techiman', label: 'Techiman' },
+            { value: 'ho', label: 'Ho' },
+            { value: 'koforidua', label: 'Koforidua' },
+            { value: 'bolgatanga', label: 'Bolgatanga' },
+            { value: 'wa', label: 'Wa' },
+            { value: 'tema', label: 'Tema' },
+            { value: 'obuasi', label: 'Obuasi' },
+            { value: 'sekondi', label: 'Sekondi' },
+            { value: 'remote', label: 'Remote' },
+        ],
+    },
+    benin: {
+        countryName: 'Bénin',
+        flag: '🇧🇯',
+        locations: [
+            { value: 'cotonou', label: 'Cotonou' },
+            { value: 'porto-novo', label: 'Porto-Novo' },
+            { value: 'parakou', label: 'Parakou' },
+            { value: 'abomey-calavi', label: 'Abomey-Calavi' },
+            { value: 'djougou', label: 'Djougou' },
+            { value: 'bohicon', label: 'Bohicon' },
+            { value: 'kandi', label: 'Kandi' },
+            { value: 'lokossa', label: 'Lokossa' },
+            { value: 'natitingou', label: 'Natitingou' },
+            { value: 'ouidah', label: 'Ouidah' },
+            { value: 'abomey', label: 'Abomey' },
+            { value: 'remote', label: 'Remote / À Domicile' },
+        ],
+    },
+    burkina_faso: {
+        countryName: 'Burkina Faso',
+        flag: '🇧🇫',
+        locations: [
+            { value: 'ouagadougou', label: 'Ouagadougou' },
+            { value: 'bobo-dioulasso', label: 'Bobo-Dioulasso' },
+            { value: 'koudougou', label: 'Koudougou' },
+            { value: 'ouahigouya', label: 'Ouahigouya' },
+            { value: 'banfora', label: 'Banfora' },
+            { value: 'dedougou', label: 'Dédougou' },
+            { value: 'kaya', label: 'Kaya' },
+            { value: 'tenkodogo', label: 'Tenkodogo' },
+            { value: 'fada-ngourma', label: 'Fada N\'Gourma' },
+            { value: 'remote', label: 'Remote / À Domicile' },
+        ],
+    },
+    nigeria: {
+        countryName: 'Nigeria',
+        flag: '🇳🇬',
+        locations: [
+            { value: 'lagos', label: 'Lagos' },
+            { value: 'abuja', label: 'Abuja' },
+            { value: 'kano', label: 'Kano' },
+            { value: 'ibadan', label: 'Ibadan' },
+            { value: 'port-harcourt', label: 'Port Harcourt' },
+            { value: 'benin-city', label: 'Benin City' },
+            { value: 'kaduna', label: 'Kaduna' },
+            { value: 'enugu', label: 'Enugu' },
+            { value: 'aba', label: 'Aba' },
+            { value: 'maiduguri', label: 'Maiduguri' },
+            { value: 'remote', label: 'Remote' },
+        ],
+    },
+    ivory_coast: {
+        countryName: "Côte d'Ivoire",
+        flag: '🇨🇮',
+        locations: [
+            { value: 'abidjan', label: 'Abidjan' },
+            { value: 'bouake', label: 'Bouaké' },
+            { value: 'daloa', label: 'Daloa' },
+            { value: 'korhogo', label: 'Korhogo' },
+            { value: 'yamoussoukro', label: 'Yamoussoukro' },
+            { value: 'san-pedro', label: 'San-Pédro' },
+            { value: 'man', label: 'Man' },
+            { value: 'gagnoa', label: 'Gagnoa' },
+            { value: 'abengourou', label: 'Abengourou' },
+            { value: 'remote', label: 'Remote / À Domicile' },
+        ],
+    },
+    senegal: {
+        countryName: 'Sénégal',
+        flag: '🇸🇳',
+        locations: [
+            { value: 'dakar', label: 'Dakar' },
+            { value: 'thies', label: 'Thiès' },
+            { value: 'saint-louis', label: 'Saint-Louis' },
+            { value: 'touba', label: 'Touba' },
+            { value: 'kaolack', label: 'Kaolack' },
+            { value: 'ziguinchor', label: 'Ziguinchor' },
+            { value: 'mbour', label: 'Mbour' },
+            { value: 'remote', label: 'Remote / À Domicile' },
+        ],
+    },
+}
+
+// Keep togoLocations as alias for backward compatibility
+export const togoLocations = locationsByCountry.togo.locations
+
+/**
+ * Detects which country's locations to show based on a free-text profile location string.
+ * Matches against country names and city names (case-insensitive, accent-insensitive).
+ * Falls back to Togo locations if no match.
+ */
+function norm(str) {
+    return (str || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+}
+
+export function getLocationsForProfile(profileLocation) {
+    if (!profileLocation) return locationsByCountry.togo.locations
+    const n = norm(profileLocation)
+    for (const [, data] of Object.entries(locationsByCountry)) {
+        // Match country name
+        if (n.includes(norm(data.countryName))) return data.locations
+        // Match any city value or label
+        for (const loc of data.locations) {
+            if (norm(loc.label) && n.includes(norm(loc.label))) return data.locations
+            if (norm(loc.value) && n.includes(norm(loc.value))) return data.locations
+        }
+    }
+    return locationsByCountry.togo.locations
+}
+
