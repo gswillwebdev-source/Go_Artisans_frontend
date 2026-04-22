@@ -13,6 +13,7 @@ import FollowStats from '@/components/FollowStats'
 import FollowNotificationBell from '@/components/FollowNotificationBell'
 import PhoneInput from '@/components/PhoneInput'
 import { useLanguage } from '@/context/LanguageContext'
+import { togoLocations, handworks } from '@/lib/togoData'
 
 function normalizeClientProfile(rawProfile, fallbackEmail = '') {
     const firstName = rawProfile?.first_name ?? rawProfile?.firstName ?? ''
