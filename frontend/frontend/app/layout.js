@@ -3,6 +3,7 @@ import Script from 'next/script'
 import Navbar from '@/components/Navbar'
 import UpdateNoticeBanner from '@/components/UpdateNoticeBanner'
 import ChatAssistant from '@/components/ChatAssistant'
+import AdBanner from '@/components/AdBanner'
 import { LanguageProvider } from '@/context/LanguageContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { Analytics } from '@vercel/analytics/react'
@@ -31,7 +32,9 @@ export default function RootLayout({ children }) {
                         <LanguageProvider>
                             <Navbar />
                             <UpdateNoticeBanner />
+                            <AdBanner />
                             {children}
+                            <AdBanner />
                             <ChatAssistant />
                         </LanguageProvider>
                     </div>
