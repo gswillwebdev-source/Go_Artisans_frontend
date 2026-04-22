@@ -10,7 +10,7 @@ import { useEffect, useRef } from 'react'
 // ─────────────────────────────────────────────────────────────────────────────
 const PUBLISHER_ID = 'ca-pub-1284812825598221'
 // Replace DEFAULT_SLOT with your 10-digit Ad Unit ID from AdSense → My ads → Create ad unit
-const DEFAULT_SLOT = 'YYYYYYYYYY'
+const DEFAULT_SLOT = '4896240667'
 
 export default function AdBanner({
     slot = DEFAULT_SLOT,
