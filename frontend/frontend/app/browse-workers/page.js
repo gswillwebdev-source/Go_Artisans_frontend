@@ -8,7 +8,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import WorkerCard from '@/components/WorkerCard'
 import WorkerSearchBar from '@/components/WorkerSearchBar'
 import UserCardSkeleton from '@/components/UserCardSkeleton'
-import PostJobModal from '@/components/PostJobModal'
+import JobFormModal from '@/components/JobFormModal'
 
 export default function BrowseWorkersPage() {
     const PAGE_SIZE = 24
@@ -114,10 +114,11 @@ export default function BrowseWorkersPage() {
                     )}
                 </div>
 
-                {showPostJobModal && (
-                    <PostJobModal
-                        onClose={() => setShowPostJobModal(false)}
-                    />
+                <JobFormModal
+                    isOpen={showPostJobModal}
+                    onClose={() => setShowPostJobModal(false)}
+                    userId={user?.id}
+                />
                 )}
 
                 {loading ? (
