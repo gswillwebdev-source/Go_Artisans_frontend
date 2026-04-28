@@ -645,20 +645,6 @@ function AdminUsersContent() {
     )
 }
 
-function AdminUsersContent() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-7xl mx-auto p-6">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-8">Loading Users...</h1>
-                </div>
-            </div>
-        }>
-            <AdminUsersContent />
-        </Suspense>
-    )
-}
-
 export default function AdminUsersPage() {
     return (
         <Suspense>
