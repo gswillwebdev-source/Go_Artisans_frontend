@@ -1,5 +1,6 @@
 const path = require('path')
 
+// Next.js configuration
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: true,
