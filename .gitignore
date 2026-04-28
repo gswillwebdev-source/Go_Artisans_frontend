@@ -42,3 +42,9 @@ coverage/
 .env.example
 .vercel
 .env*.local
+
+# Vercel temp files
+.env.vercel.tmp
+
+# Debug scripts
+scripts/get-build-logs.ps1
