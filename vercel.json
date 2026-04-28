@@ -5,6 +5,14 @@
         {
             "path": "/api/cron/send-emails",
             "schedule": "0 9 * * *"
+        },
+        {
+            "path": "/api/cron/process-trials",
+            "schedule": "0 0 * * *"
+        },
+        {
+            "path": "/api/cron/reset-monthly",
+            "schedule": "0 0 1 * *"
         }
     ]
 }

@@ -1,0 +1,39 @@
+{
+    "extends": "./node_modules/@tsconfig/react-native/tsconfig.json",
+    "compilerOptions": {
+        "allowJs": true,
+        "allowSyntheticDefaultImports": true,
+        "declaration": true,
+        "declarationMap": true,
+        "esModuleInterop": true,
+        "forceConsistentCasingInFileNames": true,
+        "ignoreDeprecations": "6.0",
+        "lib": [
+            "es2020"
+        ],
+        "module": "esnext",
+        "moduleResolution": "node",
+        "noEmit": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "resolveJsonModule": true,
+        "skipLibCheck": true,
+        "sourceMap": true,
+        "strict": true,
+        "target": "esnext",
+        "types": [
+            "jest",
+            "@testing-library/jest-native"
+        ]
+    },
+    "exclude": [
+        "node_modules",
+        "babel.config.js",
+        "metro.config.js"
+    ],
+    "include": [
+        "App.tsx",
+        "index.ts",
+        "src/**/*"
+    ]
+}

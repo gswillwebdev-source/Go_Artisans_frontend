@@ -9,19 +9,22 @@
         "migrate": "node migrations/init.js"
     },
     "dependencies": {
+        "@supabase/supabase-js": "^2.104.0",
         "bcryptjs": "^2.4.3",
         "cors": "^2.8.6",
         "dotenv": "^16.6.1",
         "express": "^4.22.1",
         "express-session": "^1.19.0",
         "express-validator": "^7.0.0",
+        "fedapay": "^1.2.5",
         "jsonwebtoken": "^8.5.1",
         "mongoose": "^9.2.1",
         "nodemailer": "^8.0.1",
         "passport": "^0.7.0",
         "passport-github2": "^0.1.12",
         "passport-google-oauth20": "^2.0.0",
-        "pg": "^8.11.0"
+        "pg": "^8.11.0",
+        "stripe": "^22.0.2"
     },
     "devDependencies": {
         "@vercel/postgres": "^0.10.0",

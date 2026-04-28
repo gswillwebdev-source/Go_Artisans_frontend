@@ -1,0 +1,39 @@
+{
+    "name": "GoArtisans",
+    "displayName": "GoArtisans",
+    "react-native-google-mobile-ads": {
+        "android_app_id": "ca-app-pub-1284812825598221~9550552570",
+        "ios_app_id": "ca-app-pub-1284812825598221~9550552570"
+    },
+    "expo": {
+        "name": "GoArtisans",
+        "slug": "job-seeking-app",
+        "owner": "goartisans",
+        "version": "1.0.0",
+        "assetBundlePatterns": [
+            "**/*"
+        ],
+        "ios": {
+            "supportsTabletMode": true
+        },
+        "android": {
+            "versionCode": 1,
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#FFFFFF"
+            },
+            "package": "online.goartisans.app",
+            "config": {
+                "googleMobileAdsAppId": "ca-app-pub-1284812825598221~9550552570"
+            }
+        },
+        "web": {
+            "favicon": "./assets/favicon.png"
+        },
+        "extra": {
+            "eas": {
+                "projectId": "f90b0f7a-fb2b-46de-b375-3734e2480a7b"
+            }
+        }
+    }
+}

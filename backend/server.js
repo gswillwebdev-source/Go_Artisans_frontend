@@ -7,6 +7,10 @@ const { Pool } = require('pg');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const isProd = process.env.NODE_ENV === 'production';
+
+// Trust reverse proxy (Render / Railway / Heroku) — required for secure cookies + correct IPs
+if (isProd) app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors({
@@ -45,7 +49,12 @@ app.use(session({
     secret: process.env.SESSION_SECRET || 'change_this',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false } // change secure:true in production with HTTPS
+    cookie: {
+        secure: isProd,           // HTTPS-only cookies in production
+        sameSite: isProd ? 'strict' : 'lax',
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000  // 1 day
+    }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -92,6 +101,7 @@ app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/completion', require('./routes/completion'));
+app.use('/api/subscriptions', require('./routes/subscriptions'));
 
 // Error Handling - show stack in development
 app.use((err, req, res, next) => {
@@ -104,9 +114,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// Only call listen when running locally — Vercel handles the server lifecycle
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+        console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    });
+}
 
 module.exports = { app, pool };
