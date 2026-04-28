@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -10,7 +10,7 @@ import { useSubscription } from '@/context/SubscriptionContext'
 import VerifiedBadge from '@/components/VerifiedBadge'
 import ReferralBadge from '@/components/ReferralBadge'
 
-export default function NotificationsPage() {
+function NotificationsContent() {
     const { t } = useLanguage()
     const { isPro, isPremium, isTrialing, badge, loading: subLoading } = useSubscription()
     const canAccessViews = isPro || isPremium || isTrialing
@@ -2318,5 +2318,13 @@ function ProfileViewsTab({ canAccess, subLoading, viewers, loading, error, daysR
                     : 'Profile view history up to 30 days. Upgrade to Premium for 90-day history.'}
             </p>
         </div>
+    )
+}
+
+export default function NotificationsPage() {
+    return (
+        <Suspense>
+            <NotificationsContent />
+        </Suspense>
     )
 }
