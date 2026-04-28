@@ -485,10 +485,18 @@ function SubscriptionPageContent() {
     )
 }
 
-export default function SubscriptionPage() {
+function SubscriptionContent() {
     return (
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" /></div>}>
             <SubscriptionPageContent />
+        </Suspense>
+    )
+}
+
+export default function SubscriptionPage() {
+    return (
+        <Suspense>
+            <SubscriptionContent />
         </Suspense>
     )
 }

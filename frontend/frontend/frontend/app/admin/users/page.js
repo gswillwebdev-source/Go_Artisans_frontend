@@ -645,7 +645,7 @@ function AdminUsersContent() {
     )
 }
 
-export default function AdminUsersPage() {
+function AdminUsersContent() {
     return (
         <Suspense fallback={
             <div className="min-h-screen bg-gray-50">
@@ -654,6 +654,14 @@ export default function AdminUsersPage() {
                 </div>
             </div>
         }>
+            <AdminUsersContent />
+        </Suspense>
+    )
+}
+
+export default function AdminUsersPage() {
+    return (
+        <Suspense>
             <AdminUsersContent />
         </Suspense>
     )

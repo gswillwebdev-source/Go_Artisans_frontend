@@ -212,10 +212,18 @@ function JobsPageContent() {
     )
 }
 
-export default function JobsPage() {
+function JobsContent() {
     return (
         <Suspense fallback={<div className="min-h-screen py-8 sm:py-10" />}>
             <JobsPageContent />
+        </Suspense>
+    )
+}
+
+export default function JobsPage() {
+    return (
+        <Suspense>
+            <JobsContent />
         </Suspense>
     )
 }

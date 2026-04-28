@@ -569,10 +569,18 @@ function AllUsersPageContent() {
     )
 }
 
-export default function AllUsersPage() {
+function AllUsersContent() {
     return (
         <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8" />}>
             <AllUsersPageContent />
+        </Suspense>
+    )
+}
+
+export default function AllUsersPage() {
+    return (
+        <Suspense>
+            <AllUsersContent />
         </Suspense>
     )
 }

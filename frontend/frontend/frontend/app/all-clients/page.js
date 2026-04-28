@@ -453,10 +453,18 @@ function AllClientsPageContent() {
     )
 }
 
-export default function AllClientsPage() {
+function AllClientsContent() {
     return (
         <Suspense fallback={<div className="min-h-screen bg-gray-50 py-8" />}>
             <AllClientsPageContent />
+        </Suspense>
+    )
+}
+
+export default function AllClientsPage() {
+    return (
+        <Suspense>
+            <AllClientsContent />
         </Suspense>
     )
 }
