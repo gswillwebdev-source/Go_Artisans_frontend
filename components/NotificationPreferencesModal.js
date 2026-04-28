@@ -34,8 +34,6 @@ export default function NotificationPreferencesModal({ onClose }) {
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
     const [showSwitchPrompt, setShowSwitchPrompt] = useState(false)
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-    const [deleting, setDeleting] = useState(false)
 
     useEffect(() => {
         fetchPreferences()
@@ -161,28 +159,6 @@ export default function NotificationPreferencesModal({ onClose }) {
         }
     }
 
-    const handleDeleteAccount = async () => {
-        setDeleting(true)
-        setError('')
-        try {
-            const { error: rpcError } = await supabase.rpc('delete_user_account')
-            if (rpcError) throw rpcError
-
-            await supabase.auth.signOut()
-            if (typeof window !== 'undefined') {
-                localStorage.clear()
-            }
-            onClose()
-            router.push('/login')
-        } catch (err) {
-            console.error('[Delete Account Error]', err)
-            setError(t('failedDeleteAccount'))
-            setShowDeleteConfirm(false)
-        } finally {
-            setDeleting(false)
-        }
-    }
-
     const handleSwitchAccount = async (destination) => {
         try {
             await supabase.auth.signOut()
@@ -295,47 +271,6 @@ export default function NotificationPreferencesModal({ onClose }) {
                                             className="flex-1 rounded-xl primary-action px-4 py-2.5 text-sm font-semibold text-white shadow-sm"
                                         >
                                             {t('register')}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Danger Zone */}
-                        <div className="rounded-2xl border border-red-200 bg-red-50/40 p-4 space-y-4">
-                            <div>
-                                <h3 className="text-sm font-semibold text-red-700">⚠️ {t('dangerZone')}</h3>
-                                <p className="text-xs text-slate-600 mt-1">{t('dangerZoneHint')}</p>
-                            </div>
-
-                            {!showDeleteConfirm ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    className="w-full rounded-xl border border-red-300 px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-100 transition"
-                                >
-                                    {t('deleteAccount')}
-                                </button>
-                            ) : (
-                                <div className="rounded-xl bg-white border border-red-200 p-3 space-y-3">
-                                    <p className="text-sm font-semibold text-red-700">{t('deleteAccountConfirmTitle')}</p>
-                                    <p className="text-xs text-slate-600 leading-relaxed">{t('deleteAccountConfirmBody')}</p>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowDeleteConfirm(false)}
-                                            disabled={deleting}
-                                            className="flex-1 rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 transition disabled:opacity-50"
-                                        >
-                                            {t('cancel')}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleDeleteAccount}
-                                            disabled={deleting}
-                                            className="flex-1 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
-                                        >
-                                            {deleting ? t('deletingAccount') : t('deleteAccountConfirm')}
                                         </button>
                                     </div>
                                 </div>
