@@ -532,7 +532,11 @@ export default function PricingPage() {
                                         <div className="text-left flex-1">
                                             <p className="font-semibold text-slate-800">Pay via FedaPay</p>
                                             <p className="text-xs text-slate-500">Mobile Money · Flooz · T-Money · Visa · Mastercard</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">A $1 verification charge is deducted and immediately refunded.</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">
+                                                {payModal?.plan?.trial
+                                                    ? 'A $1 card verification is charged and immediately refunded.'
+                                                    : 'A $1 card verification fee is charged (non-refundable). Subscription activates instantly.'}
+                                            </p>
                                         </div>
                                         {loadingPlanId === `${payModal.plan.id}_fedapay`
                                             ? <span className="animate-spin h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full shrink-0"></span>
@@ -598,7 +602,7 @@ export default function PricingPage() {
                                     <span className="animate-spin h-7 w-7 border-4 border-green-500 border-t-transparent rounded-full"></span>
                                 </span>
                                 <h3 className="text-lg font-bold text-slate-900 mb-2">Redirecting to FedaPay…</h3>
-                                <p className="text-sm text-slate-500 mb-4">You will be charged $1 to verify your payment method. This fee is refunded immediately after confirmation.</p>
+                                <p className="text-sm text-slate-500 mb-4">A $1 card verification is required. For trials, this is refunded immediately. For premium plans, the $1 activates your subscription instantly.</p>
                                 {checkoutUrl && (
                                     <a
                                         href={checkoutUrl}

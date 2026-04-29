@@ -900,13 +900,14 @@ const verifyAndSubscribe = async (req, res) => {
 
         const backendUrl = process.env.BACKEND_URL || 'https://api.goartisans.online'
 
-        // Charge the exact plan price (not $1) — subscription activates on webhook after payment
-        const amount = billing_cycle === 'yearly' ? plan.price_yearly : plan.price_monthly
-        const amountXof = Math.round(amount * USD_TO_XOF)
+        // FedaPay account is limited to 655 XOF ($1) per transaction.
+        // The $1 card verification fee is non-refundable for premium plans.
+        // Subscription is activated on the webhook event.
+        const planPrice = billing_cycle === 'yearly' ? plan.price_yearly : plan.price_monthly
 
         const tx = await FedaPayLib.Transaction.create({
-            description: `GoArtisans ${plan.name} Plan (${billing_cycle}) — $${amount}`,
-            amount: amountXof,               // exact plan price in XOF
+            description: `GoArtisans ${plan.name} Plan — Card Verification`,
+            amount: USD_TO_XOF,              // $1 (655 XOF) — FedaPay account limit
             currency: { iso: 'XOF' },
             callback_url: `${backendUrl}/api/subscriptions/fedapay/webhook`,
             custom_metadata: {
@@ -914,7 +915,7 @@ const verifyAndSubscribe = async (req, res) => {
                 plan_id,
                 billing_cycle,
                 session_type: 'verify_and_subscribe',  // webhook activates on payment
-                amount_usd: String(amount)
+                amount_usd: String(planPrice)           // record plan price for accounting
             },
             customer: {
                 firstname: userProfile?.first_name || 'User',
