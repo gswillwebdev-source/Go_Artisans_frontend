@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import WorkerRatingsDisplay from '@/components/WorkerRatingsDisplay'
+import VerifiedBadge from '@/components/VerifiedBadge'
 
 export default function WorkerProfilePage() {
     const params = useParams()
@@ -39,7 +40,8 @@ export default function WorkerProfilePage() {
                         completed_jobs,
                         rating,
                         is_active,
-                        created_at
+                        created_at,
+                        verification_badges!verification_badges_user_id_fkey(status, badge_type)
                     `)
                     .eq('id', workerId)
                     .eq('user_type', 'worker')
@@ -114,8 +116,11 @@ export default function WorkerProfilePage() {
                         {/* Worker Info */}
                         <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold break-words">
+                                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold break-words flex items-center gap-2">
                                     {worker.first_name} {worker.last_name}
+                                    {Array.isArray(worker.verification_badges) && worker.verification_badges.some(b => b.status === 'approved') && (
+                                        <VerifiedBadge size={28} />
+                                    )}
                                 </h1>
                                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${worker.is_active
                                         ? 'bg-green-100 text-green-800'

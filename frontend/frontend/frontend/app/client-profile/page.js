@@ -14,6 +14,7 @@ import FollowNotificationBell from '@/components/FollowNotificationBell'
 import PhoneInput from '@/components/PhoneInput'
 import { useLanguage } from '@/context/LanguageContext'
 import { useSubscription } from '@/context/SubscriptionContext'
+import VerifiedBadge from '@/components/VerifiedBadge'
 import { togoLocations, handworks } from '@/lib/togoData'
 
 function normalizeClientProfile(rawProfile, fallbackEmail = '') {
@@ -46,7 +47,7 @@ function normalizeClientProfile(rawProfile, fallbackEmail = '') {
 export default function ClientProfilePage() {
     const { t } = useLanguage()
     const { user, isLoading: authLoading } = useAuth({ requiredRole: 'client' })
-    const { isFree, isPro, isPremium, canPostJobs, jobPostsThisMonth, FREE_JOB_POST_LIMIT } = useSubscription()
+    const { isFree, isPro, isPremium, isVerified, canPostJobs, jobPostsThisMonth, FREE_JOB_POST_LIMIT } = useSubscription()
     const [profile, setProfile] = useState(null)
     const [followerCount, setFollowerCount] = useState(0)
     const [followingCount, setFollowingCount] = useState(0)
@@ -1165,6 +1166,7 @@ export default function ClientProfilePage() {
                                 <div>
                                     <p className="text-xl font-semibold text-gray-900 flex items-center gap-1">
                                         {profile?.first_name} {profile?.last_name}
+                                        {isVerified && <VerifiedBadge size={20} />}
                                         {isPremium && <span title="Premium member" className="inline-flex items-center bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">💎</span>}
                                         {isPro && !isPremium && <span title="Pro member" className="text-yellow-500">⭐</span>}
                                     </p>

@@ -13,8 +13,12 @@ const isProd = process.env.NODE_ENV === 'production';
 if (isProd) app.set('trust proxy', 1);
 
 // Middleware
+const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+    : ['http://localhost:3000', 'https://goartisans.online', 'https://goartisans1.vercel.app'];
+
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'https://goartisans.online', 'https://goartisans1.vercel.app'],
+    origin: allowedOrigins,
     credentials: true,
 }));
 

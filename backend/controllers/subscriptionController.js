@@ -502,24 +502,16 @@ const handleFedaPayWebhook = async (req, res) => {
             ? periodEnd.setFullYear(periodEnd.getFullYear() + 1)
             : periodEnd.setMonth(periodEnd.getMonth() + 1)
 
-        // ── verify_and_subscribe: refund $1 (fire & forget), then activate plan ──
+        // ── verify_and_subscribe: exact plan price paid → activate plan immediately ──
         if (session_type === 'verify_and_subscribe') {
-            // Refund asynchronously — don't block activation if refund fails
-            if (FedaPayLib && entity?.id) {
-                FedaPayLib.Transaction.retrieve(entity.id)
-                    .then(tx => typeof tx.refund === 'function' ? tx.refund() : null)
-                    .then(() => console.log(`FedaPay webhook: refunded $1 for user ${userId}, tx ${entity.id}`))
-                    .catch(err => console.error(`FedaPay webhook: refund failed for tx ${entity.id}:`, err.message))
-            }
-
             await supabase.from('user_subscriptions').upsert({
                 user_id: userId, plan_id, status: 'active', billing_cycle,
                 current_period_start: now.toISOString(), current_period_end: periodEnd.toISOString(),
-                payment_provider: 'fedapay_verified', payment_provider_subscription_id: String(entity?.id || ''),
-                amount_paid: 0, currency: 'XOF',
+                payment_provider: 'fedapay', payment_provider_subscription_id: String(entity?.id || ''),
+                amount_paid: parseFloat(amount_usd || '0'), currency: 'XOF',
                 cancelled_at: null, cancel_at_period_end: false, updated_at: now.toISOString()
             }, { onConflict: 'user_id' })
-            console.log(`FedaPay webhook: verify_and_subscribe — activated ${plan_id} for user ${userId}`)
+            console.log(`FedaPay webhook: verify_and_subscribe — activated ${plan_id} for user ${userId}, amount $${amount_usd}`)
             return
         }
 
@@ -908,18 +900,21 @@ const verifyAndSubscribe = async (req, res) => {
 
         const backendUrl = process.env.BACKEND_URL || 'https://api.goartisans.online'
 
-        // Charge exactly $1 (655 XOF) for verification — the plan activates on webhook
+        // Charge the exact plan price (not $1) — subscription activates on webhook after payment
+        const amount = billing_cycle === 'yearly' ? plan.price_yearly : plan.price_monthly
+        const amountXof = Math.round(amount * USD_TO_XOF)
+
         const tx = await FedaPayLib.Transaction.create({
-            description: `GoArtisans Account Verification — ${plan.name} Plan`,
-            amount: USD_TO_XOF,              // $1 in XOF
+            description: `GoArtisans ${plan.name} Plan (${billing_cycle}) — $${amount}`,
+            amount: amountXof,               // exact plan price in XOF
             currency: { iso: 'XOF' },
             callback_url: `${backendUrl}/api/subscriptions/fedapay/webhook`,
             custom_metadata: {
                 user_id: userId,
                 plan_id,
                 billing_cycle,
-                session_type: 'verify_and_subscribe',  // webhook will refund + activate
-                amount_usd: '1'
+                session_type: 'verify_and_subscribe',  // webhook activates on payment
+                amount_usd: String(amount)
             },
             customer: {
                 firstname: userProfile?.first_name || 'User',

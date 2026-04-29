@@ -26,6 +26,8 @@ const {
 } = require('../controllers/subscriptionController')
 
 // ── FedaPay webhook (public — no auth) ──────────────────────────────────────
+// GET: verification ping from FedaPay dashboard when registering the webhook
+router.get('/fedapay/webhook', (req, res) => res.status(200).json({ status: 'ok', message: 'FedaPay webhook endpoint active' }))
 router.post('/fedapay/webhook', handleFedaPayWebhook)
 
 // ── Public ──────────────────────────────────────────────────────
