@@ -74,7 +74,7 @@ async function fetchUsersWithFallback(supabase, { normalizedType, searchVariants
   const selectClause = `
     id, first_name, last_name, profile_picture, job_title, location,
     user_type, rating, bio, services, completed_jobs, is_active, created_at, phone_number,
-    is_verified, referral_count,
+    referral_count,
     user_subscriptions(plan_id, status),
     verification_badges!user_id(status, badge_type)
   `
