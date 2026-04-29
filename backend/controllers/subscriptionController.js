@@ -12,6 +12,9 @@ try {
     if (process.env.FEDAPAY_SECRET_KEY) {
         FedaPayLib.FedaPay.setApiKey(process.env.FEDAPAY_SECRET_KEY)
         FedaPayLib.FedaPay.setEnvironment(process.env.NODE_ENV === 'production' ? 'live' : 'sandbox')
+        if (process.env.FEDAPAY_ACCOUNT_ID) {
+            FedaPayLib.FedaPay.setAccountId(process.env.FEDAPAY_ACCOUNT_ID)
+        }
     }
 } catch (e) { console.warn('FedaPay SDK not available:', e.message) }
 
