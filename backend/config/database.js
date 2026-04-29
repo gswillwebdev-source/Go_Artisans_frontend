@@ -20,7 +20,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
     console.error('Unexpected error on idle client', err);
-    process.exit(-1);
+    // Do NOT call process.exit() — it would crash Vercel serverless functions
 });
 
 pool.on('connect', () => {
