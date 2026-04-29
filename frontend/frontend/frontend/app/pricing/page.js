@@ -251,6 +251,7 @@ export default function PricingPage() {
     const [message, setMessage] = useState(null)
     const [user, setUser] = useState(null)
     const [payModal, setPayModal] = useState(null)
+    const [checkoutUrl, setCheckoutUrl] = useState(null)
     // payModal shape: { plan, billing, step }
     // step: 'choose_method' | 'whatsapp_sent' | 'verifying'
 
@@ -324,7 +325,10 @@ export default function PricingPage() {
         if (!payModal) return
         const { plan, billing: bc } = payModal
         setLoadingPlanId(`${plan.id}_fedapay`)
+        setCheckoutUrl(null)
         setPayModal(prev => ({ ...prev, step: 'verifying' }))
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 20000)
         try {
             const { data: { session: authSession } } = await supabase.auth.getSession()
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscriptions/verify-and-subscribe`, {
@@ -333,17 +337,24 @@ export default function PricingPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${authSession?.access_token}`
                 },
-                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc })
+                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc }),
+                signal: controller.signal
             })
             const data = await res.json()
             if (!res.ok) throw new Error(data.error || 'Payment failed')
             if (data.checkout_url) {
+                setCheckoutUrl(data.checkout_url)
                 window.location.href = data.checkout_url
+            } else {
+                throw new Error('No checkout URL returned. Please try again.')
             }
         } catch (err) {
-            setMessage({ type: 'error', text: err.message })
+            const msg = err.name === 'AbortError' ? 'Payment gateway timed out. Please try again.' : err.message
+            setMessage({ type: 'error', text: msg })
             setPayModal(null)
+            setCheckoutUrl(null)
         } finally {
+            clearTimeout(timeout)
             setLoadingPlanId(null)
         }
     }
@@ -353,7 +364,10 @@ export default function PricingPage() {
         if (!payModal) return
         const { plan, billing: bc } = payModal
         setLoadingPlanId(`${plan.id}_trial`)
+        setCheckoutUrl(null)
         setPayModal(prev => ({ ...prev, step: 'verifying' }))
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 20000)
         try {
             const { data: { session: authSession } } = await supabase.auth.getSession()
             const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscriptions/trial-checkout`, {
@@ -362,7 +376,8 @@ export default function PricingPage() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${authSession?.access_token}`
                 },
-                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc })
+                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc }),
+                signal: controller.signal
             })
             const data = await res.json()
             if (!res.ok) {
@@ -376,12 +391,18 @@ export default function PricingPage() {
             }
             // Always redirects to FedaPay for card verification
             if (data.checkout_url) {
+                setCheckoutUrl(data.checkout_url)
                 window.location.href = data.checkout_url
+            } else {
+                throw new Error('No checkout URL returned. Please try again.')
             }
         } catch (err) {
-            setMessage({ type: 'error', text: err.message })
+            const msg = err.name === 'AbortError' ? 'Payment gateway timed out. Please try again.' : err.message
+            setMessage({ type: 'error', text: msg })
             setPayModal(null)
+            setCheckoutUrl(null)
         } finally {
+            clearTimeout(timeout)
             setLoadingPlanId(null)
         }
     }
@@ -577,7 +598,23 @@ export default function PricingPage() {
                                     <span className="animate-spin h-7 w-7 border-4 border-green-500 border-t-transparent rounded-full"></span>
                                 </span>
                                 <h3 className="text-lg font-bold text-slate-900 mb-2">Redirecting to FedaPay…</h3>
-                                <p className="text-sm text-slate-500">You will be charged $1 to verify your payment method. This fee is refunded immediately after confirmation.</p>
+                                <p className="text-sm text-slate-500 mb-4">You will be charged $1 to verify your payment method. This fee is refunded immediately after confirmation.</p>
+                                {checkoutUrl && (
+                                    <a
+                                        href={checkoutUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-block text-sm text-green-700 underline font-semibold mt-2"
+                                    >
+                                        Not redirected? Click here to open FedaPay →
+                                    </a>
+                                )}
+                                <button
+                                    onClick={() => { setPayModal(null); setCheckoutUrl(null) }}
+                                    className="block mx-auto mt-4 text-xs text-slate-400 hover:text-slate-600 underline"
+                                >
+                                    Cancel
+                                </button>
                             </div>
                         )}
 
