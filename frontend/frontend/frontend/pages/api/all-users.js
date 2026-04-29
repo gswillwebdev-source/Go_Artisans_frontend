@@ -76,7 +76,7 @@ async function fetchUsersWithFallback(supabase, { normalizedType, searchVariants
     user_type, rating, bio, services, completed_jobs, is_active, created_at, phone_number,
     is_verified, referral_count,
     user_subscriptions(plan_id, status),
-    verification_badges!verification_badges_user_id_fkey(status, badge_type)
+    verification_badges!user_id(status, badge_type)
   `
 
   // Use 'planned' count (Postgres statistics) — much faster than 'exact' (full scan)

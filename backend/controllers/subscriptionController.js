@@ -243,7 +243,7 @@ const startTrialCheckout = async (req, res) => {
         })
 
         const token = await tx.generateToken()
-        const checkoutUrl = token.url || token.token
+        const checkoutUrl = token.url || `https://checkout.fedapay.com/pay/${token.token}`
 
         return res.json({ success: true, checkout_url: checkoutUrl })
     } catch (err) {
@@ -340,7 +340,7 @@ const chargeExpiredTrials = async (req, res) => {
                             }
                         })
                         const token = await tx.generateToken()
-                        checkoutUrl = token.url || token.token
+                        checkoutUrl = token.url || `https://checkout.fedapay.com/pay/${token.token}`
                     } catch (txErr) {
                         console.error(`Cron: FedaPay checkout failed for user ${sub.user_id}:`, txErr.message)
                     }
@@ -467,7 +467,7 @@ const createSubscription = async (req, res) => {
             customer: { firstname: userProfile?.first_name || 'User', lastname: userProfile?.last_name || '', email: userProfile?.email }
         })
         const token = await tx.generateToken()
-        const checkoutUrl = token.url || token.token
+        const checkoutUrl = token.url || `https://checkout.fedapay.com/pay/${token.token}`
         return res.json({ success: true, requires_payment: true, checkout_url: checkoutUrl })
     } catch (err) {
         console.error('createSubscription error:', err)
@@ -926,7 +926,7 @@ const verifyAndSubscribe = async (req, res) => {
         })
 
         const token = await tx.generateToken()
-        const checkoutUrl = token.url || token.token
+        const checkoutUrl = token.url || `https://checkout.fedapay.com/pay/${token.token}`
 
         res.json({ success: true, checkout_url: checkoutUrl })
     } catch (err) {

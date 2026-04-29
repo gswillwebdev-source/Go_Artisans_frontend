@@ -578,9 +578,5 @@ function AllUsersContent() {
 }
 
 export default function AllUsersPage() {
-    return (
-        <Suspense>
-            <AllUsersContent />
-        </Suspense>
-    )
+    return <AllUsersContent />
 }
