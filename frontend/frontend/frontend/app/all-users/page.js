@@ -265,7 +265,7 @@ function AllUsersPageContent() {
     })
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+        <div className={viewMode === 'globe' ? 'relative' : 'min-h-screen bg-gray-50 py-8'}>
             {/* Upgrade modal — shown when free user clicks WhatsApp */}
             <UpgradeModal
                 isOpen={upgradeModal}
@@ -273,9 +273,55 @@ function AllUsersPageContent() {
                 feature="WhatsApp contact"
             />
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {/* Globe view — full viewport, no inner padding */}
+            {viewMode === 'globe' && !initialLoading && (
+                <>
+                    {/* Floating top bar with search + toggle */}
+                    <div className="absolute top-0 left-0 right-0 z-10 px-4 pt-4 flex items-center gap-3 pointer-events-none">
+                        <div className="flex-1 pointer-events-auto">
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search users on globe…"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') handleImmediateSearch() }}
+                                    className="w-full pl-10 pr-24 py-2.5 bg-black/70 backdrop-blur-md text-white placeholder-gray-400 border border-white/20 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                                />
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔎</span>
+                                {searchTerm && (
+                                    <button onClick={() => setSearchTerm('')} className="absolute right-16 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-white">Clear</button>
+                                )}
+                                <button onClick={handleImmediateSearch} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white px-2.5 py-1 rounded-xl text-xs font-semibold hover:bg-indigo-700 transition">Go</button>
+                            </div>
+                        </div>
+                        <div className="pointer-events-auto flex items-center bg-black/60 backdrop-blur-md rounded-2xl p-1 gap-1 border border-white/10">
+                            <button onClick={() => setViewMode('globe')} className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white/20 text-white" title="3D Globe">🌍</button>
+                            <button onClick={() => setViewMode('list')} className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white transition" title="List view">⊞</button>
+                        </div>
+                    </div>
+                    <WorldGlobe
+                        users={filteredUsers}
+                        currentUser={currentUser}
+                        followingIds={followingIds}
+                        onFollowChange={handleFollowChange}
+                    />
+                </>
+            )}
+
+            {/* Globe loading state */}
+            {viewMode === 'globe' && initialLoading && (
+                <div className="flex items-center justify-center bg-gray-950" style={{ height: '100vh' }}>
+                    <div className="text-center text-white">
+                        <div className="animate-spin w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full mx-auto mb-4" />
+                        <p className="text-base opacity-70">Loading globe…</p>
+                    </div>
+                </div>
+            )}
+
+            <div className={viewMode === 'list' ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8' : 'hidden'}>
                 {/* Header */}
-                <div className="mb-8">
+                <div className="mb-8 pt-8">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">Discover Users</h1>
                     <p className="text-gray-600">Find and connect with workers and clients on GoArtisans</p>
                 </div>
@@ -386,26 +432,11 @@ function AllUsersPageContent() {
                 {!initialLoading && (
                     <p className="text-gray-600 mb-6">
                         Showing <span className="font-semibold">{filteredUsers.length}</span> user{filteredUsers.length !== 1 ? 's' : ''}
-                        {viewMode === 'globe' && (
-                            <span className="ml-2 text-xs text-indigo-500">(only users with known locations appear on the globe)</span>
-                        )}
                     </p>
                 )}
 
-                {/* Globe View */}
-                {viewMode === 'globe' && !initialLoading && (
-                    <div className="mb-8">
-                        <WorldGlobe
-                            users={filteredUsers}
-                            currentUser={currentUser}
-                            followingIds={followingIds}
-                            onFollowChange={handleFollowChange}
-                        />
-                    </div>
-                )}
-
-                {/* Users Grid — only shown in list mode */}
-                {viewMode === 'list' && (initialLoading ? (
+                {/* Users Grid */}
+                {(initialLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <UserCardSkeleton key={i} />
