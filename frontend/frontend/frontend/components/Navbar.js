@@ -74,8 +74,6 @@ export default function Navbar() {
         }`
 
     const profileHref = user?.user_type === 'worker' ? '/worker-profile' : '/client-profile'
-    const browseHref = user?.user_type === 'client' ? '/browse-workers' : '/jobs'
-    const browseLabel = user?.user_type === 'client' ? t('browseWorkers') : `📋 ${t('browseJobs')}`
 
     return (
         <>
@@ -105,9 +103,16 @@ export default function Navbar() {
                         <div className="flex items-center gap-1.5">
                             {!authLoading && user && (
                                 <>
-                                    <Link href={browseHref} className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition touch-manipulation whitespace-nowrap">
-                                        {user.user_type === 'client' ? '🔍 Workers' : '📋 Jobs'}
-                                    </Link>
+                                    {user.user_type === 'client' && (
+                                        <Link href="/browse-workers" className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition touch-manipulation whitespace-nowrap">
+                                            🔍 Workers
+                                        </Link>
+                                    )}
+                                    {user.user_type === 'worker' && (
+                                        <Link href="/jobs" className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition touch-manipulation whitespace-nowrap">
+                                            📋 Jobs
+                                        </Link>
+                                    )}
                                     <NotificationBell />
                                 </>
                             )}
@@ -131,10 +136,12 @@ export default function Navbar() {
                             {!authLoading && user && (
                                 <>
                                     <Link href="/all-users" className={getLinkClasses('/all-users')}>👥 All</Link>
-                                    {user.user_type === 'client'
-                                        ? <Link href="/browse-workers" className={getLinkClasses('/browse-workers')}>{t('browseWorkers')}</Link>
-                                        : <Link href="/jobs" className={getLinkClasses('/jobs')}>📋 {t('browseJobs')}</Link>
-                                    }
+                                    {user.user_type === 'client' && (
+                                        <Link href="/browse-workers" className={getLinkClasses('/browse-workers')}>{t('browseWorkers')}</Link>
+                                    )}
+                                    {user.user_type === 'worker' && (
+                                        <Link href="/jobs" className={getLinkClasses('/jobs')}>📋 {t('browseJobs')}</Link>
+                                    )}
                                     <Link href={profileHref} className={getLinkClasses(profileHref)}>👤 {t('profile')}</Link>
                                     <Link href="/pricing" className={`${getLinkClasses('/pricing')} flex items-center gap-1`}>
                                         {planTier === 'premium' ? '💎' : planTier === 'pro' ? '⭐' : '🚀'} Plans
@@ -242,9 +249,16 @@ export default function Navbar() {
                             <Link href="/all-users" onClick={closeDrawer} className={drawerLinkClasses('/all-users')}>
                                 <span>👥</span> All Users
                             </Link>
-                            <Link href={browseHref} onClick={closeDrawer} className={drawerLinkClasses(browseHref)}>
-                                <span>{user.user_type === 'client' ? '🔍' : '📋'}</span> {browseLabel}
-                            </Link>
+                            {user.user_type === 'client' && (
+                                <Link href="/browse-workers" onClick={closeDrawer} className={drawerLinkClasses('/browse-workers')}>
+                                    <span>🔍</span> {t('browseWorkers')}
+                                </Link>
+                            )}
+                            {user.user_type === 'worker' && (
+                                <Link href="/jobs" onClick={closeDrawer} className={drawerLinkClasses('/jobs')}>
+                                    <span>📋</span> {t('browseJobs')}
+                                </Link>
+                            )}
                             <Link href={profileHref} onClick={closeDrawer} className={drawerLinkClasses(profileHref)}>
                                 <span>👤</span> {t('profile')}
                             </Link>
