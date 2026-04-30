@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { createClient } from '@supabase/supabase-js'
@@ -12,6 +13,8 @@ import UpgradeModal from '@/components/UpgradeModal'
 import { useSubscription } from '@/context/SubscriptionContext'
 import VerifiedBadge from '@/components/VerifiedBadge'
 import ReferralBadge, { getReferralTier } from '@/components/ReferralBadge'
+
+const WorldGlobe = dynamic(() => import('@/components/WorldGlobe'), { ssr: false })
 
 function AllUsersPageContent() {
     const searchParams = useSearchParams()
@@ -28,6 +31,7 @@ function AllUsersPageContent() {
     const [hasMore, setHasMore] = useState(true)
     const [isSearching, setIsSearching] = useState(false)
     const [upgradeModal, setUpgradeModal] = useState(false)
+    const [viewMode, setViewMode] = useState('globe')
     const loaderRef = useRef(null)
     const didMountRef = useRef(false)
 
@@ -318,35 +322,62 @@ function AllUsersPageContent() {
                             {isSearching && <p className="text-indigo-600 font-medium">Searching...</p>}
                         </div>
 
-                        {/* Filter Buttons */}
-                        <div className="flex gap-2 flex-wrap">
-                            <button
-                                onClick={() => { setFilterType('all'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'all') }}
-                                className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'all'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                    }`}
-                            >
-                                All Users
-                            </button>
-                            <button
-                                onClick={() => { setFilterType('workers'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'workers') }}
-                                className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'workers'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                    }`}
-                            >
-                                Workers
-                            </button>
-                            <button
-                                onClick={() => { setFilterType('clients'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'clients') }}
-                                className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'clients'
-                                    ? 'bg-indigo-600 text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-                                    }`}
-                            >
-                                Clients
-                            </button>
+                        {/* Filter + View Toggle Row */}
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            {/* Filter Buttons */}
+                            <div className="flex gap-2 flex-wrap">
+                                <button
+                                    onClick={() => { setFilterType('all'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'all') }}
+                                    className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'all'
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    All Users
+                                </button>
+                                <button
+                                    onClick={() => { setFilterType('workers'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'workers') }}
+                                    className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'workers'
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    Workers
+                                </button>
+                                <button
+                                    onClick={() => { setFilterType('clients'); setInitialLoading(true); setDisplayUsers([]); fetchInitialUsers(false, 'clients') }}
+                                    className={`px-4 py-2 rounded-lg transition font-medium ${filterType === 'clients'
+                                        ? 'bg-indigo-600 text-white shadow-sm'
+                                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                                        }`}
+                                >
+                                    Clients
+                                </button>
+                            </div>
+
+                            {/* View Mode Toggle */}
+                            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                                <button
+                                    onClick={() => setViewMode('globe')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${viewMode === 'globe'
+                                        ? 'bg-white shadow text-indigo-700'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                        }`}
+                                    title="3D Globe view"
+                                >
+                                    🌍 Globe
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition ${viewMode === 'list'
+                                        ? 'bg-white shadow text-indigo-700'
+                                        : 'text-gray-500 hover:text-gray-800'
+                                        }`}
+                                    title="Card list view"
+                                >
+                                    ⊞ List
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -355,11 +386,26 @@ function AllUsersPageContent() {
                 {!initialLoading && (
                     <p className="text-gray-600 mb-6">
                         Showing <span className="font-semibold">{filteredUsers.length}</span> user{filteredUsers.length !== 1 ? 's' : ''}
+                        {viewMode === 'globe' && (
+                            <span className="ml-2 text-xs text-indigo-500">(only users with known locations appear on the globe)</span>
+                        )}
                     </p>
                 )}
 
-                {/* Users Grid */}
-                {initialLoading ? (
+                {/* Globe View */}
+                {viewMode === 'globe' && !initialLoading && (
+                    <div className="mb-8">
+                        <WorldGlobe
+                            users={filteredUsers}
+                            currentUser={currentUser}
+                            followingIds={followingIds}
+                            onFollowChange={handleFollowChange}
+                        />
+                    </div>
+                )}
+
+                {/* Users Grid — only shown in list mode */}
+                {viewMode === 'list' && (initialLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <UserCardSkeleton key={i} />
@@ -563,7 +609,7 @@ function AllUsersPageContent() {
                             </div>
                         )}
                     </>
-                )}
+                ))}
             </div>
         </div>
     )
