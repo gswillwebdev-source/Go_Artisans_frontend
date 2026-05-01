@@ -120,10 +120,37 @@ export function getCoords(locationValue) {
             .replace(/[\u0300-\u036f]/g, '') // strip diacritics: é→e, ô→o, etc.
             .replace(/\s+/g, '-')
             .replace(/[^\w-]/g, '')           // strip leftover special chars
-    const key = normalize(locationValue)
-    if (LOCATION_COORDS[key]) return LOCATION_COORDS[key]
-    // Try without hyphens (e.g. "porto-novo" matches "portonovo")
-    const noHyphen = key.replace(/-/g, '')
-    const found = Object.entries(LOCATION_COORDS).find(([k]) => k.replace(/-/g, '') === noHyphen)
-    return found ? found[1] : null
+
+    const tryKey = (raw) => {
+        const k = normalize(raw)
+        if (LOCATION_COORDS[k]) return LOCATION_COORDS[k]
+        // Try without hyphens (e.g. "porto-novo" → "portonovo")
+        const nh = k.replace(/-/g, '')
+        const hit = Object.entries(LOCATION_COORDS).find(([key]) => key.replace(/-/g, '') === nh)
+        return hit ? hit[1] : null
+    }
+
+    // 1. Try the full string first (handles clean slugs like "lome", "accra")
+    const direct = tryKey(locationValue)
+    if (direct) return direct
+
+    // 2. If the string contains commas (e.g. "Lomé, Maritime Region, Togo"),
+    //    try each comma-separated segment from left to right — the city is usually first
+    if (locationValue.includes(',')) {
+        const segments = locationValue.split(',')
+        for (const seg of segments) {
+            const coords = tryKey(seg.trim())
+            if (coords) return coords
+        }
+    }
+
+    // 3. Try each individual word as a fallback (catches "Lome Togo" → "lome")
+    const words = locationValue.split(/[\s,]+/)
+    for (const word of words) {
+        if (word.length < 3) continue
+        const coords = tryKey(word.trim())
+        if (coords) return coords
+    }
+
+    return null
 }

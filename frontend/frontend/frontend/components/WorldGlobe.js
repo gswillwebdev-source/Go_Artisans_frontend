@@ -24,11 +24,13 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
     /** Build a GeoJSON FeatureCollection from the user list */
     const buildGeoJSON = useCallback((allUsers, me) => {
         const features = []
+        const addedIds = new Set()
 
         allUsers.forEach(user => {
             const coords = getCoords(user.location)
             if (!coords) return
             const isMe = me && String(user.id) === String(me.id)
+            addedIds.add(String(user.id))
             features.push({
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [coords.lng, coords.lat] },
@@ -48,6 +50,31 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
                 }
             })
         })
+
+        // Always add the current user as a blue dot if they weren't already included
+        if (me && !addedIds.has(String(me.id))) {
+            const coords = getCoords(me.location)
+            if (coords) {
+                features.push({
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [coords.lng, coords.lat] },
+                    properties: {
+                        id: me.id,
+                        first_name: me.first_name || '',
+                        last_name: me.last_name || '',
+                        email: me.email || '',
+                        location: me.location || '',
+                        user_type: me.user_type || '',
+                        profile_picture: me.profile_picture || '',
+                        bio: me.bio || '',
+                        job_title: me.job_title || '',
+                        follow_status: '',
+                        isCurrentUser: true,
+                        dotColor: '#3B82F6',
+                    }
+                })
+            }
+        }
 
         return { type: 'FeatureCollection', features }
     }, [])
