@@ -26,9 +26,9 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
         const features = []
 
         allUsers.forEach(user => {
-            if (me && user.id === me.id) return
             const coords = getCoords(user.location)
             if (!coords) return
+            const isMe = me && String(user.id) === String(me.id)
             features.push({
                 type: 'Feature',
                 geometry: { type: 'Point', coordinates: [coords.lng, coords.lat] },
@@ -43,29 +43,11 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
                     bio: user.bio || '',
                     job_title: user.job_title || '',
                     follow_status: user.follow_status || '',
-                    isCurrentUser: false,
-                    dotColor: user.user_type === 'worker' ? '#F59E0B' : '#10B981',
+                    isCurrentUser: isMe,
+                    dotColor: isMe ? '#3B82F6' : (user.user_type === 'worker' ? '#F59E0B' : '#10B981'),
                 }
             })
         })
-
-        // Current user's own dot
-        if (me) {
-            const coords = getCoords(me.location)
-            if (coords) {
-                features.push({
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [coords.lng, coords.lat] },
-                    properties: {
-                        id: me.id,
-                        first_name: me.first_name || '',
-                        last_name: me.last_name || '',
-                        isCurrentUser: true,
-                        dotColor: '#3B82F6',
-                    }
-                })
-            }
-        }
 
         return { type: 'FeatureCollection', features }
     }, [])
@@ -202,11 +184,11 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
         return () => {
             destroyed = true
             if (mapRef.current) {
-                try { mapRef.current.remove() } catch (_) {}
+                try { mapRef.current.remove() } catch (_) { }
                 mapRef.current = null
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     // Live-update dots when user list or follow status changes
@@ -287,11 +269,10 @@ export default function WorldGlobe({ users, currentUser, followingIds, onFollowC
                         <h3 className="text-lg font-bold text-gray-900 leading-tight">
                             {selectedUser.first_name} {selectedUser.last_name}
                         </h3>
-                        <span className={`inline-block mt-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                            selectedUser.user_type === 'worker'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                        }`}>
+                        <span className={`inline-block mt-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${selectedUser.user_type === 'worker'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                            }`}>
                             {selectedUser.user_type === 'worker' ? '🔧 Worker' : '👔 Client'}
                         </span>
                         {selectedUser.location && (

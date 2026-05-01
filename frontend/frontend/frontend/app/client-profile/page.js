@@ -16,6 +16,7 @@ import { useLanguage } from '@/context/LanguageContext'
 import { useSubscription } from '@/context/SubscriptionContext'
 import VerifiedBadge from '@/components/VerifiedBadge'
 import { togoLocations, handworks } from '@/lib/togoData'
+import { detectUserLocation } from '@/lib/detectLocation'
 
 function normalizeClientProfile(rawProfile, fallbackEmail = '') {
     const firstName = rawProfile?.first_name ?? rawProfile?.firstName ?? ''
@@ -111,6 +112,8 @@ export default function ClientProfilePage() {
     const [declineCompletionId, setDeclineCompletionId] = useState(null)
     const [updatingAppId, setUpdatingAppId] = useState(null)
     const [processingCompletionId, setProcessingCompletionId] = useState(null)
+    const [detectingLocation, setDetectingLocation] = useState(false)
+    const [detectError, setDetectError] = useState(null)
     const timeoutsRef = useRef([])
 
     // Cleanup all timeouts on unmount
@@ -1757,14 +1760,36 @@ export default function ClientProfilePage() {
                                 </div>
                                 <div className="sm:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-2">{t('location')}</label>
-                                    <input
-                                        type="text"
-                                        name="location"
-                                        value={formData.location}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
-                                        placeholder={t('enterLocation')}
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            name="location"
+                                            value={formData.location}
+                                            onChange={handleInputChange}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent"
+                                            placeholder={t('enterLocation')}
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={detectingLocation}
+                                            onClick={async () => {
+                                                setDetectingLocation(true)
+                                                setDetectError(null)
+                                                try {
+                                                    const result = await detectUserLocation()
+                                                    setFormData(prev => ({ ...prev, location: result.label }))
+                                                } catch (err) {
+                                                    setDetectError(err.message?.includes('denied') ? 'Location access denied. Please allow it in your browser settings.' : 'Could not detect location.')
+                                                } finally {
+                                                    setDetectingLocation(false)
+                                                }
+                                            }}
+                                            className="whitespace-nowrap px-3 py-2 text-sm font-medium bg-indigo-50 border border-indigo-300 text-indigo-700 rounded-lg hover:bg-indigo-100 transition disabled:opacity-60"
+                                        >
+                                            {detectingLocation ? '⏳' : '📍 Detect'}
+                                        </button>
+                                    </div>
+                                    {detectError && <p className="text-xs text-red-500 mt-1">{detectError}</p>}
                                 </div>
                             </div>
                         </div>

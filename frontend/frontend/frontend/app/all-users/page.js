@@ -49,6 +49,14 @@ function AllUsersPageContent() {
         }
     }, [authLoading])
 
+    // When switching to globe mode, re-fetch with higher limit to show all users
+    useEffect(() => {
+        if (viewMode === 'globe' && !authLoading) {
+            fetchInitialUsers()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode])
+
     // Update URL without triggering Next.js navigation (replaceState avoids re-renders)
     useEffect(() => {
         if (typeof window === 'undefined') return
@@ -158,13 +166,16 @@ function AllUsersPageContent() {
                 setInitialLoading(true)
             }
             setError(null)
-            console.log('[ALL USERS] Fetching initial 30 users...')
+            // Globe mode fetches all user types at once; list mode uses pagination + active filter
+            const limit = viewMode === 'globe' ? 500 : 30
+            const typeParam = viewMode === 'globe' ? 'all' : (overrideType ?? filterType)
+            console.log(`[ALL USERS] Fetching initial ${limit} users (mode: ${viewMode}, type: ${typeParam})...`)
 
             const params = new URLSearchParams({
-                limit: '30',
+                limit: String(limit),
                 offset: '0',
                 q: searchTerm,
-                type: overrideType ?? filterType
+                type: typeParam
             })
             const response = await fetch(`/api/all-users?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch users')
@@ -172,8 +183,8 @@ function AllUsersPageContent() {
             const data = await response.json()
             console.log('[ALL USERS] Loaded', data.users?.length, 'users')
             setDisplayUsers(data.users || [])
-            setOffset(30)
-            setHasMore(data.total > 30)
+            setOffset(limit)
+            setHasMore(data.total > limit)
         } catch (err) {
             console.error('Failed to fetch users:', err)
             setError('Failed to load users')
@@ -235,11 +246,13 @@ function AllUsersPageContent() {
         setDisplayUsers([])
 
         try {
+            const limit = viewMode === 'globe' ? 500 : 30
+            const typeParam = viewMode === 'globe' ? 'all' : filterType
             const params = new URLSearchParams({
-                limit: '30',
+                limit: String(limit),
                 offset: '0',
                 q: searchTerm,
-                type: filterType
+                type: typeParam
             })
             const response = await fetch(`/api/all-users?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch users')
@@ -247,8 +260,8 @@ function AllUsersPageContent() {
             const data = await response.json()
             console.log('[ALL USERS] Search results:', data.users?.length, 'users')
             setDisplayUsers(data.users || [])
-            setOffset(30)
-            setHasMore(data.total > 30)
+            setOffset(limit)
+            setHasMore(data.total > limit)
         } catch (err) {
             console.error('Failed to fetch users:', err)
             setError('Failed to load users')
@@ -258,11 +271,10 @@ function AllUsersPageContent() {
         }
     }
 
-    // Keep current user hidden from list
-    const filteredUsers = usersWithFollowStatus.filter(user => {
-        if (currentUser?.id === user.id) return false
-        return true
-    })
+    // Globe gets ALL users (including self so the blue dot shows)
+    // List view hides the current user from the card grid
+    const globeUsers = usersWithFollowStatus
+    const filteredUsers = usersWithFollowStatus.filter(user => user.id !== currentUser?.id)
 
     return (
         <div className={viewMode === 'globe' ? 'relative' : 'min-h-screen bg-gray-50 py-8'}>
@@ -301,7 +313,7 @@ function AllUsersPageContent() {
                         </div>
                     </div>
                     <WorldGlobe
-                        users={filteredUsers}
+                        users={globeUsers}
                         currentUser={currentUser}
                         followingIds={followingIds}
                         onFollowChange={handleFollowChange}

@@ -123,8 +123,8 @@ export default function WorkerProfilePage() {
                                     )}
                                 </h1>
                                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${worker.is_active
-                                        ? 'bg-green-100 text-green-800'
-                                        : 'bg-gray-100 text-gray-800'
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
                                     }`}>
                                     {worker.is_active ? '✓ Available' : '✗ Busy'}
                                 </span>

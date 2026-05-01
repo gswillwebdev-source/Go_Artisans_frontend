@@ -69,8 +69,7 @@ export default function Navbar() {
     }
 
     const drawerLinkClasses = (href) =>
-        `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition ${
-            isActive(href) ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-slate-700 hover:bg-slate-100 border border-transparent'
+        `flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition ${isActive(href) ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'text-slate-700 hover:bg-slate-100 border border-transparent'
         }`
 
     const profileHref = user?.user_type === 'worker' ? '/worker-profile' : '/client-profile'
@@ -202,9 +201,8 @@ export default function Navbar() {
 
             {/* Backdrop — always in DOM, CSS-controlled so React never inserts/removes siblings */}
             <div
-                className={`fixed inset-0 z-[45] bg-black/50 sm:hidden transition-opacity duration-300 ease-in-out ${
-                    drawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                }`}
+                className={`fixed inset-0 z-[45] bg-black/50 sm:hidden transition-opacity duration-300 ease-in-out ${drawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
                 onClick={closeDrawer}
                 aria-hidden="true"
             />
