@@ -63,11 +63,11 @@ export default function AdminSettingsPage() {
                     startsAt: startsAtValue
                 });
             }
-
-            setIsChecking(false);
         } catch (err) {
+            console.error('Auth check error:', err);
             router.push('/admin/login');
         } finally {
+            setIsChecking(false);
             setNoticeLoading(false);
         }
     };
