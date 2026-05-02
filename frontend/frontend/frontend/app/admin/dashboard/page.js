@@ -22,6 +22,8 @@ export default function AdminDashboardPage() {
     const [isChecking, setIsChecking] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const [sessionToken, setSessionToken] = useState(null)
+    const [isAdmin, setIsAdmin] = useState(false)
+    const [staffPermissions, setStaffPermissions] = useState(null) // null = full admin access
 
     // Edit / suspend user modal state
     const [editUserModal, setEditUserModal] = useState(null)   // { id, first_name, last_name, email }
@@ -68,6 +70,16 @@ export default function AdminDashboardPage() {
                 .single()
 
             if (userProfile?.user_type === 'admin') {
+                setIsAdmin(true)
+                setStaffPermissions(null)
+                setSessionToken(session.access_token)
+                setIsChecking(false)
+            } else if (userProfile?.user_type === 'staff') {
+                // Load permissions from localStorage (set at login time)
+                const stored = typeof window !== 'undefined' ? localStorage.getItem('adminUser') : null
+                const storedUser = stored ? JSON.parse(stored) : null
+                setIsAdmin(false)
+                setStaffPermissions(storedUser?.staffPermissions || {})
                 setSessionToken(session.access_token)
                 setIsChecking(false)
             } else {
@@ -513,16 +525,19 @@ export default function AdminDashboardPage() {
 
     const pendingVerifCount = verifications.filter(v => v.status === 'pending').length
 
+    // Permission helper — returns true if admin OR if staff has the given permission
+    const can = (permission) => isAdmin || (staffPermissions && staffPermissions[permission] === true)
+
     const tabs = [
-        { id: 'overview', label: '📊 Overview' },
-        { id: 'users', label: `👥 Users (${users.length})` },
-        { id: 'jobs', label: `💼 Jobs (${jobs.length})` },
-        { id: 'applications', label: `📋 Applications (${applications.length})` },
-        { id: 'completions', label: `✅ Completions (${completions.length})` },
-        { id: 'verification', label: `🏅 Verification${pendingVerifCount > 0 ? ` (${pendingVerifCount} pending)` : ''}` },
-        { id: 'subscriptions', label: `💳 Subscriptions${whatsappRequests.length > 0 ? ` (${whatsappRequests.length} pending)` : ''}` },
-        { id: 'emails', label: '✉️ Emails' },
-    ]
+        { id: 'overview', label: '📊 Overview', show: true },
+        { id: 'users', label: `👥 Users (${users.length})`, show: can('view_users') },
+        { id: 'jobs', label: `💼 Jobs (${jobs.length})`, show: isAdmin || can('view_jobs') },
+        { id: 'applications', label: `📋 Applications (${applications.length})`, show: isAdmin || can('view_applications') },
+        { id: 'completions', label: `✅ Completions (${completions.length})`, show: isAdmin },
+        { id: 'verification', label: `🏅 Verification${pendingVerifCount > 0 ? ` (${pendingVerifCount} pending)` : ''}`, show: isAdmin || can('view_verifications') },
+        { id: 'subscriptions', label: `💳 Subscriptions${whatsappRequests.length > 0 ? ` (${whatsappRequests.length} pending)` : ''}`, show: isAdmin || can('view_subscriptions') },
+        { id: 'emails', label: '✉️ Emails', show: isAdmin || can('trigger_campaigns') },
+    ].filter(t => t.show)
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -680,7 +695,9 @@ export default function AdminDashboardPage() {
                                                             {user.user_type || 'unknown'}
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-600">{user.phone_number || '—'}</td>
+                                                    <td className="px-4 sm:px-6 py-4 text-sm text-gray-600">
+                                                        {can('view_contact_info') ? (user.phone_number || '—') : <span className="text-gray-300">••••••</span>}
+                                                    </td>
                                                     <td className="px-4 sm:px-6 py-4 text-sm text-gray-600">{new Date(user.created_at).toLocaleDateString()}</td>
                                                     <td className="px-4 sm:px-6 py-4 text-sm">
                                                         {user.is_suspended ? (
@@ -694,33 +711,57 @@ export default function AdminDashboardPage() {
                                                     <td className="px-4 sm:px-6 py-4 text-sm">
                                                         {user.user_type !== 'admin' && (
                                                             <div className="flex flex-wrap gap-2">
-                                                                <button
-                                                                    onClick={() => { setEditUserModal(user); setEditUserData({ first_name: user.first_name, last_name: user.last_name }) }}
-                                                                    className="text-indigo-600 hover:text-indigo-900 font-medium text-xs"
-                                                                >
-                                                                    Edit
-                                                                </button>
-                                                                {user.is_suspended ? (
+                                                                {can('edit_users') && (
                                                                     <button
-                                                                        onClick={() => handleUnsuspendUser(user.id)}
-                                                                        className="text-green-600 hover:text-green-900 font-medium text-xs"
+                                                                        onClick={() => { setEditUserModal(user); setEditUserData({ first_name: user.first_name, last_name: user.last_name }) }}
+                                                                        className="text-indigo-600 hover:text-indigo-900 font-medium text-xs"
                                                                     >
-                                                                        Unsuspend
-                                                                    </button>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => { setSuspendModal(user); setSuspendReason('') }}
-                                                                        className="text-amber-600 hover:text-amber-900 font-medium text-xs"
-                                                                    >
-                                                                        Suspend
+                                                                        Edit
                                                                     </button>
                                                                 )}
-                                                                <button
-                                                                    onClick={() => handleDeleteUser(user.id)}
-                                                                    className="text-red-600 hover:text-red-900 font-medium text-xs"
-                                                                >
-                                                                    Delete
-                                                                </button>
+                                                                {isAdmin && (
+                                                                    user.is_suspended ? (
+                                                                        <button
+                                                                            onClick={() => handleUnsuspendUser(user.id)}
+                                                                            className="text-green-600 hover:text-green-900 font-medium text-xs"
+                                                                        >
+                                                                            Unsuspend
+                                                                        </button>
+                                                                    ) : (
+                                                                        <button
+                                                                            onClick={() => { setSuspendModal(user); setSuspendReason('') }}
+                                                                            className="text-amber-600 hover:text-amber-900 font-medium text-xs"
+                                                                        >
+                                                                            Suspend
+                                                                        </button>
+                                                                    )
+                                                                )}
+                                                                {can('delete_users') && (
+                                                                    <button
+                                                                        onClick={() => handleDeleteUser(user.id)}
+                                                                        className="text-red-600 hover:text-red-900 font-medium text-xs"
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                )}
+                                                                {can('send_email') && user.email && (
+                                                                    <a
+                                                                        href={`mailto:${user.email}`}
+                                                                        className="text-blue-600 hover:text-blue-900 font-medium text-xs"
+                                                                    >
+                                                                        Email
+                                                                    </a>
+                                                                )}
+                                                                {can('send_whatsapp') && user.phone_number && (
+                                                                    <a
+                                                                        href={`https://wa.me/${user.phone_number.replace(/\D/g, '')}`}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="text-green-600 hover:text-green-900 font-medium text-xs"
+                                                                    >
+                                                                        WhatsApp
+                                                                    </a>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </td>

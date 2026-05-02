@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import AdminChangePassword from '@/components/AdminChangePassword';
+import AdminTeamManagement from '@/components/AdminTeamManagement';
 
 export default function AdminSettingsPage() {
     const router = useRouter();
     const [isChecking, setIsChecking] = useState(true);
+    const [sessionToken, setSessionToken] = useState(null);
     const [activeTab, setActiveTab] = useState('password');
     const [updateNoticeForm, setUpdateNoticeForm] = useState({
         message: '',
@@ -43,6 +45,9 @@ export default function AdminSettingsPage() {
                 router.push('/admin/login');
                 return;
             }
+
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.access_token) setSessionToken(session.access_token);
 
             setNoticeLoading(true);
             const { data: noticeData, error: noticeLoadError } = await supabase
@@ -173,6 +178,15 @@ export default function AdminSettingsPage() {
                         >
                             Update Notice
                         </button>
+                        <button
+                            onClick={() => setActiveTab('team')}
+                            className={`px-4 sm:px-6 py-2 sm:py-3 text-sm sm:text-base font-medium border-b-2 transition whitespace-nowrap ${activeTab === 'team'
+                                ? 'border-red-600 text-red-600'
+                                : 'border-transparent text-gray-600 hover:text-gray-900'
+                                }`}
+                        >
+                            Team & Permissions
+                        </button>
                     </div>
                 </div>
 
@@ -180,6 +194,10 @@ export default function AdminSettingsPage() {
                 <div className="py-8">
                     {activeTab === 'password' && (
                         <AdminChangePassword />
+                    )}
+
+                    {activeTab === 'team' && (
+                        <AdminTeamManagement sessionToken={sessionToken} />
                     )}
 
                     {activeTab === 'updateNotice' && (

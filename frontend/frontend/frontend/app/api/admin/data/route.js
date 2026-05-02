@@ -21,15 +21,28 @@ async function verifyAdmin(request) {
         .eq('id', user.id)
         .single()
 
-    if (profile?.user_type !== 'admin') return null
-    return user
+    if (profile?.user_type === 'admin') return { user, isAdmin: true, permissions: null }
+
+    // Allow active staff with view_users permission
+    if (profile?.user_type === 'staff') {
+        const { data: member } = await adminClient
+            .from('admin_team_members')
+            .select('permissions, status')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle()
+        if (member?.permissions?.view_users) return { user, isAdmin: false, permissions: member.permissions }
+    }
+
+    return null
 }
 
 export async function GET(request) {
-    const user = await verifyAdmin(request)
-    if (!user) {
+    const auth = await verifyAdmin(request)
+    if (!auth) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const user = auth.user
 
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 

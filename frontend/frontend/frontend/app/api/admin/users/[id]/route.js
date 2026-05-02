@@ -19,14 +19,29 @@ async function verifyAdmin(request) {
         .eq('id', user.id)
         .single()
 
-    if (profile?.user_type !== 'admin') return null
-    return user
+    if (profile?.user_type === 'admin') return { user, isAdmin: true, permissions: null }
+
+    if (profile?.user_type === 'staff') {
+        const { data: member } = await adminClient
+            .from('admin_team_members')
+            .select('permissions, status')
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .maybeSingle()
+        if (member) return { user, isAdmin: false, permissions: member.permissions }
+    }
+
+    return null
 }
 
 export async function DELETE(request, { params }) {
-    const user = await verifyAdmin(request)
-    if (!user) {
+    const auth = await verifyAdmin(request)
+    if (!auth) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    // Staff need delete_users permission
+    if (!auth.isAdmin && !auth.permissions?.delete_users) {
+        return NextResponse.json({ error: 'Forbidden: delete_users permission required' }, { status: 403 })
     }
 
     const { id } = await params
@@ -53,8 +68,8 @@ export async function DELETE(request, { params }) {
 
 // PATCH: suspend/unsuspend or edit basic fields
 export async function PATCH(request, { params }) {
-    const adminUser = await verifyAdmin(request)
-    if (!adminUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await verifyAdmin(request)
+    if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { id } = await params
     if (!id) return NextResponse.json({ error: 'User ID required' }, { status: 400 })
@@ -65,6 +80,15 @@ export async function PATCH(request, { params }) {
     }
 
     const { is_suspended, suspension_reason, first_name, last_name } = body
+
+    // Suspend/unsuspend is admin-only
+    if ((is_suspended !== undefined || suspension_reason !== undefined) && !auth.isAdmin) {
+        return NextResponse.json({ error: 'Forbidden: only admins can suspend users' }, { status: 403 })
+    }
+    // Edit fields requires edit_users permission
+    if ((first_name !== undefined || last_name !== undefined) && !auth.isAdmin && !auth.permissions?.edit_users) {
+        return NextResponse.json({ error: 'Forbidden: edit_users permission required' }, { status: 403 })
+    }
     const updates = {}
     if (is_suspended !== undefined) updates.is_suspended = Boolean(is_suspended)
     if (suspension_reason !== undefined) updates.suspension_reason = suspension_reason || null

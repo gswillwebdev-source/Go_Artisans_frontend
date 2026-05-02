@@ -25,10 +25,29 @@ export default function AdminLoginPage() {
                     .eq('id', session.user.id)
                     .single()
 
-                // Allow access if user_type is 'admin'
+                // Allow access if user_type is 'admin' or active 'staff'
                 if (userProfile?.user_type === 'admin') {
                     localStorage.setItem('adminUser', JSON.stringify(userProfile))
                     router.push('/admin/dashboard')
+                } else if (userProfile?.user_type === 'staff') {
+                    const { data: teamMember } = await supabase
+                        .from('admin_team_members')
+                        .select('permissions, role, status')
+                        .eq('user_id', userProfile.id)
+                        .eq('status', 'active')
+                        .maybeSingle()
+
+                    if (teamMember) {
+                        localStorage.setItem('adminUser', JSON.stringify({
+                            ...userProfile,
+                            staffPermissions: teamMember.permissions,
+                            staffRole: teamMember.role,
+                        }))
+                        router.push('/admin/dashboard')
+                    } else {
+                        await supabase.auth.signOut()
+                        setIsChecking(false)
+                    }
                 } else {
                     await supabase.auth.signOut()
                     setIsChecking(false)
@@ -119,10 +138,29 @@ export default function AdminLoginPage() {
                     return
                 }
 
-                // Allow login if user_type is 'admin'
+                // Allow login if user_type is 'admin' or active 'staff'
                 if (userProfile?.user_type === 'admin') {
                     localStorage.setItem('adminUser', JSON.stringify(userProfile))
                     router.push('/admin/dashboard')
+                } else if (userProfile?.user_type === 'staff') {
+                    const { data: teamMember } = await supabase
+                        .from('admin_team_members')
+                        .select('permissions, role, status')
+                        .eq('user_id', userProfile.id)
+                        .eq('status', 'active')
+                        .maybeSingle()
+
+                    if (teamMember) {
+                        localStorage.setItem('adminUser', JSON.stringify({
+                            ...userProfile,
+                            staffPermissions: teamMember.permissions,
+                            staffRole: teamMember.role,
+                        }))
+                        router.push('/admin/dashboard')
+                    } else {
+                        setError('Your staff access has been revoked or is not yet active. Contact the admin.')
+                        await supabase.auth.signOut()
+                    }
                 } else {
                     setError(`Access denied. Your account type is '${userProfile?.user_type || 'unknown'}'. Admin privileges required.`)
                     await supabase.auth.signOut()
