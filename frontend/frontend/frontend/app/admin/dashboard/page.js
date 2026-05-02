@@ -555,6 +555,12 @@ export default function AdminDashboardPage() {
                             >
                                 ↻ Refresh
                             </button>
+                            <Link
+                                href="/admin/settings"
+                                className="bg-indigo-500 hover:bg-indigo-700 px-4 py-2 rounded font-semibold transition text-sm inline-block"
+                            >
+                                ⚙️ Settings
+                            </Link>
                             <button
                                 onClick={handleLogout}
                                 className="bg-indigo-700 hover:bg-indigo-800 px-4 py-2 rounded font-semibold transition text-sm"
