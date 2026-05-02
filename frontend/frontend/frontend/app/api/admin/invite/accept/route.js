@@ -70,7 +70,7 @@ export async function POST(request) {
 
     if (profileError) {
         // Clean up auth user to avoid orphaned records
-        await client.auth.admin.deleteUser(userId).catch(() => {})
+        await client.auth.admin.deleteUser(userId).catch(() => { })
         return NextResponse.json({ error: profileError.message }, { status: 500 })
     }
 

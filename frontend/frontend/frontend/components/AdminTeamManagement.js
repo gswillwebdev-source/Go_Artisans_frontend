@@ -3,17 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const ALL_PERMISSIONS = [
-    { key: 'view_users',          label: 'View Users',               desc: 'Browse user list and profiles' },
-    { key: 'view_contact_info',   label: 'View Contact Info',        desc: 'See emails and phone numbers' },
-    { key: 'edit_users',          label: 'Edit Users',               desc: 'Update user profile fields' },
-    { key: 'delete_users',        label: 'Delete Users',             desc: 'Permanently delete accounts' },
-    { key: 'send_email',          label: 'Send Emails',              desc: 'Send emails to individual users' },
-    { key: 'send_whatsapp',       label: 'Send WhatsApp',            desc: 'Open WhatsApp chat for users' },
-    { key: 'trigger_campaigns',   label: 'Trigger Campaigns',        desc: 'Send bulk email campaigns' },
-    { key: 'view_jobs',           label: 'View Jobs',                desc: 'See job postings' },
-    { key: 'view_applications',   label: 'View Applications',        desc: 'See job applications' },
-    { key: 'view_verifications',  label: 'View Verifications',       desc: 'See badge verification requests' },
-    { key: 'view_subscriptions',  label: 'View Subscriptions',       desc: 'See subscription data' },
+    { key: 'view_users', label: 'View Users', desc: 'Browse user list and profiles' },
+    { key: 'view_contact_info', label: 'View Contact Info', desc: 'See emails and phone numbers' },
+    { key: 'edit_users', label: 'Edit Users', desc: 'Update user profile fields' },
+    { key: 'delete_users', label: 'Delete Users', desc: 'Permanently delete accounts' },
+    { key: 'send_email', label: 'Send Emails', desc: 'Send emails to individual users' },
+    { key: 'send_whatsapp', label: 'Send WhatsApp', desc: 'Open WhatsApp chat for users' },
+    { key: 'trigger_campaigns', label: 'Trigger Campaigns', desc: 'Send bulk email campaigns' },
+    { key: 'view_jobs', label: 'View Jobs', desc: 'See job postings' },
+    { key: 'view_applications', label: 'View Applications', desc: 'See job applications' },
+    { key: 'view_verifications', label: 'View Verifications', desc: 'See badge verification requests' },
+    { key: 'view_subscriptions', label: 'View Subscriptions', desc: 'See subscription data' },
 ]
 
 function RoleBadge({ role }) {
