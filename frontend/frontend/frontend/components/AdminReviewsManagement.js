@@ -36,27 +36,15 @@ export default function AdminReviewsManagement() {
 
             let query = supabase
                 .from('reviews')
-                .select(`
-                    *,
-                    reviewer:users!reviews_reviewer_id_fkey (
-                        first_name,
-                        last_name,
-                        email
-                    ),
-                    reviewee:users!reviews_reviewee_id_fkey (
-                        first_name,
-                        last_name,
-                        email
-                    )
-                `)
+                .select('*')
                 .order(sortBy, { ascending: sortOrder === 'ASC' })
                 .range((currentPage - 1) * 10, currentPage * 10 - 1);
 
             if (filterWorker) {
-                query = query.eq('reviewee_id', filterWorker);
+                query = query.eq('worker_id', filterWorker);
             }
             if (filterRater) {
-                query = query.eq('reviewer_id', filterRater);
+                query = query.eq('client_id', filterRater);
             }
 
             const { data, error } = await query;

@@ -169,17 +169,7 @@ const completionClient = {
     async getUserRatings(userId) {
         const { data, error } = await supabase
             .from('reviews')
-            .select(`
-                *,
-                client:client_id (
-                    first_name,
-                    last_name
-                ),
-                worker:worker_id (
-                    first_name,
-                    last_name
-                )
-            `)
+            .select('*')
             .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
             .order('created_at', { ascending: false });
 
@@ -191,14 +181,7 @@ const completionClient = {
     async getWorkerRatings(userId) {
         const { data, error } = await supabase
             .from('reviews')
-            .select(`
-                *,
-                client:client_id (
-                    first_name,
-                    last_name
-                ),
-                jobs!reviews_job_id_fkey(title)
-            `)
+            .select('*')
             .eq('worker_id', userId)
             .eq('rater_type', 'client')
             .order('created_at', { ascending: false });

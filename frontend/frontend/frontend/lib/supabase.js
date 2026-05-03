@@ -242,17 +242,7 @@ export const db = {
         getAll: async () => {
             const { data, error } = await supabase
                 .from('reviews')
-                .select(`
-          *,
-          reviewer:users!reviews_reviewer_id_fkey (
-            first_name,
-            last_name
-          ),
-          reviewee:users!reviews_reviewee_id_fkey (
-            first_name,
-            last_name
-          )
-        `)
+                .select('*')
                 .order('created_at', { ascending: false })
             return { data, error }
         },
@@ -260,14 +250,8 @@ export const db = {
         getByUserId: async (userId) => {
             const { data, error } = await supabase
                 .from('reviews')
-                .select(`
-          *,
-          reviewer:users!reviews_reviewer_id_fkey (
-            first_name,
-            last_name
-          )
-        `)
-                .eq('reviewee_id', userId)
+                .select('*')
+                .or(`client_id.eq.${userId},worker_id.eq.${userId}`)
                 .order('created_at', { ascending: false })
             return { data, error }
         },

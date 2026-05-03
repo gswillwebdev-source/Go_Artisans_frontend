@@ -24,19 +24,7 @@ export default function WorkerRatingsDisplay({ workerId }) {
 
                 const { data: ratingsData, error } = await supabase
                     .from('reviews')
-                    .select(`
-                        id,
-                        rating,
-                        comment,
-                        created_at,
-                        rater_type,
-                        client:client_id (
-                            id,
-                            first_name,
-                            last_name
-                        )
-                    `)
-                    .eq('worker_id', workerId)
+                    .select('id,rating,comment,created_at,rater_type,client_id')\n                    .eq('worker_id', workerId)
                     .eq('rater_type', 'client')
                     .order('created_at', { ascending: false })
 
