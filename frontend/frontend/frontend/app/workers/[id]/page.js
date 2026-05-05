@@ -268,12 +268,18 @@ export default function WorkerProfilePage() {
                                 /* ── FREE TIER: email contact + upgrade callout ── */
                                 <div className="space-y-4">
                                     {worker.email && (
-                                        <a
-                                            href={`mailto:${worker.email}`}
-                                            className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition"
-                                        >
-                                            <span>📧</span> Contact via Email
-                                        </a>
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                <span>📧</span>
+                                                <span className="font-medium break-all">{worker.email}</span>
+                                            </div>
+                                            <a
+                                                href={`mailto:${worker.email}`}
+                                                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition"
+                                            >
+                                                Send Email
+                                            </a>
+                                        </div>
                                     )}
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
                                         <p className="text-amber-800 font-semibold text-sm mb-1">🔒 Free plan — limited view</p>

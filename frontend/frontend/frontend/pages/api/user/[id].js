@@ -255,10 +255,21 @@ export default async function handler(req, res) {
     // Apply visibility rules to response
     let safeUser = { ...profileUser }
 
+    // Free-tier clients can contact workers via email even without full contact visibility
+    const freeTierClientViewingWorker = (
+      viewerType === 'client' &&
+      viewerPlanTier === 'free' &&
+      profileUser.user_type === 'worker' &&
+      viewer_id !== id
+    )
+
     // Remove contact info if not allowed
     if (!visibility.canSeeContact) {
       safeUser.phone_number = null
-      safeUser.email = null
+      // Free-tier clients keep the email so they can contact workers directly
+      if (!freeTierClientViewingWorker) {
+        safeUser.email = null
+      }
     }
 
     // Hide portfolio/gallery if not allowed
