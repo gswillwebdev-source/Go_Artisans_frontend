@@ -4,7 +4,7 @@
     "build": "npm --prefix frontend/frontend/frontend run build",
     "start": "npm --prefix frontend/frontend/frontend run start",
     "vercel-build": "cd frontend/frontend/frontend && npm run vercel-build",
-    "vercel-build-full": "npm run build && cp frontend/frontend/frontend/.next/routes-manifest.json frontend/frontend/frontend/.next/routes-manifest-deterministic.json && cp -R frontend/frontend/frontend/.next .next && cp -R frontend/frontend/frontend/node_modules node_modules"
+    "vercel-build-full": "npm run build; cp frontend/frontend/frontend/.next/routes-manifest.json frontend/frontend/frontend/.next/routes-manifest-deterministic.json; rm -rf .next; cp -R frontend/frontend/frontend/.next .next; rm -rf node_modules; cp -R frontend/frontend/frontend/node_modules node_modules"
   },
   "dependencies": {
     "next": "^16.2.1",
