@@ -10,8 +10,12 @@ export default function Home() {
   const router = useRouter()
   const { t } = useLanguage()
   const [isChecking, setIsChecking] = useState(true)
+  const [isCapacitor, setIsCapacitor] = useState(false)
 
   useEffect(() => {
+    // Detect if running inside a Capacitor WebView (mobile app)
+    setIsCapacitor(!!(window.Capacitor))
+
     const handleOAuthCallbackFallback = async () => {
       const hash = window.location.hash
 
@@ -75,7 +79,7 @@ export default function Home() {
           </div>
         </div>
       </main>
-      <footer className="bg-slate-900 text-slate-100 py-14 mt-8 border-t border-slate-700/60">
+      {!isCapacitor && <footer className="bg-slate-900 text-slate-100 py-14 mt-8 border-t border-slate-700/60">
         <div className="footer-premium">
           <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
             <div className="footer-glow footer-glow-left" />
@@ -156,7 +160,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </footer>
+      </footer>}
     </>
   )
 }
