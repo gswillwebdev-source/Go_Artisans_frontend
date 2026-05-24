@@ -4,6 +4,7 @@ import Navbar from '@/components/Navbar'
 import UpdateNoticeBanner from '@/components/UpdateNoticeBanner'
 import ChatAssistant from '@/components/ChatAssistant'
 import ConditionalAdBanner from '@/components/ConditionalAdBanner'
+import PostHogInit from '@/components/PostHogInit'
 import { LanguageProvider } from '@/context/LanguageContext'
 import { ThemeProvider } from '@/context/ThemeContext'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
     return (
         <html lang="en" suppressHydrationWarning>
             <body suppressHydrationWarning>
+                <PostHogInit />
                 {/* Google AdSense Auto Ads — automatically places ads in best spots on every page */}
                 <Script
                     async
