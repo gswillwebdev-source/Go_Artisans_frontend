@@ -719,7 +719,7 @@ export default function AdminDashboardPage() {
                                                             <div className="flex flex-wrap gap-2">
                                                                 {can('edit_users') && (
                                                                     <button
-                                                                        onClick={() => { setEditUserModal(user); setEditUserData({ first_name: user.first_name, last_name: user.last_name }) }}
+                                                                        onClick={() => { setEditUserModal(user); setEditUserData({ first_name: user.first_name, last_name: user.last_name, phone_number: user.phone_number || '', job_title: user.job_title || '' }) }}
                                                                         className="text-indigo-600 hover:text-indigo-900 font-medium text-xs"
                                                                     >
                                                                         Edit
@@ -1433,6 +1433,26 @@ export default function AdminDashboardPage() {
                                     type="text"
                                     value={editUserData.last_name || ''}
                                     onChange={e => setEditUserData(prev => ({ ...prev, last_name: e.target.value }))}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Title / Job Title</label>
+                                <input
+                                    type="text"
+                                    value={editUserData.job_title || ''}
+                                    onChange={e => setEditUserData(prev => ({ ...prev, job_title: e.target.value }))}
+                                    placeholder="e.g. Plumber, Electrician"
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Phone Number</label>
+                                <input
+                                    type="tel"
+                                    value={editUserData.phone_number || ''}
+                                    onChange={e => setEditUserData(prev => ({ ...prev, phone_number: e.target.value }))}
+                                    placeholder="+1234567890"
                                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
                             </div>

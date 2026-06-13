@@ -79,14 +79,14 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
 
-    const { is_suspended, suspension_reason, first_name, last_name } = body
+    const { is_suspended, suspension_reason, first_name, last_name, phone_number, job_title } = body
 
     // Suspend/unsuspend is admin-only
     if ((is_suspended !== undefined || suspension_reason !== undefined) && !auth.isAdmin) {
         return NextResponse.json({ error: 'Forbidden: only admins can suspend users' }, { status: 403 })
     }
     // Edit fields requires edit_users permission
-    if ((first_name !== undefined || last_name !== undefined) && !auth.isAdmin && !auth.permissions?.edit_users) {
+    if ((first_name !== undefined || last_name !== undefined || phone_number !== undefined || job_title !== undefined) && !auth.isAdmin && !auth.permissions?.edit_users) {
         return NextResponse.json({ error: 'Forbidden: edit_users permission required' }, { status: 403 })
     }
     const updates = {}
@@ -94,6 +94,8 @@ export async function PATCH(request, { params }) {
     if (suspension_reason !== undefined) updates.suspension_reason = suspension_reason || null
     if (first_name !== undefined) updates.first_name = String(first_name).trim()
     if (last_name !== undefined) updates.last_name = String(last_name).trim()
+    if (phone_number !== undefined) updates.phone_number = String(phone_number).trim() || null
+    if (job_title !== undefined) updates.job_title = String(job_title).trim() || null
 
     if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
