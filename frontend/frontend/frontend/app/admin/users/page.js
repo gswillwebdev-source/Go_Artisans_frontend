@@ -38,6 +38,11 @@ function AdminUsersContent() {
     const [successMessage, setSuccessMessage] = useState('')
     const [showErrorModal, setShowErrorModal] = useState(false)
     const [errorMessage, setErrorMessage] = useState('')
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [editUserId, setEditUserId] = useState(null)
+    const [editFormData, setEditFormData] = useState({ firstName: '', lastName: '', phoneNumber: '', jobTitle: '' })
+    const [editFormError, setEditFormError] = useState('')
+    const [editFormLoading, setEditFormLoading] = useState(false)
 
     useEffect(() => {
         // Check if admin is logged in
@@ -76,7 +81,7 @@ function AdminUsersContent() {
 
             let query = supabase
                 .from('users')
-                .select('id,first_name,last_name,phone_number,email,user_type,is_suspended,suspension_reason,email_verified,created_at', { count: 'exact' })
+                .select('id,first_name,last_name,phone_number,job_title,email,user_type,is_suspended,suspension_reason,email_verified,created_at', { count: 'exact' })
                 .order('created_at', { ascending: false })
                 .range((currentPage - 1) * 10, currentPage * 10 - 1)
 
@@ -260,6 +265,44 @@ function AdminUsersContent() {
         }
     }
 
+    const handleEditClick = (user) => {
+        setEditUserId(user.id)
+        setEditFormData({
+            firstName: user.first_name || '',
+            lastName: user.last_name || '',
+            phoneNumber: user.phone_number || '',
+            jobTitle: user.job_title || ''
+        })
+        setEditFormError('')
+        setShowEditModal(true)
+    }
+
+    const handleEditSubmit = async (e) => {
+        e.preventDefault()
+        setEditFormLoading(true)
+        setEditFormError('')
+        try {
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    first_name: editFormData.firstName,
+                    last_name: editFormData.lastName,
+                    phone_number: editFormData.phoneNumber,
+                    job_title: editFormData.jobTitle
+                })
+                .eq('id', editUserId)
+            if (error) throw error
+            setShowEditModal(false)
+            setSuccessMessage('User updated successfully')
+            setShowSuccessModal(true)
+            await fetchUsers()
+        } catch (err) {
+            setEditFormError(err.message || 'Failed to update user')
+        } finally {
+            setEditFormLoading(false)
+        }
+    }
+
     const handleVerificationToggle = async (userId, currentStatus, userName) => {
         try {
             const { error } = await supabase
@@ -408,6 +451,12 @@ function AdminUsersContent() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2 flex-wrap">
+                                                    <button
+                                                        onClick={() => handleEditClick(user)}
+                                                        className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-xs font-semibold"
+                                                    >
+                                                        Edit
+                                                    </button>
                                                     {user.is_suspended ? (
                                                         <button
                                                             onClick={() => handleUnsuspend(user.id, `${user.first_name} ${user.last_name}`)}
@@ -561,6 +610,83 @@ function AdminUsersContent() {
                                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 >
                                     {formLoading ? 'Adding...' : 'Add User'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit User Modal */}
+            {showEditModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Edit User</h2>
+
+                        {editFormError && (
+                            <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">{editFormError}</div>
+                        )}
+
+                        <form onSubmit={handleEditSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Title / Job Title</label>
+                                <input
+                                    type="text"
+                                    value={editFormData.jobTitle}
+                                    onChange={(e) => setEditFormData({ ...editFormData, jobTitle: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+                                    placeholder="e.g. Plumber, Electrician"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.firstName}
+                                        onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+                                        placeholder="John"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                    <input
+                                        type="text"
+                                        value={editFormData.lastName}
+                                        onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                                        required
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-600"
+                                        placeholder="Doe"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                                <PhoneInput
+                                    value={editFormData.phoneNumber}
+                                    onChange={(value) => setEditFormData({ ...editFormData, phoneNumber: value })}
+                                    className="w-full"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEditModal(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={editFormLoading}
+                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    {editFormLoading ? 'Saving...' : 'Save Changes'}
                                 </button>
                             </div>
                         </form>

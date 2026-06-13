@@ -68,12 +68,12 @@ async function run() {
     failed++
   }
 
-  // 4. Test verify-and-subscribe (worker_premium - no trial, direct $1 verify)
-  console.log('\n3. Testing verify-and-subscribe for worker_premium ($1 verify → activate)...')
-  const r2 = await fetch(`${BACKEND_URL}/api/subscriptions/verify-and-subscribe`, {
+  // 4. Test billed subscribe checkout (worker_premium - pay full subscription amount)
+  console.log('\n3. Testing subscribe checkout for worker_premium (billed amount)...')
+  const r2 = await fetch(`${BACKEND_URL}/api/subscriptions/subscribe`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify({ plan_id: 'worker_premium', billing_cycle: 'monthly' })
+    body: JSON.stringify({ plan_id: 'worker_premium', billing_cycle: 'monthly', payment_method: 'card' })
   })
   const d2 = await r2.json()
   console.log('  Status:', r2.status)

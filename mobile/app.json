@@ -2,8 +2,8 @@
     "name": "GoArtisans",
     "displayName": "GoArtisans",
     "react-native-google-mobile-ads": {
-        "android_app_id": "ca-app-pub-1284812825598221~9550552570",
-        "ios_app_id": "ca-app-pub-1284812825598221~9550552570"
+        "android_app_id": "ca-app-pub-3940256099942544~3347511713",
+        "ios_app_id": "ca-app-pub-3940256099942544~3347511713"
     },
     "expo": {
         "name": "GoArtisans",
@@ -24,7 +24,7 @@
             },
             "package": "online.goartisans.app",
             "config": {
-                "googleMobileAdsAppId": "ca-app-pub-1284812825598221~9550552570"
+                "googleMobileAdsAppId": "ca-app-pub-3940256099942544~3347511713"
             }
         },
         "web": {

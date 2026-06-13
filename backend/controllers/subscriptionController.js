@@ -431,9 +431,14 @@ const sendTrialEndBillingEmail = async (email, firstName, planName, amountUsd, c
 const createSubscription = async (req, res) => {
     try {
         const userId = req.user.id
-        const { plan_id, billing_cycle = 'monthly' } = req.body
+        const { plan_id, billing_cycle = 'monthly', payment_method = 'auto' } = req.body
 
         if (!plan_id) return res.status(400).json({ error: 'plan_id is required' })
+
+        const allowedMethods = ['auto', 'mobile_money', 'card']
+        if (!allowedMethods.includes(payment_method)) {
+            return res.status(400).json({ error: 'payment_method must be one of: auto, mobile_money, card' })
+        }
 
         const { data: plan, error: planErr } = await supabase
             .from('subscription_plans').select('*').eq('id', plan_id).eq('is_active', true).single()
@@ -466,7 +471,14 @@ const createSubscription = async (req, res) => {
             amount: amountXof,
             currency: { iso: 'XOF' },
             callback_url: `${backendUrl}/api/subscriptions/fedapay/webhook`,
-            custom_metadata: { user_id: userId, plan_id, billing_cycle, session_type: 'subscribe', amount_usd: String(amount) },
+            custom_metadata: {
+                user_id: userId,
+                plan_id,
+                billing_cycle,
+                session_type: 'subscribe',
+                amount_usd: String(amount),
+                payment_method
+            },
             customer: { firstname: userProfile?.first_name || 'User', lastname: userProfile?.last_name || '', email: userProfile?.email }
         })
         const token = await tx.generateToken()

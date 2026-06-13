@@ -2,9 +2,10 @@ import React from 'react';
 import { Platform, View, StyleSheet } from 'react-native';
 import { BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
-// Production Ad Unit IDs
-const ANDROID_BANNER_ID = 'ca-app-pub-1284812825598221/9618848649';
-const IOS_BANNER_ID = 'ca-app-pub-1284812825598221/9618848649'; // update if you have a separate iOS unit
+// TODO: Replace test IDs with your real AdMob ad unit IDs before production release
+// Production Ad Unit IDs (from your AdMob account)
+const ANDROID_BANNER_ID = 'ca-app-pub-3940256099942544/6300978111'; // Test ID — replace with real unit
+const IOS_BANNER_ID = 'ca-app-pub-3940256099942544/2934735716';     // Test ID — replace with real unit
 
 const adUnitId = __DEV__
     ? TestIds.BANNER

@@ -40,31 +40,6 @@ const HomeScreen = ({ navigation }) => {
                 />
             </View>
 
-            <View style={styles.footerSection}>
-                <AdBanner />
-
-                <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => navigation.navigate('PrivacyPolicy')}
-                >
-                    <Ionicons name="shield-checkmark" size={18} color="#3F51B5" />
-                    <Text style={styles.linkText}>Privacy Policy</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#3F51B5" />
-                </TouchableOpacity>
-
-                <View style={styles.divider} />
-
-                <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => navigation.navigate('TermsOfService')}
-                >
-                    <Ionicons name="document-text" size={18} color="#3F51B5" />
-                    <Text style={styles.linkText}>Terms of Service</Text>
-                    <Ionicons name="chevron-forward" size={18} color="#3F51B5" />
-                </TouchableOpacity>
-
-                <Text style={styles.version}>Version 1.0.0</Text>
-            </View>
         </ScrollView>
     );
 };
@@ -153,40 +128,7 @@ const styles = StyleSheet.create({
         color: '#666',
         lineHeight: 18,
     },
-    footerSection: {
-        backgroundColor: '#fff',
-        padding: 15,
-        borderRadius: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
-    },
-    linkButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 10,
-    },
-    linkText: {
-        flex: 1,
-        fontSize: 16,
-        color: '#3F51B5',
-        fontWeight: '500',
-        marginLeft: 12,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#e0e0e0',
-    },
-    version: {
-        fontSize: 12,
-        color: '#999',
-        textAlign: 'center',
-        marginTop: 15,
-        fontStyle: 'italic',
-    },
+
 });
 
 export default HomeScreen;

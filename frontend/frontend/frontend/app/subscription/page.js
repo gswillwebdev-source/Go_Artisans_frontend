@@ -16,8 +16,8 @@ const PLAN_LABELS = {
 }
 
 const PLAN_PRICES = {
-    worker_pro: { monthly: 9.99, yearly: 99.99 },
-    worker_premium: { monthly: 19.99, yearly: 199.99 },
+    worker_pro: { monthly: 4.99, yearly: 49.99 },
+    worker_premium: { monthly: 9.99, yearly: 95.90 },
     client_pro: { monthly: 14.99, yearly: 149.99 },
     client_premium: { monthly: 29.99, yearly: 299.99 },
 }

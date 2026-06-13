@@ -14,10 +14,10 @@
     </intent>
   </queries>
   <application android:name=".MainApplication" android:label="@string/app_name" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:allowBackup="true" android:theme="@style/AppTheme">
-    <!-- AdMob App ID — replace with your real ID from https://admob.google.com -->
+    <!-- AdMob App ID — use ca-app-pub-3940256099942544~3347511713 for testing, replace with your real ID for production -->
     <meta-data
         android:name="com.google.android.gms.ads.APPLICATION_ID"
-        android:value="ca-app-pub-1284812825598221~9550552570"
+        android:value="ca-app-pub-3940256099942544~3347511713"
         tools:replace="android:value"/>
     <meta-data android:name="expo.modules.updates.ENABLED" android:value="false"/>
     <meta-data android:name="expo.modules.updates.EXPO_SDK_VERSION" android:value="49.0.0"/>

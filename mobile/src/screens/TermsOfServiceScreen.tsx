@@ -101,7 +101,7 @@ const TermsOfServiceScreen = ({ navigation }) => {
                 <Section title="13. Contact Information">
                     <Text style={styles.text}>
                         If you have any questions about these Terms of Service, please contact us at:{'\n\n'}
-                        Email: support@jobseekingapp.com{'\n'}
+                        Email: support@goartisans.online{'\n'}
                         Address: Tech City, USA
                     </Text>
                 </Section>

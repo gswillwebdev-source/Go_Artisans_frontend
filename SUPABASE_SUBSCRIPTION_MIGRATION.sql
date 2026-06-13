@@ -31,12 +31,12 @@ VALUES
  '{"job_applications_per_month": 5, "client_profile_views_per_day": 3, "portfolio_images": 3, "direct_messages_per_month": 0, "who_viewed_days": 0}'::jsonb,
  'none', 1),
 
-('worker_pro', 'Pro', 'worker', 9.99, 99.99, 14,
+('worker_pro', 'Pro', 'worker', 4.99, 49.99, 14,
  '["Unlimited job applications", "See who viewed your profile (last 30 days)", "Priority ranking in search results", "Pro badge on profile", "Up to 10 portfolio images", "Job alerts & notifications", "Application analytics", "Featured applicant tag"]'::jsonb,
  '{"job_applications_per_month": -1, "client_profile_views_per_day": -1, "portfolio_images": 10, "direct_messages_per_month": 5, "who_viewed_days": 30}'::jsonb,
  'gold', 2),
 
-('worker_premium', 'Premium', 'worker', 19.99, 199.99, 0,
+('worker_premium', 'Premium', 'worker', 9.99, 95.90, 0,
  '["Everything in Pro", "Top placement in search results", "See who viewed profile (last 90 days)", "10 direct messages per month", "Premium diamond badge", "Unlimited portfolio images", "AI-powered job matching", "Priority application status", "Profile boosting", "Dedicated support"]'::jsonb,
  '{"job_applications_per_month": -1, "client_profile_views_per_day": -1, "portfolio_images": -1, "direct_messages_per_month": 10, "who_viewed_days": 90}'::jsonb,
  'diamond', 3),

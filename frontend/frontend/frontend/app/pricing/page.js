@@ -320,24 +320,24 @@ export default function PricingPage() {
         setLoadingPlanId(null)
     }
 
-    // ── FedaPay $1 verification ──────────────────────────────────────────────
-    const handleFedaPayVerify = async () => {
+    // ── FedaPay billed checkout (charges selected plan amount) ──────────────
+    const handleFedaPayCheckout = async (paymentMethod = 'auto') => {
         if (!payModal) return
         const { plan, billing: bc } = payModal
-        setLoadingPlanId(`${plan.id}_fedapay`)
+        setLoadingPlanId(`${plan.id}_fedapay_${paymentMethod}`)
         setCheckoutUrl(null)
         setPayModal(prev => ({ ...prev, step: 'verifying' }))
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 20000)
         try {
             const { data: { session: authSession } } = await supabase.auth.getSession()
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscriptions/verify-and-subscribe`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/subscriptions/subscribe`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${authSession?.access_token}`
                 },
-                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc }),
+                body: JSON.stringify({ plan_id: plan.id, billing_cycle: bc, payment_method: paymentMethod }),
                 signal: controller.signal
             })
             const data = await res.json()
@@ -520,9 +520,9 @@ export default function PricingPage() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    {/* ── FedaPay (Mobile Money / Card) ── */}
+                                    {/* ── FedaPay (Mobile Money) ── */}
                                     <button
-                                        onClick={handleFedaPayVerify}
+                                        onClick={() => handleFedaPayCheckout('mobile_money')}
                                         disabled={!!loadingPlanId}
                                         className="w-full flex items-center gap-4 p-4 border-2 border-slate-200 hover:border-green-500 rounded-xl transition group disabled:opacity-60"
                                     >
@@ -530,17 +530,34 @@ export default function PricingPage() {
                                             <span className="text-2xl">🌍</span>
                                         </div>
                                         <div className="text-left flex-1">
-                                            <p className="font-semibold text-slate-800">Pay via FedaPay</p>
-                                            <p className="text-xs text-slate-500">Mobile Money · Flooz · T-Money · Visa · Mastercard</p>
-                                            <p className="text-xs text-amber-600 mt-0.5">
-                                                {payModal?.plan?.trial
-                                                    ? 'A $1 card verification is charged and immediately refunded.'
-                                                    : 'A $1 card verification fee is charged (non-refundable). Subscription activates instantly.'}
-                                            </p>
+                                            <p className="font-semibold text-slate-800">Pay with Mobile Money</p>
+                                            <p className="text-xs text-slate-500">Redirect to Fedapay checkout (Flooz / T-Money)</p>
                                         </div>
-                                        {loadingPlanId === `${payModal.plan.id}_fedapay`
+                                        {loadingPlanId === `${payModal.plan.id}_fedapay_mobile_money`
                                             ? <span className="animate-spin h-5 w-5 border-2 border-green-500 border-t-transparent rounded-full shrink-0"></span>
                                             : <span className="text-slate-400 group-hover:text-green-500 shrink-0">→</span>
+                                        }
+                                    </button>
+
+                                    {/* ── FedaPay (Visa/Mastercard) ── */}
+                                    <button
+                                        onClick={() => handleFedaPayCheckout('card')}
+                                        disabled={!!loadingPlanId}
+                                        className="w-full flex items-center gap-4 p-4 border-2 border-slate-200 hover:border-blue-500 rounded-xl transition group disabled:opacity-60"
+                                    >
+                                        <div className="bg-blue-100 p-2 rounded-lg shrink-0">
+                                            <span className="text-2xl">💳</span>
+                                        </div>
+                                        <div className="text-left flex-1">
+                                            <p className="font-semibold text-slate-800">Pay with Visa / Mastercard</p>
+                                            <p className="text-xs text-slate-500">Redirect to Fedapay secure card checkout</p>
+                                            <p className="text-xs text-amber-600 mt-0.5">
+                                                You will be charged the selected subscription amount.
+                                            </p>
+                                        </div>
+                                        {loadingPlanId === `${payModal.plan.id}_fedapay_card`
+                                            ? <span className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full shrink-0"></span>
+                                            : <span className="text-slate-400 group-hover:text-blue-500 shrink-0">→</span>
                                         }
                                     </button>
 
@@ -602,7 +619,7 @@ export default function PricingPage() {
                                     <span className="animate-spin h-7 w-7 border-4 border-green-500 border-t-transparent rounded-full"></span>
                                 </span>
                                 <h3 className="text-lg font-bold text-slate-900 mb-2">Redirecting to FedaPay…</h3>
-                                <p className="text-sm text-slate-500 mb-4">A $1 card verification is required. For trials, this is refunded immediately. For premium plans, the $1 activates your subscription instantly.</p>
+                                <p className="text-sm text-slate-500 mb-4">You are being redirected to Fedapay to complete payment for your selected subscription amount.</p>
                                 {checkoutUrl && (
                                     <a
                                         href={checkoutUrl}
