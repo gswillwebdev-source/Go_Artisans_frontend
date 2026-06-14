@@ -17,6 +17,8 @@ export default function AdminDashboardPage() {
     const [emailStats, setEmailStats] = useState(null)
     const [emailRunning, setEmailRunning] = useState(false)
     const [emailRunResult, setEmailRunResult] = useState(null)
+    const [testEmailLoading, setTestEmailLoading] = useState(false)
+    const [testEmailResult, setTestEmailResult] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [isChecking, setIsChecking] = useState(true)
@@ -469,6 +471,23 @@ export default function AdminDashboardPage() {
             setEmailRunResult({ error: err.message })
         } finally {
             setEmailRunning(false)
+        }
+    }
+
+    const handleTestEmail = async () => {
+        setTestEmailLoading(true)
+        setTestEmailResult(null)
+        try {
+            const res = await fetch('/api/admin/test-email', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${sessionToken}` }
+            })
+            const data = await res.json()
+            setTestEmailResult(data)
+        } catch (err) {
+            setTestEmailResult({ error: err.message })
+        } finally {
+            setTestEmailLoading(false)
         }
     }
 
@@ -1298,14 +1317,40 @@ export default function AdminDashboardPage() {
                                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Email Campaigns</h2>
                                         <p className="text-sm text-gray-500 mt-1">Personalized emails sent automatically every day at 9 AM. You can also trigger them manually.</p>
                                     </div>
-                                    <button
-                                        onClick={handleRunCampaigns}
-                                        disabled={emailRunning}
-                                        className="shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-5 py-2.5 rounded-lg font-semibold transition text-sm"
-                                    >
-                                        {emailRunning ? '⏳ Sending…' : '▶ Run Campaigns Now'}
-                                    </button>
+                                    <div className="flex gap-3 flex-wrap">
+                                        <button
+                                            onClick={handleTestEmail}
+                                            disabled={testEmailLoading}
+                                            className="shrink-0 bg-gray-700 hover:bg-gray-800 disabled:bg-gray-400 text-white px-5 py-2.5 rounded-lg font-semibold transition text-sm"
+                                        >
+                                            {testEmailLoading ? '⏳ Sending…' : '📧 Send Test Email to Me'}
+                                        </button>
+                                        <button
+                                            onClick={handleRunCampaigns}
+                                            disabled={emailRunning}
+                                            className="shrink-0 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white px-5 py-2.5 rounded-lg font-semibold transition text-sm"
+                                        >
+                                            {emailRunning ? '⏳ Sending…' : '▶ Run Campaigns Now'}
+                                        </button>
+                                    </div>
                                 </div>
+
+                                {/* Test email result */}
+                                {testEmailResult && (
+                                    <div className={`p-4 rounded-lg border mb-4 ${testEmailResult.error ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                                        {testEmailResult.error ? (
+                                            <div>
+                                                <p className="font-semibold mb-1">❌ Test email failed</p>
+                                                <p className="text-sm font-mono">{testEmailResult.error}</p>
+                                                {testEmailResult.hint && (
+                                                    <p className="text-sm mt-2 font-medium">💡 {testEmailResult.hint}</p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <p className="font-semibold">✅ {testEmailResult.message}</p>
+                                        )}
+                                    </div>
+                                )}
 
                                 {/* Run result */}
                                 {emailRunResult && (
