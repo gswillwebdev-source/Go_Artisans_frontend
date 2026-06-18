@@ -10,11 +10,22 @@ import { ThemeProvider } from '@/context/ThemeContext'
 import { SubscriptionProvider } from '@/context/SubscriptionContext'
 import { Analytics } from '@vercel/analytics/react'
 
+export const viewport = {
+    themeColor: '#0066d6',
+}
+
 export const metadata = {
     title: 'GoArtisans - Job Seeking Platform',
     description: 'Find your next opportunity on GoArtisans',
+    manifest: '/manifest.json',
+    appleWebApp: {
+        capable: true,
+        statusBarStyle: 'default',
+        title: 'GoArtisans',
+    },
     icons: {
         icon: '/app_icon.png',
+        apple: '/app_icon.png',
     },
     other: {
         'google-adsense-account': 'ca-pub-2138089895232822',
