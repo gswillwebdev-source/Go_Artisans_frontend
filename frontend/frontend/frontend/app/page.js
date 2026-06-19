@@ -74,6 +74,16 @@ export default function Home() {
                 <a href="/browse-workers" className="px-8 py-3 rounded-xl text-lg font-semibold bg-white text-slate-700 border border-slate-300 hover:border-blue-300 hover:text-blue-700 interactive-rise">
                   {t('browseWorkers')}
                 </a>
+                <a
+                  href="/videos"
+                  className="px-8 py-3 rounded-xl text-lg font-semibold bg-slate-900 text-white border border-slate-700 hover:bg-black interactive-rise flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Watch Videos
+                </a>
               </div>
             </div>
           </div>
