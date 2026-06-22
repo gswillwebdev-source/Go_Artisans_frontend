@@ -27,6 +27,7 @@ export default function WorkerProfilePage() {
     // Portfolio view limit for Pro clients
     const [portfolioViewsThisMonth, setPortfolioViewsThisMonth] = useState(0)
     const [portfolioViewLimitReached, setPortfolioViewLimitReached] = useState(false)
+    const [workerVideos, setWorkerVideos] = useState([])
     const PRO_PORTFOLIO_LIMIT = 60
 
     useEffect(() => {
@@ -142,6 +143,18 @@ export default function WorkerProfilePage() {
 
         trackPortfolioView()
     }, [currentUser?.id, viewerPlanTier, workerId, loading])
+
+    // Load this creator's videos/photos
+    useEffect(() => {
+        if (!workerId || loading) return
+        supabase
+            .from('videos')
+            .select('id, media_url, media_type, caption, likes_count, comments_count, created_at')
+            .eq('user_id', workerId)
+            .order('created_at', { ascending: false })
+            .limit(12)
+            .then(({ data }) => { if (data) setWorkerVideos(data) })
+    }, [workerId, loading])
 
     // Listen for global follow/unfollow events and update follower count in real-time
     useEffect(() => {
@@ -481,6 +494,43 @@ export default function WorkerProfilePage() {
                                     </Suspense>
                                 </div>
                             )}
+
+                            {/* Videos & Photos Section */}
+                            <div className="mb-8">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-2xl font-bold text-gray-900">🎬 Videos & Photos</h2>
+                                    <Link href="/videos" className="text-sm text-indigo-600 hover:underline">View feed →</Link>
+                                </div>
+                                {workerVideos.length === 0 ? (
+                                    <div className="text-center py-10 bg-gray-50 rounded-2xl text-gray-500">
+                                        <p className="text-3xl mb-2">🎬</p>
+                                        <p className="font-semibold text-sm">No posts yet</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {workerVideos.map(post => (
+                                            <Link key={post.id} href="/videos" className="block relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                                                {post.media_type === 'video' ? (
+                                                    <video src={post.media_url} className="w-full h-full object-cover" muted playsInline />
+                                                ) : (
+                                                    <img src={post.media_url} alt={post.caption || ''} className="w-full h-full object-cover" />
+                                                )}
+                                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition flex items-end p-1.5">
+                                                    <div className="hidden group-hover:flex items-center gap-2 text-white text-xs font-semibold">
+                                                        <span>❤️ {post.likes_count ?? 0}</span>
+                                                        <span>💬 {post.comments_count ?? 0}</span>
+                                                    </div>
+                                                </div>
+                                                {post.media_type === 'video' && (
+                                                    <div className="absolute top-1.5 left-1.5 bg-black/50 rounded-full p-0.5">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                                    </div>
+                                                )}
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </>
                     )}
                 </div>
