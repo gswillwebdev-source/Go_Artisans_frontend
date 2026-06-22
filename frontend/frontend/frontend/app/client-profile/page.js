@@ -1070,6 +1070,12 @@ export default function ClientProfilePage() {
                                 >
                                     📊 Creator Dashboard
                                 </Link>
+                                <Link
+                                    href="/gift-box"
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 shadow-sm transition"
+                                >
+                                    🎁 Gift Box
+                                </Link>
                             </div>
                         )}
                     </div>

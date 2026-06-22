@@ -52,7 +52,60 @@ CREATE POLICY "Anyone can view gifts"
 CREATE POLICY "Authenticated users can gift"
     ON public.video_gifts FOR INSERT WITH CHECK (auth.uid() = sender_id);
 
--- 3. Creator Dashboard: sum of gifts received per user (helper view)
+-- 3. Coin purchases (tracks payment history)
+CREATE TABLE IF NOT EXISTS public.coin_purchases (
+    id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id         uuid        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    coins_amount    integer     NOT NULL CHECK (coins_amount > 0),
+    price_xof       integer     NOT NULL,
+    payment_method  text        NOT NULL,
+    phone_number    text,
+    status          text        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed','failed')),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    completed_at    timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_coin_purchases_user ON public.coin_purchases(user_id, created_at DESC);
+
+ALTER TABLE public.coin_purchases ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own purchases"   ON public.coin_purchases;
+DROP POLICY IF EXISTS "Users can insert own purchases" ON public.coin_purchases;
+
+CREATE POLICY "Users can read own purchases"
+    ON public.coin_purchases FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own purchases"
+    ON public.coin_purchases FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- 4. Gift withdrawal requests (convert received coins to money)
+CREATE TABLE IF NOT EXISTS public.gift_withdrawals (
+    id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id         uuid        NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    coins_amount    integer     NOT NULL CHECK (coins_amount > 0),
+    estimated_xof   integer     NOT NULL,
+    payment_method  text        NOT NULL,
+    phone_number    text        NOT NULL,
+    status          text        NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','paid','rejected')),
+    admin_note      text,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    paid_at         timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_gift_withdrawals_user ON public.gift_withdrawals(user_id, created_at DESC);
+
+ALTER TABLE public.gift_withdrawals ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own withdrawals"   ON public.gift_withdrawals;
+DROP POLICY IF EXISTS "Users can insert own withdrawals" ON public.gift_withdrawals;
+
+CREATE POLICY "Users can read own withdrawals"
+    ON public.gift_withdrawals FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own withdrawals"
+    ON public.gift_withdrawals FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- 5. Creator Dashboard: sum of gifts received per user (helper view)
 CREATE OR REPLACE VIEW public.creator_gift_totals AS
 SELECT
     recipient_id AS user_id,

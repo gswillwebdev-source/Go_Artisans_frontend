@@ -274,13 +274,22 @@ function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
           >
             {sending ? 'Sending…' : selected ? `Send ${selected.emoji} ${selected.name} · ${selected.cost} 🪙` : 'Select a gift above'}
           </button>
-          <button
-            onClick={handleClaim}
-            disabled={claiming}
-            className="w-full py-2.5 rounded-2xl border border-yellow-400/40 text-yellow-400 text-sm font-semibold hover:bg-yellow-400/10 transition disabled:opacity-50"
-          >
-            {claiming ? 'Claiming…' : '🪙 Claim 100 free coins'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleClaim}
+              disabled={claiming}
+              className="flex-1 py-2.5 rounded-2xl border border-yellow-400/40 text-yellow-400 text-sm font-semibold hover:bg-yellow-400/10 transition disabled:opacity-50"
+            >
+              {claiming ? 'Claiming…' : '🪙 Claim 100 free coins'}
+            </button>
+            <Link
+              href="/gift-store"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-2xl border border-blue-400/40 text-blue-400 text-sm font-semibold hover:bg-blue-400/10 transition text-center"
+            >
+              🛍️ Buy Coins
+            </Link>
+          </div>
         </div>
       </div>
     </div>

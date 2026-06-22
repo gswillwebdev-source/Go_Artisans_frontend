@@ -85,6 +85,7 @@ export default function CreatorDashboard() {
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
+  const [giftsReceived, setGiftsReceived] = useState([])
 
   useEffect(() => {
     async function init() {
@@ -99,6 +100,11 @@ export default function CreatorDashboard() {
         .order('created_at', { ascending: false })
 
       if (data) setPosts(data)
+      const { data: gifts } = await supabase
+        .from('video_gifts')
+        .select('gift_cost')
+        .eq('recipient_id', session.user.id)
+      if (gifts) setGiftsReceived(gifts)
       setLoading(false)
     }
     init()
@@ -115,6 +121,7 @@ export default function CreatorDashboard() {
   const totalViews    = posts.reduce((s, p) => s + (p.views_count ?? 0), 0)
   const totalLikes    = posts.reduce((s, p) => s + (p.likes_count ?? 0), 0)
   const totalComments = posts.reduce((s, p) => s + (p.comments_count ?? 0), 0)
+  const totalGiftCoins = giftsReceived.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
 
   const backHref = typeof window !== 'undefined'
     ? (document.referrer.includes('/client-profile') ? '/client-profile' : '/worker-profile')
@@ -150,6 +157,9 @@ export default function CreatorDashboard() {
             </svg>
             New Post
           </Link>
+          <Link href="/gift-box" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-semibold text-sm hover:from-yellow-500 hover:to-orange-600 transition">
+            🎁 Gift Box
+          </Link>
         </div>
 
         {/* Stats overview */}
@@ -159,6 +169,20 @@ export default function CreatorDashboard() {
           <StatCard icon="❤️" label="Total Likes"    value={totalLikes}     sub="All time"             color="border-rose-100"  />
           <StatCard icon="💬" label="Total Comments" value={totalComments}  sub="All time"             color="border-blue-100"  />
         </div>
+
+        {/* Gift earnings card */}
+        {totalGiftCoins > 0 && (
+          <div className="rounded-2xl bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 p-5 flex items-center justify-between">
+            <div>
+              <p className="font-bold text-slate-900">🎁 Gift Earnings</p>
+              <p className="text-2xl font-bold text-yellow-600 mt-1">{totalGiftCoins.toLocaleString()} coins</p>
+              <p className="text-sm text-slate-600 mt-0.5">≈ {(totalGiftCoins * 3).toLocaleString()} XOF estimated payout</p>
+            </div>
+            <Link href="/gift-box?tab=withdraw" className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold text-sm hover:from-violet-700 hover:to-purple-700 transition">
+              💸 Withdraw
+            </Link>
+          </div>
+        )}
 
         {/* Posts table */}
         <div>
