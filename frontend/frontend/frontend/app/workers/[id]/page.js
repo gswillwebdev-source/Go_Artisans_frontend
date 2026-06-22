@@ -265,27 +265,41 @@ export default function WorkerProfilePage() {
                             )}
 
                             {isFreeTierClientView ? (
-                                /* ── FREE TIER: email contact + upgrade callout ── */
+                                /* ── FREE TIER: full contact access + upgrade callout for profile details ── */
                                 <div className="space-y-4">
-                                    {worker.email && (
+                                    {(worker.email || worker.phone_number) && (
                                         <div className="space-y-2">
-                                            <div className="flex items-center gap-2 text-sm text-gray-700">
-                                                <span>📧</span>
-                                                <span className="font-medium break-all">{worker.email}</span>
-                                            </div>
-                                            <a
-                                                href={`mailto:${worker.email}`}
-                                                className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition"
-                                            >
-                                                Send Email
-                                            </a>
+                                            {worker.email && (
+                                                <>
+                                                    <div className="flex items-center gap-2 text-sm text-gray-700">
+                                                        <span>📧</span>
+                                                        <span className="font-medium break-all">{worker.email}</span>
+                                                    </div>
+                                                    <a
+                                                        href={`mailto:${worker.email}`}
+                                                        className="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition"
+                                                    >
+                                                        Send Email
+                                                    </a>
+                                                </>
+                                            )}
+                                            {worker.phone_number && (
+                                                <a
+                                                    href={`https://wa.me/${worker.phone_number.replace(/\D/g, '')}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition"
+                                                >
+                                                    💬 WhatsApp
+                                                </a>
+                                            )}
                                         </div>
                                     )}
                                     <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-                                        <p className="text-amber-800 font-semibold text-sm mb-1">🔒 Free plan — limited view</p>
+                                        <p className="text-amber-800 font-semibold text-sm mb-1">✨ Unlock the full profile</p>
                                         <p className="text-amber-700 text-xs mb-3">
-                                            Upgrade to <strong>Pro</strong> or <strong>Premium</strong> to unlock the full
-                                            profile: bio, experience, ratings, skills, portfolio, and more.
+                                            Upgrade to <strong>Pro</strong> or <strong>Premium</strong> to see
+                                            bio, experience, ratings, skills, portfolio, and more.
                                         </p>
                                         <Link
                                             href="/plans"

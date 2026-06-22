@@ -9,7 +9,6 @@ import { createClient } from '@supabase/supabase-js'
 import { FOLLOW_SYNC_EVENT } from '@/hooks/useFollowSync'
 import FollowButton from '@/components/FollowButton'
 import UserCardSkeleton from '@/components/UserCardSkeleton'
-import UpgradeModal from '@/components/UpgradeModal'
 import { useSubscription } from '@/context/SubscriptionContext'
 import VerifiedBadge from '@/components/VerifiedBadge'
 import ReferralBadge, { getReferralTier } from '@/components/ReferralBadge'
@@ -30,7 +29,6 @@ function AllUsersPageContent() {
     const [offset, setOffset] = useState(0)
     const [hasMore, setHasMore] = useState(true)
     const [isSearching, setIsSearching] = useState(false)
-    const [upgradeModal, setUpgradeModal] = useState(false)
     const [viewMode, setViewMode] = useState('globe')
     const loaderRef = useRef(null)
     const didMountRef = useRef(false)
@@ -278,13 +276,6 @@ function AllUsersPageContent() {
 
     return (
         <div className={viewMode === 'globe' ? 'relative' : 'min-h-screen bg-gray-50 py-8'}>
-            {/* Upgrade modal — shown when free user clicks WhatsApp */}
-            <UpgradeModal
-                isOpen={upgradeModal}
-                onClose={() => setUpgradeModal(false)}
-                feature="WhatsApp contact"
-            />
-
             {/* Globe view — full viewport, no inner padding */}
             {viewMode === 'globe' && !initialLoading && (
                 <>
@@ -307,9 +298,21 @@ function AllUsersPageContent() {
                                 <button onClick={handleImmediateSearch} className="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 text-white px-2.5 py-1 rounded-xl text-xs font-semibold hover:bg-indigo-700 transition">Go</button>
                             </div>
                         </div>
-                        <div className="pointer-events-auto flex items-center bg-black/60 backdrop-blur-md rounded-2xl p-1 gap-1 border border-white/10">
-                            <button onClick={() => setViewMode('globe')} className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white/20 text-white" title="3D Globe">🌍</button>
-                            <button onClick={() => setViewMode('list')} className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white transition" title="List view">⊞</button>
+                        <div className="pointer-events-auto flex items-center gap-2">
+                            <Link
+                                href="/videos"
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl text-sm font-semibold bg-slate-900/80 backdrop-blur-md text-white border border-white/10 hover:bg-black/90 transition"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Videos
+                            </Link>
+                            <div className="flex items-center bg-black/60 backdrop-blur-md rounded-2xl p-1 gap-1 border border-white/10">
+                                <button onClick={() => setViewMode('globe')} className="px-3 py-1.5 rounded-xl text-sm font-medium bg-white/20 text-white" title="3D Globe">🌍</button>
+                                <button onClick={() => setViewMode('list')} className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-400 hover:text-white transition" title="List view">⊞</button>
+                            </div>
                         </div>
                     </div>
                     <WorldGlobe
@@ -334,8 +337,22 @@ function AllUsersPageContent() {
             <div className={viewMode === 'list' ? 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8' : 'hidden'}>
                 {/* Header */}
                 <div className="mb-8 pt-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2">Discover Users</h1>
-                    <p className="text-gray-600">Find and connect with workers and clients on GoArtisans</p>
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                            <h1 className="text-4xl font-bold text-gray-900 mb-2">Discover Users</h1>
+                            <p className="text-gray-600">Find and connect with workers and clients on GoArtisans</p>
+                        </div>
+                        <Link
+                            href="/videos"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white font-semibold text-sm hover:bg-black transition shrink-0"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Watch Videos
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Search and Filters */}
@@ -598,23 +615,21 @@ function AllUsersPageContent() {
                                                     View Profile →
                                                 </Link>
 
-                                                {/* WhatsApp Contact — visible to all, gated for free users */}
-                                                <button
-                                                    onClick={() => {
-                                                        if (isFree) {
-                                                            setUpgradeModal(true)
-                                                        } else if (user.phone_number) {
+                                                {/* WhatsApp Contact — open to all users */}
+                                                {user.phone_number && (
+                                                    <button
+                                                        onClick={() => {
                                                             window.open(
                                                                 'https://wa.me/' + user.phone_number.replace(/\D/g, ''),
                                                                 '_blank',
                                                                 'noopener,noreferrer'
                                                             )
-                                                        }
-                                                    }}
-                                                    className="block w-full text-center text-sm font-medium mt-2 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
-                                                >
-                                                    💬 WhatsApp{isFree ? ' 🔒' : ''}
-                                                </button>
+                                                        }}
+                                                        className="block w-full text-center text-sm font-medium mt-2 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                                                    >
+                                                        💬 WhatsApp
+                                                    </button>
+                                                )}
                                             </>
                                         ) : (
                                             /* Locked state — name + badges visible, other info hidden */
