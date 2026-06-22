@@ -118,8 +118,8 @@ export default function CreatorDashboard() {
     setDeleting(null)
   }
 
-  const totalViews    = posts.reduce((s, p) => s + (p.views_count ?? 0), 0)
-  const totalLikes    = posts.reduce((s, p) => s + (p.likes_count ?? 0), 0)
+  const totalViews = posts.reduce((s, p) => s + (p.views_count ?? 0), 0)
+  const totalLikes = posts.reduce((s, p) => s + (p.likes_count ?? 0), 0)
   const totalComments = posts.reduce((s, p) => s + (p.comments_count ?? 0), 0)
   const totalGiftCoins = giftsReceived.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
 
@@ -164,10 +164,10 @@ export default function CreatorDashboard() {
 
         {/* Stats overview */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="🎬" label="Total Posts"    value={posts.length}   sub="Videos &amp; photos"  color="border-slate-200" />
-          <StatCard icon="👁" label="Total Views"    value={totalViews}     sub="All time"             color="border-slate-200" />
-          <StatCard icon="❤️" label="Total Likes"    value={totalLikes}     sub="All time"             color="border-rose-100"  />
-          <StatCard icon="💬" label="Total Comments" value={totalComments}  sub="All time"             color="border-blue-100"  />
+          <StatCard icon="🎬" label="Total Posts" value={posts.length} sub="Videos &amp; photos" color="border-slate-200" />
+          <StatCard icon="👁" label="Total Views" value={totalViews} sub="All time" color="border-slate-200" />
+          <StatCard icon="❤️" label="Total Likes" value={totalLikes} sub="All time" color="border-rose-100" />
+          <StatCard icon="💬" label="Total Comments" value={totalComments} sub="All time" color="border-blue-100" />
         </div>
 
         {/* Gift earnings card */}

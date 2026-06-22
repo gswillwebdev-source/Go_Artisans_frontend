@@ -523,7 +523,7 @@ export default function WorkerProfilePage() {
                                                 </div>
                                                 {post.media_type === 'video' && (
                                                     <div className="absolute top-1.5 left-1.5 bg-black/50 rounded-full p-0.5">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
                                                     </div>
                                                 )}
                                             </Link>

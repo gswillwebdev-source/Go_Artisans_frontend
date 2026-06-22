@@ -106,6 +106,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/applications', require('./routes/applications'));
 app.use('/api/completion', require('./routes/completion'));
 app.use('/api/subscriptions', require('./routes/subscriptions'));
+app.use('/api/coins', require('./routes/coins'));
 
 // Error Handling - show stack in development
 app.use((err, req, res, next) => {

@@ -7,16 +7,16 @@ import { supabase } from '@/lib/supabase'
 
 // ── Gift catalog ───────────────────────────────────────────────────────────
 const GIFTS = [
-  { emoji: '🌹', name: 'Rose',    cost: 10  },
-  { emoji: '⭐', name: 'Star',    cost: 50  },
-  { emoji: '🏆', name: 'Trophy',  cost: 100 },
-  { emoji: '👑', name: 'Crown',   cost: 200 },
+  { emoji: '🌹', name: 'Rose', cost: 10 },
+  { emoji: '⭐', name: 'Star', cost: 50 },
+  { emoji: '🏆', name: 'Trophy', cost: 100 },
+  { emoji: '👑', name: 'Crown', cost: 200 },
   { emoji: '💎', name: 'Diamond', cost: 500 },
-  { emoji: '🔥', name: 'Fire',    cost: 30  },
-  { emoji: '💯', name: '100',     cost: 80  },
-  { emoji: '🎉', name: 'Party',   cost: 20  },
-  { emoji: '🚀', name: 'Rocket',  cost: 150 },
-  { emoji: '❤️', name: 'Heart',   cost: 15  },
+  { emoji: '🔥', name: 'Fire', cost: 30 },
+  { emoji: '💯', name: '100', cost: 80 },
+  { emoji: '🎉', name: 'Party', cost: 20 },
+  { emoji: '🚀', name: 'Rocket', cost: 150 },
+  { emoji: '❤️', name: 'Heart', cost: 15 },
 ]
 
 // ── Reusable action button ─────────────────────────────────────────────────
@@ -46,7 +46,7 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
     const el = videoRef.current
     if (!el || post.media_type !== 'video') return
     const obs = new IntersectionObserver(
-      ([entry]) => { entry.isIntersecting ? el.play().catch(() => {}) : el.pause() },
+      ([entry]) => { entry.isIntersecting ? el.play().catch(() => { }) : el.pause() },
       { threshold: 0.6 }
     )
     obs.observe(el)
@@ -63,9 +63,9 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
   const handleShare = async () => {
     const url = window.location.origin + '/videos'
     if (navigator.share) {
-      await navigator.share({ title: `@${post.display_name} on GoArtisans`, text: post.caption || '', url }).catch(() => {})
+      await navigator.share({ title: `@${post.display_name} on GoArtisans`, text: post.caption || '', url }).catch(() => { })
     } else {
-      await navigator.clipboard.writeText(url).catch(() => {})
+      await navigator.clipboard.writeText(url).catch(() => { })
     }
   }
 
@@ -176,29 +176,6 @@ function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [localCoins, setLocalCoins] = useState(coins)
-  const [claiming, setClaiming] = useState(false)
-
-  const handleClaim = async () => {
-    if (!currentUser) { router.push('/login'); return }
-    setClaiming(true)
-    const { data: existing } = await supabase
-      .from('user_coins')
-      .select('balance')
-      .eq('user_id', currentUser.id)
-      .single()
-    if (existing) {
-      const newBalance = existing.balance + 100
-      await supabase
-        .from('user_coins')
-        .update({ balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('user_id', currentUser.id)
-      setLocalCoins(newBalance)
-    } else {
-      await supabase.from('user_coins').insert({ user_id: currentUser.id, balance: 100 })
-      setLocalCoins(100)
-    }
-    setClaiming(false)
-  }
 
   const handleSend = async () => {
     if (!currentUser) { router.push('/login'); return }
@@ -253,11 +230,10 @@ function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
             <button
               key={gift.name}
               onClick={() => setSelected(gift)}
-              className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition border-2 ${
-                selected?.name === gift.name
-                  ? 'border-yellow-400 bg-yellow-400/10'
-                  : 'border-white/10 bg-white/5 hover:bg-white/10'
-              }`}
+              className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition border-2 ${selected?.name === gift.name
+                ? 'border-yellow-400 bg-yellow-400/10'
+                : 'border-white/10 bg-white/5 hover:bg-white/10'
+                }`}
             >
               <span className="text-2xl">{gift.emoji}</span>
               <span className="text-white text-[10px] font-semibold leading-tight">{gift.name}</span>
@@ -274,22 +250,13 @@ function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
           >
             {sending ? 'Sending…' : selected ? `Send ${selected.emoji} ${selected.name} · ${selected.cost} 🪙` : 'Select a gift above'}
           </button>
-          <div className="flex gap-2">
-            <button
-              onClick={handleClaim}
-              disabled={claiming}
-              className="flex-1 py-2.5 rounded-2xl border border-yellow-400/40 text-yellow-400 text-sm font-semibold hover:bg-yellow-400/10 transition disabled:opacity-50"
-            >
-              {claiming ? 'Claiming…' : '🪙 Claim 100 free coins'}
-            </button>
-            <Link
-              href="/gift-store"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-2xl border border-blue-400/40 text-blue-400 text-sm font-semibold hover:bg-blue-400/10 transition text-center"
-            >
-              🛍️ Buy Coins
-            </Link>
-          </div>
+          <Link
+            href="/gift-store"
+            onClick={onClose}
+            className="w-full py-3 rounded-2xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition text-center"
+          >
+            🛍️ Buy Coins
+          </Link>
         </div>
       </div>
     </div>

@@ -50,23 +50,45 @@ export default function GiftStore() {
     if (!isMobile && (!cardNum.trim() || !expiry.trim() || !cvv.trim())) return
     setBuying(true)
 
-    await supabase.from('coin_purchases').insert({
-      user_id: user.id,
-      coins_amount: pack.coins,
-      price_xof: pack.xof,
-      payment_method: method,
-      phone_number: isMobile ? phone.trim() : null,
-      status: 'completed',
-    })
+    try {
+      // 1. Create pending purchase record
+      const { data: purchase, error: insertErr } = await supabase.from('coin_purchases').insert({
+        user_id: user.id,
+        coins_amount: pack.coins,
+        price_xof: pack.xof,
+        payment_method: method,
+        phone_number: isMobile ? phone.trim() : null,
+        status: 'pending',
+      }).select().single()
 
-    const newBal = balance + pack.coins
-    await supabase.from('user_coins').upsert(
-      { user_id: user.id, balance: newBal, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id' }
-    )
-    setBalance(newBal)
-    setBuying(false)
-    setStep(3)
+      if (insertErr) throw insertErr
+
+      // 2. For mobile money & visa: redirect to FedaPay checkout
+      // The webhook will mark purchase as 'completed' and credit coins
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.goartisans.online'
+      
+      const response = await fetch(`${backendUrl}/api/coins/fedapay/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          purchase_id: purchase.id,
+          coins_amount: pack.coins,
+          price_xof: pack.xof,
+          payment_method: method,
+          phone_number: isMobile ? phone.trim() : null,
+        })
+      })
+
+      const data = await response.json()
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url
+      } else {
+        throw new Error('Failed to create checkout')
+      }
+    } catch (err) {
+      console.error('Payment error:', err)
+      setBuying(false)
+    }
   }
 
   if (loading) return (

@@ -115,8 +115,11 @@ FROM public.video_gifts
 GROUP BY recipient_id;
 
 -- ============================================================
--- NOTE: The frontend uses a "Claim 100 free coins" button
--- which upserts directly into user_coins. No server function
--- is required for the MVP. Coin deduction happens on the
--- client before inserting a video_gift record.
+-- NOTE: Coin purchases now follow this flow:
+-- 1. Frontend creates a PENDING coin_purchases record
+-- 2. FedaPay checkout is generated at /api/coins/fedapay/checkout
+-- 3. User completes payment at FedaPay
+-- 4. FedaPay webhook confirms payment + updates purchase status to COMPLETED
+-- 5. Webhook auto-credits coins to user_coins on confirmation
+-- All payment methods (MTN, Moov, Visa, etc.) are supported via FedaPay.
 -- ============================================================
