@@ -138,6 +138,7 @@ export default function WorkerProfilePage() {
     const [completionSuccess, setCompletionSuccess] = useState('')
     const [confirmedCompletions, setConfirmedCompletions] = useState([])
     const [isAvailabilityToggling, setIsAvailabilityToggling] = useState(false)
+    const [myVideos, setMyVideos] = useState([])
     const [availabilityError, setAvailabilityError] = useState('')
     const [detectingLocation, setDetectingLocation] = useState(false)
     const [detectError, setDetectError] = useState(null)
@@ -390,6 +391,19 @@ export default function WorkerProfilePage() {
                                 console.warn('Failed to fetch confirmed completions:', completionsErr?.message || completionsErr)
                             }
                         }
+                    })()
+
+                    // Load user's own videos after initial paint
+                    ; (async () => {
+                        try {
+                            const { data: videosData } = await supabase
+                                .from('videos')
+                                .select('id, media_url, media_type, caption, likes_count, comments_count, created_at')
+                                .eq('user_id', user.id)
+                                .order('created_at', { ascending: false })
+                                .limit(12)
+                            if (isMounted && videosData) setMyVideos(videosData)
+                        } catch { }
                     })()
 
             } catch (err) {
@@ -914,6 +928,12 @@ export default function WorkerProfilePage() {
                                 >
                                     {isAvailabilityToggling ? `${t('loading')}...` : (profile?.is_active ? t('availabilityActive') : t('availabilityInactive'))}
                                 </button>
+                                <Link
+                                    href="/creator-dashboard"
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl font-semibold text-sm bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 shadow-sm transition"
+                                >
+                                    📊 Creator Dashboard
+                                </Link>
                             </div>
                         )}
                     </div>
@@ -1378,6 +1398,67 @@ export default function WorkerProfilePage() {
                                     {savedJobs.length === 0 && appliedJobs.length === 0 && pendingJobs.length === 0 && finishedJobs.length === 0 && confirmedCompletions.length === 0 && (
                                         <div className="text-center py-8 text-gray-500">
                                             <p>{t('noJobApplicationsYet')}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* My Videos & Photos Section */}
+                                <div className="profile-section">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="profile-title text-xl font-semibold">🎬 My Videos &amp; Photos</h3>
+                                        <div className="flex items-center gap-2">
+                                            <Link
+                                                href="/videos/upload"
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+                                            >
+                                                + Upload
+                                            </Link>
+                                            <Link
+                                                href="/creator-dashboard"
+                                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-violet-600 to-blue-600 text-white hover:from-violet-700 hover:to-blue-700 transition"
+                                            >
+                                                📊 Dashboard
+                                            </Link>
+                                        </div>
+                                    </div>
+
+                                    {myVideos.length === 0 ? (
+                                        <div className="text-center py-10 text-gray-500 bg-gray-50 rounded-2xl">
+                                            <p className="text-3xl mb-2">🎬</p>
+                                            <p className="font-semibold">No posts yet</p>
+                                            <p className="text-sm mt-1 mb-3">Share videos or photos to grow your audience.</p>
+                                            <Link href="/videos/upload" className="inline-flex items-center gap-1 px-4 py-2 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
+                                                Post your first video
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                            {myVideos.map(post => (
+                                                <Link key={post.id} href="/videos" className="block relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
+                                                    {post.media_type === 'video' ? (
+                                                        <video src={post.media_url} className="w-full h-full object-cover" muted playsInline />
+                                                    ) : (
+                                                        <img src={post.media_url} alt={post.caption || ''} className="w-full h-full object-cover" />
+                                                    )}
+                                                    {/* overlay */}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-end p-1.5">
+                                                        <div className="hidden group-hover:flex items-center gap-2 text-white text-xs font-semibold">
+                                                            <span>❤️ {post.likes_count ?? 0}</span>
+                                                            <span>💬 {post.comments_count ?? 0}</span>
+                                                        </div>
+                                                    </div>
+                                                    {post.media_type === 'video' && (
+                                                        <div className="absolute top-1.5 left-1.5 bg-black/50 rounded-full p-0.5">
+                                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                                        </div>
+                                                    )}
+                                                </Link>
+                                            ))}
+                                            {myVideos.length >= 12 && (
+                                                <Link href="/creator-dashboard" className="flex items-center justify-center aspect-square rounded-xl bg-gray-100 text-gray-600 text-xs font-semibold hover:bg-gray-200 transition">
+                                                    View all →
+                                                </Link>
+                                            )}
                                         </div>
                                     )}
                                 </div>

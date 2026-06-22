@@ -13,8 +13,10 @@ export default function Home() {
   const [isCapacitor, setIsCapacitor] = useState(false)
 
   useEffect(() => {
-    // Detect if running inside a Capacitor WebView (mobile app)
-    setIsCapacitor(!!(window.Capacitor))
+    // Detect if running inside a Capacitor WebView (native app) or as an installed PWA (standalone)
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true // iOS Safari PWA
+    setIsCapacitor(!!(window.Capacitor) || isPWA)
 
     const handleOAuthCallbackFallback = async () => {
       const hash = window.location.hash

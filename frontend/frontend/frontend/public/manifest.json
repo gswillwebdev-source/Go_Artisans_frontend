@@ -7,7 +7,11 @@
   "background_color": "#f4f7fb",
   "theme_color": "#0066d6",
   "orientation": "portrait-primary",
-  "categories": ["jobs", "business", "productivity"],
+  "categories": [
+    "jobs",
+    "business",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/app_icon.png",
