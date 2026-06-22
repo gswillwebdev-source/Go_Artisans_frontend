@@ -24,11 +24,16 @@ const {
     adminGrantBadge,
     resetMonthlyLimits
 } = require('../controllers/subscriptionController')
+const { createCoinCheckout, handleCoinWebhook } = require('../controllers/coinController')
 
 // ── FedaPay webhook (public — no auth) ──────────────────────────────────────
 // GET: verification ping from FedaPay dashboard when registering the webhook
 router.get('/fedapay/webhook', (req, res) => res.status(200).json({ status: 'ok', message: 'FedaPay webhook endpoint active' }))
 router.post('/fedapay/webhook', handleFedaPayWebhook)
+
+// Coin purchase fallback endpoints (kept under /subscriptions for production compatibility)
+router.get('/fedapay/coin-webhook', (req, res) => res.status(200).json({ status: 'ok', message: 'Coin webhook endpoint active' }))
+router.post('/fedapay/coin-webhook', handleCoinWebhook)
 
 // ── Public ──────────────────────────────────────────────────────
 router.get('/plans', getPlans)
@@ -49,6 +54,9 @@ router.post('/request-whatsapp', authenticateToken, requestWhatsappSubscription)
 
 // POST /api/subscriptions/verify-and-subscribe  { plan_id, billing_cycle }
 router.post('/verify-and-subscribe', authenticateToken, verifyAndSubscribe)
+
+// POST /api/subscriptions/fedapay/coin-checkout
+router.post('/fedapay/coin-checkout', authenticateToken, createCoinCheckout)
 
 // ── Admin ─────────────────────────────────────────────────────────
 router.get('/admin/badges/pending', authenticateToken, adminListPendingBadges)

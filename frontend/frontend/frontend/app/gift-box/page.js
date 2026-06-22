@@ -8,31 +8,31 @@ import { supabase } from '@/lib/supabase'
 const PAYOUT_RATE = 3  // 1 received coin = 3 XOF
 
 const statusStyle = s => ({
-  pending:    'text-yellow-700 bg-yellow-50 border-yellow-200',
+  pending: 'text-yellow-700 bg-yellow-50 border-yellow-200',
   processing: 'text-blue-700   bg-blue-50   border-blue-200',
-  paid:       'text-green-700  bg-green-50  border-green-200',
-  completed:  'text-green-700  bg-green-50  border-green-200',
-  rejected:   'text-red-700    bg-red-50    border-red-200',
-  failed:     'text-red-700    bg-red-50    border-red-200',
+  paid: 'text-green-700  bg-green-50  border-green-200',
+  completed: 'text-green-700  bg-green-50  border-green-200',
+  rejected: 'text-red-700    bg-red-50    border-red-200',
+  failed: 'text-red-700    bg-red-50    border-red-200',
 }[s] || 'text-slate-600 bg-slate-50 border-slate-200')
 
-const TABS = [['overview','Overview'],['received','Received 💝'],['history','History'],['withdraw','Withdraw 💸']]
+const TABS = [['overview', 'Overview'], ['received', 'Received 💝'], ['history', 'History'], ['withdraw', 'Withdraw 💸']]
 
 export default function GiftBox() {
   const router = useRouter()
-  const [user, setUser]               = useState(null)
-  const [balance, setBalance]         = useState(0)
-  const [purchases, setPurchases]     = useState([])
-  const [received, setReceived]       = useState([])
-  const [sent, setSent]               = useState([])
+  const [user, setUser] = useState(null)
+  const [balance, setBalance] = useState(0)
+  const [purchases, setPurchases] = useState([])
+  const [received, setReceived] = useState([])
+  const [sent, setSent] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [tab, setTab]                 = useState('overview')
-  const [wPhone, setWPhone]           = useState('')
-  const [wMethod, setWMethod]         = useState('mtn')
-  const [wAmount, setWAmount]         = useState('')
-  const [submitting, setSubmitting]   = useState(false)
-  const [wSuccess, setWSuccess]       = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('overview')
+  const [wPhone, setWPhone] = useState('')
+  const [wMethod, setWMethod] = useState('mtn')
+  const [wAmount, setWAmount] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [wSuccess, setWSuccess] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -58,10 +58,17 @@ export default function GiftBox() {
   }, [router])
 
   const totalPurchased = purchases.filter(p => p.status === 'completed').reduce((s, p) => s + (p.coins_amount ?? 0), 0)
-  const totalReceived  = received.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
-  const totalSpent     = sent.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
-  const pendingOut     = withdrawals.filter(w => ['pending','processing'].includes(w.status)).reduce((s, w) => s + (w.coins_amount ?? 0), 0)
-  const availableW     = Math.max(0, totalReceived - pendingOut)
+  const pendingPurchased = purchases.filter(p => p.status === 'pending').reduce((s, p) => s + (p.coins_amount ?? 0), 0)
+  const totalReceived = received.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
+  const totalSpent = sent.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
+  const pendingOut = withdrawals.filter(w => ['pending', 'processing'].includes(w.status)).reduce((s, w) => s + (w.coins_amount ?? 0), 0)
+  const availableW = Math.max(0, totalReceived - pendingOut)
+
+  const purchaseStatusLabel = s => ({
+    pending: 'Awaiting FedaPay confirmation',
+    completed: 'Payment confirmed',
+    failed: 'Payment failed',
+  }[s] || s)
 
   const handleWithdraw = async () => {
     const coins = parseInt(wAmount)
@@ -94,7 +101,7 @@ export default function GiftBox() {
         {/* Header */}
         <div className="flex items-center gap-3">
           <Link href="/worker-profile" className="p-2 rounded-xl hover:bg-slate-200 text-slate-600 transition" aria-label="Back">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
           </Link>
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-[var(--ink-900)]">My Gift Box 🎁</h1>
@@ -132,6 +139,16 @@ export default function GiftBox() {
           </div>
         </div>
 
+        {pendingPurchased > 0 && (
+          <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm">
+            <p className="font-semibold text-yellow-800">Pending Payment Confirmation</p>
+            <p className="text-yellow-700 mt-0.5">
+              {pendingPurchased.toLocaleString()} coins are waiting for FedaPay payment confirmation.
+              Coins will appear in your balance automatically after confirmation.
+            </p>
+          </div>
+        )}
+
         {/* Tab nav */}
         <div className="flex bg-slate-100 rounded-2xl p-1 gap-1">
           {TABS.map(([id, label]) => (
@@ -146,9 +163,9 @@ export default function GiftBox() {
           <div className="space-y-3">
             <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-2 text-sm">
               {[
-                ['🛒 Total purchased',  `${totalPurchased.toLocaleString()} 🪙`, 'text-slate-900'],
-                ['🎁 Total gifted out', `-${totalSpent.toLocaleString()} 🪙`,    'text-red-500'],
-                ['💝 Total received',   `+${totalReceived.toLocaleString()} 🪙`,  'text-green-600'],
+                ['🛒 Total purchased', `${totalPurchased.toLocaleString()} 🪙`, 'text-slate-900'],
+                ['🎁 Total gifted out', `-${totalSpent.toLocaleString()} 🪙`, 'text-red-500'],
+                ['💝 Total received', `+${totalReceived.toLocaleString()} 🪙`, 'text-green-600'],
               ].map(([k, v, c]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-slate-600">{k}</span>
@@ -209,7 +226,7 @@ export default function GiftBox() {
                 <p className="text-3xl mb-2">📋</p><p className="font-semibold">No transactions yet</p>
               </div>
             ) : (
-              [...purchases.map(p => ({ ...p, _type:'purchase' })), ...sent.map(s => ({ ...s, _type:'sent' }))]
+              [...purchases.map(p => ({ ...p, _type: 'purchase' })), ...sent.map(s => ({ ...s, _type: 'sent' }))]
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                 .map((item, i) => (
                   <div key={i} className="bg-white rounded-xl border border-slate-100 p-3 flex items-center gap-3 shadow-sm">
@@ -225,7 +242,9 @@ export default function GiftBox() {
                         {item._type === 'purchase' ? `+${item.coins_amount}` : `-${item.gift_cost}`} 🪙
                       </span>
                       {item._type === 'purchase' && (
-                        <p className={`text-[10px] font-semibold mt-0.5 px-1.5 py-0.5 rounded-full border ${statusStyle(item.status)}`}>{item.status}</p>
+                        <p className={`text-[10px] font-semibold mt-0.5 px-1.5 py-0.5 rounded-full border ${statusStyle(item.status)}`}>
+                          {purchaseStatusLabel(item.status)}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -271,7 +290,7 @@ export default function GiftBox() {
                     <div>
                       <label className="text-sm font-semibold text-slate-700 block mb-1.5">Payout Method</label>
                       <div className="grid grid-cols-3 gap-2">
-                        {['mtn','moov','orange'].map(m => (
+                        {['mtn', 'moov', 'orange'].map(m => (
                           <button key={m} onClick={() => setWMethod(m)}
                             className={`py-2 rounded-xl border-2 text-xs font-bold transition ${wMethod === m ? 'border-violet-500 bg-violet-50 text-violet-700' : 'border-slate-200 text-slate-600 hover:border-violet-300'}`}
                           >📱 {m.toUpperCase()}</button>
@@ -289,7 +308,7 @@ export default function GiftBox() {
                       disabled={submitting || !wPhone.trim() || !wAmount || parseInt(wAmount) < 1 || parseInt(wAmount) > availableW}
                       className="w-full py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold disabled:opacity-40 transition active:scale-95"
                     >
-                      {submitting ? 'Submitting…' : `Withdraw ${wAmount ? (parseInt(wAmount||0)*PAYOUT_RATE).toLocaleString()+' XOF' : ''}`}
+                      {submitting ? 'Submitting…' : `Withdraw ${wAmount ? (parseInt(wAmount || 0) * PAYOUT_RATE).toLocaleString() + ' XOF' : ''}`}
                     </button>
                     <p className="text-xs text-center text-slate-400">Payouts processed within 24-48 hours</p>
                   </div>

@@ -18,20 +18,41 @@ try {
     }
 } catch (e) { console.warn('FedaPay SDK not available:', e.message) }
 
-const USD_TO_XOF = 655
-
 // ─── CREATE COIN PURCHASE CHECKOUT ────────────────────────────────────────
 const createCoinCheckout = async (req, res) => {
     try {
         const userId = req.user.id
         const { purchase_id, coins_amount, price_xof, payment_method, phone_number } = req.body
+        const allowedMethods = ['mtn', 'moov', 'orange', 'visa']
 
         if (!purchase_id || !coins_amount || !price_xof) {
             return res.status(400).json({ error: 'Missing required fields' })
         }
+        if (!allowedMethods.includes(payment_method)) {
+            return res.status(400).json({ error: 'Unsupported payment method' })
+        }
 
         if (!FedaPayLib || !process.env.FEDAPAY_SECRET_KEY) {
             return res.status(503).json({ error: 'Payment gateway not configured' })
+        }
+
+        const { data: purchase, error: purchaseErr } = await supabase
+            .from('coin_purchases')
+            .select('id, user_id, status, coins_amount, price_xof')
+            .eq('id', purchase_id)
+            .single()
+
+        if (purchaseErr || !purchase) {
+            return res.status(404).json({ error: 'Purchase record not found' })
+        }
+        if (purchase.user_id !== userId) {
+            return res.status(403).json({ error: 'You cannot pay for another user purchase.' })
+        }
+        if (purchase.status !== 'pending') {
+            return res.status(409).json({ error: 'This purchase is no longer pending.' })
+        }
+        if (Number(purchase.coins_amount) !== Number(coins_amount) || Number(purchase.price_xof) !== Number(price_xof)) {
+            return res.status(400).json({ error: 'Purchase amount mismatch. Please retry checkout.' })
         }
 
         // Get user profile for email
@@ -45,7 +66,7 @@ const createCoinCheckout = async (req, res) => {
             description: `GoArtisans - Buy ${coins_amount} Coins`,
             amount: price_xof,
             currency: { iso: 'XOF' },
-            callback_url: `${backendUrl}/api/coins/fedapay/webhook`,
+            callback_url: `${backendUrl}/api/subscriptions/fedapay/coin-webhook`,
             custom_metadata: {
                 user_id: userId,
                 purchase_id,
@@ -62,6 +83,14 @@ const createCoinCheckout = async (req, res) => {
 
         const token = await tx.generateToken()
         const checkoutUrl = token.url || `https://checkout.fedapay.com/pay/${token.token}`
+
+        await supabase
+            .from('coin_purchases')
+            .update({
+                payment_method,
+                phone_number: phone_number || null,
+            })
+            .eq('id', purchase_id)
 
         return res.json({ success: true, checkout_url: checkoutUrl })
     } catch (err) {
@@ -92,6 +121,14 @@ const handleCoinWebhook = async (req, res) => {
         const coinsToAdd = parseInt(coins_amount, 10)
 
         // 1. Update purchase status to completed + set completed_at
+        const { data: purchase } = await supabase
+            .from('coin_purchases')
+            .select('id, status')
+            .eq('id', purchase_id)
+            .single()
+
+        if (!purchase || purchase.status !== 'pending') return
+
         await supabase.from('coin_purchases').update({
             status: 'completed',
             completed_at: new Date().toISOString()
