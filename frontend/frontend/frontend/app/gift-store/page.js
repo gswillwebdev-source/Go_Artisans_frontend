@@ -84,6 +84,7 @@ export default function GiftStore() {
 
       let data = null
       let lastError = 'Unable to start FedaPay checkout.'
+      let sawMissingRoute = false
 
       for (const endpoint of checkoutEndpoints) {
         const response = await fetch(endpoint, {
@@ -102,13 +103,17 @@ export default function GiftStore() {
         } catch {
           const preview = raw?.slice(0, 120) || 'empty response'
           lastError = `Payment service returned an invalid response (${response.status}) at ${endpoint}. Response preview: ${preview}`
+          if (response.status === 404 && /Cannot POST/i.test(raw || '')) sawMissingRoute = true
           continue
         }
 
         if (!response.ok) {
           lastError = parsed?.error || `Checkout failed (${response.status}) at ${endpoint}`
           // If route is missing, try fallback endpoint.
-          if (response.status === 404) continue
+          if (response.status === 404) {
+            sawMissingRoute = true
+            continue
+          }
           throw new Error(lastError)
         }
 
@@ -116,7 +121,12 @@ export default function GiftStore() {
         break
       }
 
-      if (!data) throw new Error(lastError)
+      if (!data) {
+        if (sawMissingRoute) {
+          throw new Error('Coin checkout endpoint is not deployed on the backend yet (404). Deploy backend routes for /api/subscriptions/fedapay/coin-checkout (or /api/coins/fedapay/checkout), then retry.')
+        }
+        throw new Error(lastError)
+      }
 
       if (data.checkout_url) {
         window.location.href = data.checkout_url
