@@ -7,7 +7,6 @@ import { buildBilingualQuery } from '@/lib/bilingualSearch'
 import JobCard from '@/components/JobCard'
 import JobCardSkeleton from '@/components/JobCardSkeleton'
 import SearchBar from '@/components/SearchBar'
-import AdBanner from '@/components/AdBanner'
 import PostJobModal from '@/components/PostJobModal'
 import { useLanguage } from '@/context/LanguageContext'
 
@@ -168,8 +167,6 @@ function JobsPageContent() {
                         onPosted={() => fetchJobs(activeFilters, 1, false)}
                     />
                 )}
-
-                <AdBanner className="mt-4" />
 
                 {!loading && (
                     <p className="mt-4 text-sm text-slate-600">

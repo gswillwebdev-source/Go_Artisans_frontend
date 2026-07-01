@@ -5,7 +5,19 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
-const PAYOUT_RATE = 3  // 1 received coin = 3 XOF
+const WITHDRAW_MIN_COINS = 5000
+
+const calcGrossXof = (coins) => Math.round((Number(coins || 0) * 22727) / 5000)
+const calcFeeXof = (grossXof) => Math.round(Number(grossXof || 0) * 0.2)
+const calcNetXof = (coins) => {
+  const gross = calcGrossXof(coins)
+  return Math.max(0, gross - calcFeeXof(gross))
+}
+
+const resolveApiBase = () => {
+  const raw = process.env.NEXT_PUBLIC_API_URL || 'https://api.goartisans.online'
+  return raw.endsWith('/') ? raw.slice(0, -1) : raw
+}
 
 const statusStyle = s => ({
   pending: 'text-yellow-700 bg-yellow-50 border-yellow-200',
@@ -26,6 +38,7 @@ export default function GiftBox() {
   const [received, setReceived] = useState([])
   const [sent, setSent] = useState([])
   const [withdrawals, setWithdrawals] = useState([])
+  const [creatorViewEarnings, setCreatorViewEarnings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('overview')
   const [wPhone, setWPhone] = useState('')
@@ -40,18 +53,20 @@ export default function GiftBox() {
       if (!session) { router.replace('/login'); return }
       setUser(session.user)
       const uid = session.user.id
-      const [coinsR, purchR, recvR, sentR, wdR] = await Promise.all([
+      const [coinsR, purchR, recvR, sentR, wdR, viewEarnR] = await Promise.all([
         supabase.from('user_coins').select('balance').eq('user_id', uid).single(),
         supabase.from('coin_purchases').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(20),
         supabase.from('video_gifts').select('id,gift_emoji,gift_name,gift_cost,created_at,sender:sender_id(first_name,last_name)').eq('recipient_id', uid).order('created_at', { ascending: false }).limit(30),
         supabase.from('video_gifts').select('id,gift_emoji,gift_name,gift_cost,created_at').eq('sender_id', uid).order('created_at', { ascending: false }).limit(30),
-        supabase.from('gift_withdrawals').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(10),
+        supabase.from('gift_withdrawals').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(200),
+        supabase.from('creator_view_earnings').select('total_views_paid,total_milestones,gross_xof_earned').eq('user_id', uid).maybeSingle(),
       ])
       setBalance(coinsR.data?.balance ?? 0)
       setPurchases(purchR.data ?? [])
       setReceived(recvR.data ?? [])
       setSent(sentR.data ?? [])
       setWithdrawals(wdR.data ?? [])
+      setCreatorViewEarnings(viewEarnR.data ?? null)
       setLoading(false)
     }
     load()
@@ -61,8 +76,12 @@ export default function GiftBox() {
   const pendingPurchased = purchases.filter(p => p.status === 'pending').reduce((s, p) => s + (p.coins_amount ?? 0), 0)
   const totalReceived = received.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
   const totalSpent = sent.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
-  const pendingOut = withdrawals.filter(w => ['pending', 'processing'].includes(w.status)).reduce((s, w) => s + (w.coins_amount ?? 0), 0)
-  const availableW = Math.max(0, totalReceived - pendingOut)
+  const committedOut = withdrawals.filter(w => ['pending', 'processing', 'paid'].includes(w.status)).reduce((s, w) => s + (w.coins_amount ?? 0), 0)
+  const availableW = Math.max(0, totalReceived - committedOut)
+  const canWithdraw = availableW >= WITHDRAW_MIN_COINS
+  const selectedGross = calcGrossXof(parseInt(wAmount || 0))
+  const selectedFee = calcFeeXof(selectedGross)
+  const selectedNet = Math.max(0, selectedGross - selectedFee)
 
   const purchaseStatusLabel = s => ({
     pending: 'Awaiting FedaPay confirmation',
@@ -72,20 +91,54 @@ export default function GiftBox() {
 
   const handleWithdraw = async () => {
     const coins = parseInt(wAmount)
-    if (!wPhone.trim() || !coins || coins < 1 || coins > availableW) return
+    if (!wPhone.trim() || !coins || coins < WITHDRAW_MIN_COINS || coins > availableW) return
     setSubmitting(true)
-    const newRow = {
-      user_id: user.id,
-      coins_amount: coins,
-      estimated_xof: coins * PAYOUT_RATE,
-      payment_method: wMethod,
-      phone_number: wPhone.trim(),
-      status: 'pending',
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('You must be logged in to request payout.')
+
+      const apiBase = resolveApiBase()
+      const payload = {
+        coins_amount: coins,
+        payment_method: wMethod,
+        phone_number: wPhone.trim(),
+      }
+
+      const tryRequest = async (url) => {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+
+        let body = null
+        try { body = await res.json() } catch { body = {} }
+        return { res, body }
+      }
+
+      let out = await tryRequest(`${apiBase}/api/subscriptions/fedapay/payout-request`)
+      if (!out.res.ok && out.res.status === 404) {
+        out = await tryRequest(`${apiBase}/api/coins/fedapay/payout-request`)
+      }
+
+      if (!out.res.ok) {
+        throw new Error(out.body?.error || 'Failed to submit payout request')
+      }
+
+      const inserted = out.body?.withdrawal
+      if (inserted) {
+        setWithdrawals(prev => [inserted, ...prev])
+      }
+      setWSuccess(true)
+    } catch (err) {
+      alert(err.message || 'Failed to submit payout request')
+    } finally {
+      setSubmitting(false)
     }
-    await supabase.from('gift_withdrawals').insert(newRow)
-    setWithdrawals(prev => [{ ...newRow, created_at: new Date().toISOString() }, ...prev])
-    setWSuccess(true)
-    setSubmitting(false)
   }
 
   if (loading) return (
@@ -121,6 +174,7 @@ export default function GiftBox() {
             <Link href="/gift-store" className="flex-1 py-2 text-center rounded-xl bg-white/20 hover:bg-white/30 font-semibold text-sm transition">+ Buy More</Link>
             <Link href="/videos" className="flex-1 py-2 text-center rounded-xl bg-white/20 hover:bg-white/30 font-semibold text-sm transition">🎁 Send Gift</Link>
           </div>
+          <Link href="/creator-earnings" className="mt-3 block w-full py-2 text-center rounded-xl bg-white/15 hover:bg-white/25 font-semibold text-sm transition">📒 View Earnings Ledger</Link>
         </div>
 
         {/* Stats */}
@@ -180,7 +234,7 @@ export default function GiftBox() {
               {totalReceived > 0 && (
                 <div className="flex justify-between">
                   <span className="text-slate-600">💸 Earnings value</span>
-                  <span className="font-bold text-purple-700">≈ {(availableW * PAYOUT_RATE).toLocaleString()} XOF</span>
+                  <span className="font-bold text-purple-700">≈ {calcNetXof(availableW).toLocaleString()} XOF (after 20% fee)</span>
                 </div>
               )}
             </div>
@@ -260,7 +314,7 @@ export default function GiftBox() {
               <div className="text-center py-12">
                 <p className="text-5xl mb-3">✅</p>
                 <p className="text-xl font-bold text-slate-900">Withdrawal Requested!</p>
-                <p className="text-slate-500 text-sm mt-2">We'll process your payout within 24-48 hours.</p>
+                <p className="text-slate-500 text-sm mt-2">Your request has been forwarded to FedaPay for admin approval. We process payouts within 24-48 hours.</p>
                 <button onClick={() => setWSuccess(false)} className="mt-4 text-blue-600 text-sm hover:underline">Make another withdrawal</button>
               </div>
             ) : (
@@ -268,8 +322,21 @@ export default function GiftBox() {
                 <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-2xl p-4">
                   <p className="font-semibold text-violet-800">Available to withdraw</p>
                   <p className="text-3xl font-bold text-violet-900 mt-1">{availableW.toLocaleString()} coins</p>
-                  <p className="text-sm text-violet-700 mt-1">≈ {(availableW * PAYOUT_RATE).toLocaleString()} XOF · Rate: 1 coin = {PAYOUT_RATE} XOF</p>
+                  <p className="text-sm text-violet-700 mt-1">Net payout ≈ {calcNetXof(availableW).toLocaleString()} XOF (20% platform fee applied)</p>
+                  <p className="text-xs text-violet-600 mt-1">Minimum withdrawal: {WITHDRAW_MIN_COINS.toLocaleString()} coins (22,727 XOF gross).</p>
                 </div>
+
+                {creatorViewEarnings && (creatorViewEarnings.total_milestones ?? 0) > 0 && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="font-semibold text-emerald-800">Creator Views Earnings</p>
+                    <p className="text-sm text-emerald-700 mt-1">
+                      {(creatorViewEarnings.total_views_paid ?? 0).toLocaleString()} monetized views
+                      {' · '}
+                      {(creatorViewEarnings.total_milestones ?? 0).toLocaleString()} milestones reached
+                    </p>
+                    <p className="text-sm text-emerald-700">Gross earned from views: {(creatorViewEarnings.gross_xof_earned ?? 0).toLocaleString()} XOF</p>
+                  </div>
+                )}
 
                 {availableW === 0 ? (
                   <div className="text-center py-8 text-slate-500">
@@ -279,13 +346,22 @@ export default function GiftBox() {
                   </div>
                 ) : (
                   <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4 shadow-sm">
+                    {!canWithdraw && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        You need at least {WITHDRAW_MIN_COINS.toLocaleString()} coins before requesting payout.
+                      </div>
+                    )}
                     <div>
                       <label className="text-sm font-semibold text-slate-700 block mb-1.5">Coins to withdraw</label>
                       <input type="number" value={wAmount} onChange={e => setWAmount(e.target.value)}
-                        placeholder={`Max ${availableW}`} min={1} max={availableW}
+                        placeholder={`Min ${WITHDRAW_MIN_COINS} · Max ${availableW}`} min={WITHDRAW_MIN_COINS} max={availableW}
                         className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-violet-400 outline-none font-semibold text-lg"
                       />
-                      {wAmount && <p className="text-xs text-violet-600 mt-1 font-semibold">≈ {(parseInt(wAmount || 0) * PAYOUT_RATE).toLocaleString()} XOF payout</p>}
+                      {wAmount && (
+                        <p className="text-xs text-violet-600 mt-1 font-semibold">
+                          Gross {selectedGross.toLocaleString()} XOF · Fee {selectedFee.toLocaleString()} XOF (20%) · Net {selectedNet.toLocaleString()} XOF
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="text-sm font-semibold text-slate-700 block mb-1.5">Payout Method</label>
@@ -305,12 +381,12 @@ export default function GiftBox() {
                       />
                     </div>
                     <button onClick={handleWithdraw}
-                      disabled={submitting || !wPhone.trim() || !wAmount || parseInt(wAmount) < 1 || parseInt(wAmount) > availableW}
+                      disabled={submitting || !wPhone.trim() || !wAmount || parseInt(wAmount) < WITHDRAW_MIN_COINS || parseInt(wAmount) > availableW || !canWithdraw}
                       className="w-full py-3 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-bold disabled:opacity-40 transition active:scale-95"
                     >
-                      {submitting ? 'Submitting…' : `Withdraw ${wAmount ? (parseInt(wAmount || 0) * PAYOUT_RATE).toLocaleString() + ' XOF' : ''}`}
+                      {submitting ? 'Submitting…' : `Withdraw ${wAmount ? selectedNet.toLocaleString() + ' XOF (net)' : ''}`}
                     </button>
-                    <p className="text-xs text-center text-slate-400">Payouts processed within 24-48 hours</p>
+                    <p className="text-xs text-center text-slate-400">Payouts processed within 24-48 hours. Platform keeps 20%, creator gets 80%.</p>
                   </div>
                 )}
 
@@ -320,7 +396,8 @@ export default function GiftBox() {
                     {withdrawals.map((w, i) => (
                       <div key={i} className="bg-white rounded-xl border border-slate-100 p-3 flex items-center justify-between mb-2 shadow-sm">
                         <div>
-                          <p className="font-semibold text-sm">{w.coins_amount} coins → {w.estimated_xof?.toLocaleString()} XOF</p>
+                          <p className="font-semibold text-sm">{w.coins_amount} coins → {(w.payout_xof ?? w.estimated_xof ?? 0).toLocaleString()} XOF net</p>
+                          <p className="text-xs text-slate-500">Gross {(w.gross_xof ?? 0).toLocaleString()} · Fee {(w.platform_fee_xof ?? 0).toLocaleString()}</p>
                           <p className="text-xs text-slate-500">{w.payment_method?.toUpperCase()} · {new Date(w.created_at).toLocaleDateString()}</p>
                         </div>
                         <span className={`text-xs font-bold px-2 py-1 rounded-full border ${statusStyle(w.status)}`}>{w.status}</span>

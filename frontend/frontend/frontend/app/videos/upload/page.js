@@ -97,6 +97,9 @@ export default function UploadPage() {
       media_type: file.type.startsWith('video/') ? 'video' : 'image',
       caption: caption.trim() || null,
       likes_count: 0,
+      comments_count: 0,
+      shares_count: 0,
+      views_count: 0,
     })
 
     if (insertError) {

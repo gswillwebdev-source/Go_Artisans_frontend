@@ -324,7 +324,7 @@ export default function ClientProfilePage() {
                         try {
                             const { data: videosData } = await supabase
                                 .from('videos')
-                                .select('id, media_url, media_type, caption, likes_count, comments_count, created_at')
+                                .select('id, media_url, media_type, caption, likes_count, comments_count, views_count, created_at')
                                 .eq('user_id', user.id)
                                 .order('created_at', { ascending: false })
                                 .limit(12)
@@ -1752,6 +1752,7 @@ export default function ClientProfilePage() {
                                             )}
                                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-end p-1.5">
                                                 <div className="hidden group-hover:flex items-center gap-2 text-white text-xs font-semibold">
+                                                    <span>👁️ {post.views_count ?? 0}</span>
                                                     <span>❤️ {post.likes_count ?? 0}</span>
                                                     <span>💬 {post.comments_count ?? 0}</span>
                                                 </div>

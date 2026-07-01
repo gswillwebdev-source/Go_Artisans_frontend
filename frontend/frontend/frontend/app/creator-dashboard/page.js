@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+const VIEWS_PER_MILESTONE = 1000
+const XOF_PER_MILESTONE = 500
+
 // ── Stat card ──────────────────────────────────────────────────────────────
 function StatCard({ icon, label, value, sub, color }) {
   return (
@@ -86,6 +89,7 @@ export default function CreatorDashboard() {
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(null)
   const [giftsReceived, setGiftsReceived] = useState([])
+  const [viewEarnings, setViewEarnings] = useState(null)
 
   useEffect(() => {
     async function init() {
@@ -105,6 +109,14 @@ export default function CreatorDashboard() {
         .select('gift_cost')
         .eq('recipient_id', session.user.id)
       if (gifts) setGiftsReceived(gifts)
+
+      const { data: viewEarn } = await supabase
+        .from('creator_view_earnings')
+        .select('total_views_paid,total_milestones,gross_xof_earned')
+        .eq('user_id', session.user.id)
+        .maybeSingle()
+
+      setViewEarnings(viewEarn ?? null)
       setLoading(false)
     }
     init()
@@ -122,6 +134,10 @@ export default function CreatorDashboard() {
   const totalLikes = posts.reduce((s, p) => s + (p.likes_count ?? 0), 0)
   const totalComments = posts.reduce((s, p) => s + (p.comments_count ?? 0), 0)
   const totalGiftCoins = giftsReceived.reduce((s, g) => s + (g.gift_cost ?? 0), 0)
+  const totalMilestones = Math.floor(totalViews / VIEWS_PER_MILESTONE)
+  const grossViewsEarnings = totalMilestones * XOF_PER_MILESTONE
+  const nextMilestoneAt = (totalMilestones + 1) * VIEWS_PER_MILESTONE
+  const viewsUntilNext = Math.max(0, nextMilestoneAt - totalViews)
 
   const backHref = typeof window !== 'undefined'
     ? (document.referrer.includes('/client-profile') ? '/client-profile' : '/worker-profile')
@@ -160,6 +176,9 @@ export default function CreatorDashboard() {
           <Link href="/gift-box" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-yellow-400 to-orange-500 text-white font-semibold text-sm hover:from-yellow-500 hover:to-orange-600 transition">
             🎁 Gift Box
           </Link>
+          <Link href="/creator-earnings" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition">
+            📒 Earnings Ledger
+          </Link>
         </div>
 
         {/* Stats overview */}
@@ -183,6 +202,34 @@ export default function CreatorDashboard() {
             </Link>
           </div>
         )}
+
+        {/* Views monetization card */}
+        <div className="rounded-2xl bg-gradient-to-r from-emerald-50 to-cyan-50 border border-emerald-200 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-bold text-slate-900">📈 Views Monetization</p>
+              <p className="text-sm text-slate-600 mt-1">Algorithm target: every 1,000 views = 500 XOF gross</p>
+              <p className="text-2xl font-bold text-emerald-700 mt-2">
+                {(viewEarnings?.gross_xof_earned ?? grossViewsEarnings).toLocaleString()} XOF
+              </p>
+              <p className="text-xs text-slate-600 mt-1">
+                {(viewEarnings?.total_milestones ?? totalMilestones).toLocaleString()} milestones reached ·
+                {' '}
+                {Math.max(viewEarnings?.total_views_paid ?? 0, totalMilestones * VIEWS_PER_MILESTONE).toLocaleString()} monetized views
+              </p>
+            </div>
+            <Link href="/videos/upload" className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition">
+              Share More Videos
+            </Link>
+          </div>
+          <div className="mt-3 rounded-xl bg-white/70 border border-emerald-100 px-3 py-2 text-xs text-emerald-900">
+            {viewsUntilNext === 0
+              ? 'You just hit a milestone. Keep sharing to push to the next one.'
+              : `${viewsUntilNext.toLocaleString()} more views to unlock your next 500 XOF milestone.`}
+            {' '}
+            Encourage viewers to share your videos and invite friends to download the app.
+          </div>
+        </div>
 
         {/* Posts table */}
         <div>

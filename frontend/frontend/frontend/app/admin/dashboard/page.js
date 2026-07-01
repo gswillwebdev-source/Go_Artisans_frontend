@@ -50,6 +50,12 @@ export default function AdminDashboardPage() {
     const [allSubsLoading, setAllSubsLoading] = useState(false)
     const [deactivatingId, setDeactivatingId] = useState(null)
 
+    // Creator payouts
+    const [payouts, setPayouts] = useState([])
+    const [payoutSummary, setPayoutSummary] = useState(null)
+    const [payoutLoading, setPayoutLoading] = useState(false)
+    const [payoutUpdatingId, setPayoutUpdatingId] = useState(null)
+
     // Grant badge modal
     const [grantBadgeUserId, setGrantBadgeUserId] = useState('')
     const [grantBadgeLoading, setGrantBadgeLoading] = useState(false)
@@ -204,7 +210,13 @@ export default function AdminDashboardPage() {
             fetchWhatsappRequests()
             fetchAllSubscriptions()
         }
-    }, [activeTab, sessionToken, fetchWhatsappRequests])
+    }, [activeTab, sessionToken, fetchWhatsappRequests, fetchAllSubscriptions])
+
+    useEffect(() => {
+        if (activeTab === 'payouts' && sessionToken) {
+            fetchPayouts()
+        }
+    }, [activeTab, sessionToken, fetchPayouts])
 
     const fetchAllSubscriptions = useCallback(async () => {
         if (!sessionToken) return
@@ -221,6 +233,80 @@ export default function AdminDashboardPage() {
             setAllSubsLoading(false)
         }
     }, [sessionToken])
+
+    const fetchPayouts = useCallback(async () => {
+        if (!sessionToken) return
+        setPayoutLoading(true)
+        try {
+            const res = await fetch('/api/admin/payouts', {
+                headers: { Authorization: `Bearer ${sessionToken}` }
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Failed to load payouts')
+            setPayouts(data.withdrawals || [])
+            setPayoutSummary(data.summary || null)
+        } catch (err) {
+            console.error('fetchPayouts error:', err)
+            alert('Failed to load payouts: ' + err.message)
+        } finally {
+            setPayoutLoading(false)
+        }
+    }, [sessionToken])
+
+    const handleUpdatePayout = async (withdrawal, nextStatus) => {
+        let adminNote = withdrawal.admin_note || ''
+        let transferReference = withdrawal.transfer_reference || ''
+
+        if (nextStatus === 'paid') {
+            const refInput = window.prompt('Enter transfer reference or transaction ID before marking this payout as paid.', transferReference)
+            if (refInput === null) return
+            transferReference = refInput.trim()
+            if (!transferReference) {
+                alert('Transfer reference is required.')
+                return
+            }
+            const noteInput = window.prompt('Optional admin note for this payout.', adminNote)
+            if (noteInput !== null) adminNote = noteInput.trim()
+        }
+
+        if (nextStatus === 'rejected') {
+            const noteInput = window.prompt('Enter the rejection reason for this withdrawal.', adminNote)
+            if (noteInput === null) return
+            adminNote = noteInput.trim()
+            if (!adminNote) {
+                alert('A rejection note is required.')
+                return
+            }
+        }
+
+        if (nextStatus === 'processing') {
+            const noteInput = window.prompt('Optional processing note.', adminNote)
+            if (noteInput !== null) adminNote = noteInput.trim()
+        }
+
+        setPayoutUpdatingId(withdrawal.id)
+        try {
+            const res = await fetch(`/api/admin/payouts/${withdrawal.id}`, {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${sessionToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    status: nextStatus,
+                    admin_note: adminNote,
+                    transfer_reference: transferReference,
+                })
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error || 'Failed to update payout')
+            await fetchPayouts()
+        } catch (err) {
+            alert('Failed to update payout: ' + err.message)
+        } finally {
+            setPayoutUpdatingId(null)
+        }
+    }
 
     const handleDeactivateSubscription = async (userId, userEmail) => {
         if (!window.confirm(`Deactivate subscription for ${userEmail}?`)) return
@@ -542,7 +628,17 @@ export default function AdminDashboardPage() {
         v.status?.toLowerCase().includes(searchQuery.toLowerCase())
     )
 
+    const filteredPayouts = payouts.filter(p =>
+        p.user?.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.user?.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.user?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.payment_method?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.status?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.phone_number?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
     const pendingVerifCount = verifications.filter(v => v.status === 'pending').length
+    const pendingPayoutCount = payouts.filter(p => p.status === 'pending').length
 
     // Permission helper — returns true if admin OR if staff has the given permission
     const can = (permission) => isAdmin || (staffPermissions && staffPermissions[permission] === true)
@@ -555,6 +651,7 @@ export default function AdminDashboardPage() {
         { id: 'completions', label: `✅ Completions (${completions.length})`, show: isAdmin },
         { id: 'verification', label: `🏅 Verification${pendingVerifCount > 0 ? ` (${pendingVerifCount} pending)` : ''}`, show: isAdmin || can('view_verifications') },
         { id: 'subscriptions', label: `💳 Subscriptions${whatsappRequests.length > 0 ? ` (${whatsappRequests.length} pending)` : ''}`, show: isAdmin || can('view_subscriptions') },
+        { id: 'payouts', label: `💸 Withdrawals${pendingPayoutCount > 0 ? ` (${pendingPayoutCount} pending)` : ''}`, show: isAdmin },
         { id: 'emails', label: '✉️ Emails', show: isAdmin || can('trigger_campaigns') },
     ].filter(t => t.show)
 
@@ -668,6 +765,13 @@ export default function AdminDashboardPage() {
                                         <p className="text-xs text-gray-500 mt-2">
                                             {stats.pendingVerifications > 0 && <span className="text-amber-600 font-semibold">⚠ {stats.pendingVerifications} pending · </span>}
                                             ✓ {stats.approvedVerifications} approved
+                                        </p>
+                                    </div>
+                                    <div className="bg-white shadow-lg rounded-lg p-6 border-t-4 border-violet-600">
+                                        <p className="text-gray-500 text-sm font-medium">Creator Withdrawals</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">{payoutSummary?.totalRequests ?? 0}</p>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            Pending: {payoutSummary?.pendingCount ?? 0} · Processing: {payoutSummary?.processingCount ?? 0} · Paid: {payoutSummary?.paidCount ?? 0}
                                         </p>
                                     </div>
                                     <div className="bg-white shadow-lg rounded-lg p-6 border-t-4 border-red-600">
@@ -1305,6 +1409,149 @@ export default function AdminDashboardPage() {
                                             </table>
                                         </div>
                                     )}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'payouts' && (
+                            <div className="space-y-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-2xl font-bold text-gray-900">Creator Withdrawals</h2>
+                                        <p className="text-sm text-gray-500 mt-1">Approve transfers only after the money has been sent to the creator's preferred payout account.</p>
+                                    </div>
+                                    <div className="flex gap-3 flex-wrap">
+                                        <input
+                                            type="text"
+                                            placeholder="Search creator, method, phone, status..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full sm:w-80 px-4 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                        <button
+                                            onClick={fetchPayouts}
+                                            disabled={payoutLoading}
+                                            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            {payoutLoading ? '…' : '↻ Refresh'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                                    <div className="bg-white border border-amber-200 rounded-2xl p-5 shadow-sm">
+                                        <p className="text-sm font-semibold text-gray-500">Pending Queue</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">{payoutSummary?.pendingCount ?? 0}</p>
+                                        <p className="text-xs text-gray-500 mt-2">Net payout {((payoutSummary?.pendingNetXof) ?? 0).toLocaleString()} XOF</p>
+                                    </div>
+                                    <div className="bg-white border border-blue-200 rounded-2xl p-5 shadow-sm">
+                                        <p className="text-sm font-semibold text-gray-500">Processing</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">{payoutSummary?.processingCount ?? 0}</p>
+                                        <p className="text-xs text-gray-500 mt-2">Net payout {((payoutSummary?.processingNetXof) ?? 0).toLocaleString()} XOF</p>
+                                    </div>
+                                    <div className="bg-white border border-green-200 rounded-2xl p-5 shadow-sm">
+                                        <p className="text-sm font-semibold text-gray-500">Paid Out</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">{payoutSummary?.paidCount ?? 0}</p>
+                                        <p className="text-xs text-gray-500 mt-2">Net payout {((payoutSummary?.paidNetXof) ?? 0).toLocaleString()} XOF</p>
+                                    </div>
+                                    <div className="bg-white border border-violet-200 rounded-2xl p-5 shadow-sm">
+                                        <p className="text-sm font-semibold text-gray-500">Total Requests</p>
+                                        <p className="text-3xl font-bold text-gray-900 mt-2">{payoutSummary?.totalRequests ?? 0}</p>
+                                        <p className="text-xs text-gray-500 mt-2">Net payout {((payoutSummary?.totalNetXof) ?? 0).toLocaleString()} XOF</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-white shadow-lg rounded-lg overflow-x-auto">
+                                    <table className="w-full min-w-max">
+                                        <thead className="bg-gray-100 border-b border-gray-200">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Creator</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Requested</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Destination</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Payout</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Tracking</th>
+                                                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {filteredPayouts.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="7" className="px-6 py-10 text-center text-sm text-gray-500">No withdrawal requests found.</td>
+                                                </tr>
+                                            ) : filteredPayouts.map((withdrawal) => (
+                                                <tr key={withdrawal.id} className="border-b border-gray-100 hover:bg-gray-50 align-top">
+                                                    <td className="px-4 py-4 text-sm">
+                                                        <p className="font-semibold text-gray-900">{withdrawal.user?.first_name} {withdrawal.user?.last_name}</p>
+                                                        <p className="text-xs text-gray-500">{withdrawal.user?.email}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-600">
+                                                        <p>{withdrawal.coins_amount?.toLocaleString()} coins</p>
+                                                        <p className="text-xs text-gray-500">{new Date(withdrawal.created_at).toLocaleString()}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-600">
+                                                        <p className="font-medium">{withdrawal.payment_method?.toUpperCase()}</p>
+                                                        <p className="text-xs text-gray-500">{withdrawal.phone_number}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-600">
+                                                        <p className="font-semibold text-gray-900">{(withdrawal.payout_xof ?? withdrawal.estimated_xof ?? 0).toLocaleString()} XOF net</p>
+                                                        <p className="text-xs text-gray-500">Gross {(withdrawal.gross_xof ?? 0).toLocaleString()} · Fee {(withdrawal.platform_fee_xof ?? 0).toLocaleString()}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm">
+                                                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${withdrawal.status === 'pending'
+                                                            ? 'bg-amber-100 text-amber-800'
+                                                            : withdrawal.status === 'processing'
+                                                                ? 'bg-blue-100 text-blue-800'
+                                                                : withdrawal.status === 'paid'
+                                                                    ? 'bg-green-100 text-green-800'
+                                                                    : 'bg-red-100 text-red-800'
+                                                            }`}>
+                                                            {withdrawal.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm text-gray-600">
+                                                        <p className="text-xs text-gray-500">FedaPay ID: {withdrawal.fedapay_request_id || '—'}</p>
+                                                        <p className="text-xs text-gray-500">FedaPay status: {withdrawal.fedapay_request_status || '—'}</p>
+                                                        <p className="text-xs text-gray-500">FedaPay sent: {withdrawal.fedapay_requested_at ? new Date(withdrawal.fedapay_requested_at).toLocaleString() : '—'}</p>
+                                                        <p className="text-xs text-gray-500">Ref: {withdrawal.transfer_reference || '—'}</p>
+                                                        <p className="text-xs text-gray-500">Note: {withdrawal.admin_note || '—'}</p>
+                                                        <p className="text-xs text-gray-500">Processed: {withdrawal.processed_at ? new Date(withdrawal.processed_at).toLocaleString() : '—'}</p>
+                                                    </td>
+                                                    <td className="px-4 py-4 text-sm">
+                                                        <div className="flex flex-col items-start gap-2">
+                                                            {withdrawal.status === 'pending' && (
+                                                                <button
+                                                                    onClick={() => handleUpdatePayout(withdrawal, 'processing')}
+                                                                    disabled={payoutUpdatingId === withdrawal.id}
+                                                                    className="text-blue-600 hover:text-blue-900 font-semibold text-xs"
+                                                                >
+                                                                    {payoutUpdatingId === withdrawal.id ? 'Updating…' : 'Mark processing'}
+                                                                </button>
+                                                            )}
+                                                            {(withdrawal.status === 'pending' || withdrawal.status === 'processing') && (
+                                                                <button
+                                                                    onClick={() => handleUpdatePayout(withdrawal, 'paid')}
+                                                                    disabled={payoutUpdatingId === withdrawal.id}
+                                                                    className="text-green-600 hover:text-green-900 font-semibold text-xs"
+                                                                >
+                                                                    {payoutUpdatingId === withdrawal.id ? 'Updating…' : 'Mark paid'}
+                                                                </button>
+                                                            )}
+                                                            {(withdrawal.status === 'pending' || withdrawal.status === 'processing') && (
+                                                                <button
+                                                                    onClick={() => handleUpdatePayout(withdrawal, 'rejected')}
+                                                                    disabled={payoutUpdatingId === withdrawal.id}
+                                                                    className="text-red-600 hover:text-red-900 font-semibold text-xs"
+                                                                >
+                                                                    {payoutUpdatingId === withdrawal.id ? 'Updating…' : 'Reject'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}

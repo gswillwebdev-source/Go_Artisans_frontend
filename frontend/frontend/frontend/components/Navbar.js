@@ -263,6 +263,9 @@ export default function Navbar() {
                             <Link href="/notifications" onClick={closeDrawer} className={drawerLinkClasses('/notifications')}>
                                 <span>🔔</span> Notifications
                             </Link>
+                            <Link href="/videos" onClick={closeDrawer} className={drawerLinkClasses('/videos')}>
+                                <span>🎬</span> Videos
+                            </Link>
                             <Link href="/pricing" onClick={closeDrawer} className={drawerLinkClasses('/pricing')}>
                                 <span>{planTier === 'premium' ? '💎' : planTier === 'pro' ? '⭐' : '🚀'}</span>
                                 Plans & Pricing
@@ -279,6 +282,9 @@ export default function Navbar() {
                             </Link>
                             <Link href="/browse-workers" onClick={closeDrawer} className={drawerLinkClasses('/browse-workers')}>
                                 <span>🔍</span> Browse Workers
+                            </Link>
+                            <Link href="/videos" onClick={closeDrawer} className={drawerLinkClasses('/videos')}>
+                                <span>🎬</span> Videos
                             </Link>
                             <Link href="/pricing" onClick={closeDrawer} className={drawerLinkClasses('/pricing')}>
                                 <span>🚀</span> Plans & Pricing

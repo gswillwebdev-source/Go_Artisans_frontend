@@ -37,21 +37,38 @@ function ActionBtn({ onClick, icon, label, count, active }) {
 }
 
 // ── VideoCard ──────────────────────────────────────────────────────────────
-function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
+function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onViewed, onShare }) {
   const videoRef = useRef(null)
   const cardRef = useRef(null)
   const [muted, setMuted] = useState(true)
+  const hasTrackedViewRef = useRef(false)
 
   useEffect(() => {
+    const target = post.media_type === 'video' ? videoRef.current : cardRef.current
+    if (!target) return
+
     const el = videoRef.current
-    if (!el || post.media_type !== 'video') return
     const obs = new IntersectionObserver(
-      ([entry]) => { entry.isIntersecting ? el.play().catch(() => { }) : el.pause() },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (post.media_type === 'video' && el) {
+            el.play().catch(() => { })
+          }
+          if (!hasTrackedViewRef.current && typeof onViewed === 'function') {
+            hasTrackedViewRef.current = true
+            onViewed(post.id)
+          }
+        } else {
+          if (post.media_type === 'video' && el) {
+            el.pause()
+          }
+        }
+      },
       { threshold: 0.6 }
     )
-    obs.observe(el)
+    obs.observe(target)
     return () => obs.disconnect()
-  }, [post.media_type])
+  }, [post.id, post.media_type, onViewed])
 
   const handleFullscreen = () => {
     const el = cardRef.current
@@ -61,11 +78,29 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
   }
 
   const handleShare = async () => {
-    const url = window.location.origin + '/videos'
+    const url = `${window.location.origin}/videos`
+    let didShare = false
+
     if (navigator.share) {
-      await navigator.share({ title: `@${post.display_name} on GoArtisans`, text: post.caption || '', url }).catch(() => { })
-    } else {
-      await navigator.clipboard.writeText(url).catch(() => { })
+      try {
+        await navigator.share({ title: `@${post.display_name} on GoArtisans`, text: post.caption || '', url })
+        didShare = true
+      } catch {
+        didShare = false
+      }
+    }
+
+    if (!didShare) {
+      try {
+        await navigator.clipboard.writeText(url)
+        didShare = true
+      } catch {
+        didShare = false
+      }
+    }
+
+    if (didShare && typeof onShare === 'function') {
+      onShare(post.id)
     }
   }
 
@@ -129,6 +164,9 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
             {post.caption && (
               <p className="text-xs mt-0.5 text-white/85 leading-snug line-clamp-2 drop-shadow">{post.caption}</p>
             )}
+            <p className="text-[11px] mt-1 text-white/90 font-semibold drop-shadow">
+              {post.likes_count ?? 0} likes • {post.comments_count ?? 0} comments • {post.shares_count ?? 0} shares
+            </p>
           </div>
 
           {isVideo && muted && (
@@ -152,7 +190,10 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift }) {
           <ActionBtn onClick={onComment} count={post.comments_count ?? 0}
             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>}
           />
-          <ActionBtn onClick={handleShare} label="Share"
+          <ActionBtn onClick={() => { }} count={post.views_count ?? 0}
+            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
+          />
+          <ActionBtn onClick={handleShare} count={post.shares_count ?? 0}
             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>}
           />
           <ActionBtn onClick={handleDownload} label="Save"
@@ -264,7 +305,7 @@ function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
 }
 
 // ── Comments drawer ────────────────────────────────────────────────────────
-function CommentsDrawer({ post, currentUser, onClose, router, onOpenGift }) {
+function CommentsDrawer({ post, currentUser, onClose, router, onOpenGift, onCommentAdded }) {
   const [comments, setComments] = useState([])
   const [gifts, setGifts] = useState([])
   const [text, setText] = useState('')
@@ -272,7 +313,7 @@ function CommentsDrawer({ post, currentUser, onClose, router, onOpenGift }) {
   const listRef = useRef(null)
 
   useEffect(() => {
-    if (!post) return
+    if (!post?.id) return
     supabase
       .from('video_comments')
       .select('id, comment, created_at, users(first_name, last_name)')
@@ -286,7 +327,7 @@ function CommentsDrawer({ post, currentUser, onClose, router, onOpenGift }) {
       .eq('video_id', post.id)
       .order('created_at', { ascending: true })
       .then(({ data }) => { if (data) setGifts(data) })
-  }, [post])
+  }, [post?.id])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -300,6 +341,9 @@ function CommentsDrawer({ post, currentUser, onClose, router, onOpenGift }) {
       .single()
     if (data) {
       setComments(prev => [...prev, data])
+      if (typeof onCommentAdded === 'function') {
+        onCommentAdded(post.id)
+      }
       setTimeout(() => listRef.current?.scrollTo({ top: 99999, behavior: 'smooth' }), 50)
     }
     setText('')
@@ -429,7 +473,7 @@ export default function VideosPage() {
 
       const { data: videos, error } = await supabase
         .from('videos')
-        .select('id, media_url, media_type, caption, likes_count, comments_count, created_at, user_id, users(first_name, last_name, profile_picture)')
+        .select('id, media_url, media_type, caption, likes_count, comments_count, shares_count, views_count, created_at, user_id, users(first_name, last_name, profile_picture)')
         .order('created_at', { ascending: false })
         .limit(30)
 
@@ -460,13 +504,66 @@ export default function VideosPage() {
     if (!currentUser) { router.push('/login'); return }
     const isLiked = likedPosts.has(postId)
     if (isLiked) {
-      await supabase.from('video_likes').delete().match({ video_id: postId, user_id: currentUser.id })
+      const { error } = await supabase.from('video_likes').delete().match({ video_id: postId, user_id: currentUser.id })
+      if (error) return
       setLikedPosts(prev => { const s = new Set(prev); s.delete(postId); return s })
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: Math.max(0, (p.likes_count ?? 0) - 1) } : p))
     } else {
-      await supabase.from('video_likes').insert({ video_id: postId, user_id: currentUser.id })
+      const { error } = await supabase.from('video_likes').insert({ video_id: postId, user_id: currentUser.id })
+      if (error) return
       setLikedPosts(prev => new Set([...prev, postId]))
       setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes_count: (p.likes_count ?? 0) + 1 } : p))
+    }
+  }
+
+  const handleCommentAdded = (postId) => {
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count ?? 0) + 1 } : p))
+    setActiveComment(prev => prev && prev.id === postId
+      ? { ...prev, comments_count: (prev.comments_count ?? 0) + 1 }
+      : prev)
+  }
+
+  const handleShare = async (postId) => {
+    // Increment local count regardless of auth — the VideoCard already did the clipboard/native share
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, shares_count: (p.shares_count ?? 0) + 1 } : p))
+
+    // Only persist to DB for authenticated users
+    if (!currentUser) return
+
+    await supabase
+      .from('video_shares')
+      .insert({ video_id: postId, user_id: currentUser.id })
+  }
+
+  const handleViewed = async (postId) => {
+    if (!currentUser) return
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    const accessToken = session?.access_token
+    if (!accessToken) return
+
+    try {
+      const response = await fetch('/api/videos/view', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ videoId: postId }),
+      })
+
+      if (!response.ok) return
+
+      const payload = await response.json()
+      const nextCount = Number(payload?.viewsCount)
+
+      if (Number.isFinite(nextCount)) {
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, views_count: nextCount } : p))
+      }
+    } catch {
+      // Keep feed usable even if telemetry call fails.
     }
   }
 
@@ -497,6 +594,8 @@ export default function VideosPage() {
             onComment={() => { setActiveGift(null); setActiveComment(post) }}
             onScrollUp={scrollFeedUp}
             onGift={() => { setActiveComment(null); setActiveGift(post) }}
+            onViewed={handleViewed}
+            onShare={handleShare}
           />
         ))}
       </div>
@@ -508,6 +607,7 @@ export default function VideosPage() {
           onClose={() => setActiveComment(null)}
           router={router}
           onOpenGift={() => { setActiveComment(null); setActiveGift(activeComment) }}
+          onCommentAdded={handleCommentAdded}
         />
       )}
       {activeGift && (

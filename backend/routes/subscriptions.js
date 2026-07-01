@@ -24,7 +24,7 @@ const {
     adminGrantBadge,
     resetMonthlyLimits
 } = require('../controllers/subscriptionController')
-const { createCoinCheckout, handleCoinWebhook } = require('../controllers/coinController')
+const { createCoinCheckout, handleCoinWebhook, createPayoutRequest } = require('../controllers/coinController')
 
 // ── FedaPay webhook (public — no auth) ──────────────────────────────────────
 // GET: verification ping from FedaPay dashboard when registering the webhook
@@ -57,6 +57,9 @@ router.post('/verify-and-subscribe', authenticateToken, verifyAndSubscribe)
 
 // POST /api/subscriptions/fedapay/coin-checkout
 router.post('/fedapay/coin-checkout', authenticateToken, createCoinCheckout)
+
+// POST /api/subscriptions/fedapay/payout-request
+router.post('/fedapay/payout-request', authenticateToken, createPayoutRequest)
 
 // ── Admin ─────────────────────────────────────────────────────────
 router.get('/admin/badges/pending', authenticateToken, adminListPendingBadges)
