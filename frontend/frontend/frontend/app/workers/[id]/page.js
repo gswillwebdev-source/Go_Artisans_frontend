@@ -367,6 +367,16 @@ export default function WorkerProfilePage() {
                                         followingCount={followingCount}
                                         isOwnProfile={false}
                                     />
+
+                                    {/* Pay via App (only for clients paying a different user) */}
+                                    {currentUser && currentUser.id !== workerId && (
+                                        <Link
+                                            href={`/escrow/new?worker_id=${workerId}`}
+                                            className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition shadow-sm shadow-blue-500/30"
+                                        >
+                                            🔒 Pay via GoArtisans (Secure)
+                                        </Link>
+                                    )}
                                 </>
                             )}
                         </div>
