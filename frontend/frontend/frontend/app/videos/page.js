@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback, memo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -37,11 +37,16 @@ function ActionBtn({ onClick, icon, label, count, active }) {
 }
 
 // ── VideoCard ──────────────────────────────────────────────────────────────
-function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onViewed, onShare }) {
+// Memoised: only re-renders when THIS card's counts or liked state change.
+const VideoCard = memo(function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onViewed, onShare }) {
   const videoRef = useRef(null)
   const cardRef = useRef(null)
   const [muted, setMuted] = useState(true)
   const hasTrackedViewRef = useRef(false)
+  // Keep onViewed in a ref so the IntersectionObserver effect never needs to
+  // re-run just because the parent re-renders and creates a new function ref.
+  const onViewedRef = useRef(onViewed)
+  useEffect(() => { onViewedRef.current = onViewed })
 
   useEffect(() => {
     const target = post.media_type === 'video' ? videoRef.current : cardRef.current
@@ -54,9 +59,9 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onVie
           if (post.media_type === 'video' && el) {
             el.play().catch(() => { })
           }
-          if (!hasTrackedViewRef.current && typeof onViewed === 'function') {
+          if (!hasTrackedViewRef.current && typeof onViewedRef.current === 'function') {
             hasTrackedViewRef.current = true
-            onViewed(post.id)
+            onViewedRef.current(post.id)
           }
         } else {
           if (post.media_type === 'video' && el) {
@@ -68,7 +73,8 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onVie
     )
     obs.observe(target)
     return () => obs.disconnect()
-  }, [post.id, post.media_type, onViewed])
+  // Only recreate when the post itself changes — NOT on every parent render.
+  }, [post.id, post.media_type])
 
   const handleFullscreen = () => {
     const el = cardRef.current
@@ -209,7 +215,14 @@ function VideoCard({ post, isLiked, onLike, onComment, onScrollUp, onGift, onVie
       </div>
     </div>
   )
-}
+}, (prevProps, nextProps) =>
+  prevProps.isLiked === nextProps.isLiked &&
+  prevProps.post.id === nextProps.post.id &&
+  prevProps.post.likes_count === nextProps.post.likes_count &&
+  prevProps.post.comments_count === nextProps.post.comments_count &&
+  prevProps.post.shares_count === nextProps.post.shares_count &&
+  prevProps.post.views_count === nextProps.post.views_count
+)
 
 // ── Gift Modal ─────────────────────────────────────────────────────────────
 function GiftModal({ post, currentUser, coins, onClose, onSent, router }) {
@@ -461,9 +474,14 @@ export default function VideosPage() {
   const [loading, setLoading] = useState(true)
   const [likedPosts, setLikedPosts] = useState(new Set())
   const [currentUser, setCurrentUser] = useState(null)
-  const [activeComment, setActiveComment] = useState(null)
-  const [activeGift, setActiveGift] = useState(null)
+  // IDs only — activeComment/activeGift are derived from posts so they're always live
+  const [activeCommentId, setActiveCommentId] = useState(null)
+  const [activeGiftId, setActiveGiftId] = useState(null)
   const [userCoins, setUserCoins] = useState(0)
+
+  // Derive from posts so counts are always the latest, no stale snapshots
+  const activeComment = activeCommentId ? (posts.find(p => p.id === activeCommentId) ?? null) : null
+  const activeGift = activeGiftId ? (posts.find(p => p.id === activeGiftId) ?? null) : null
 
   useEffect(() => {
     async function init() {
@@ -516,14 +534,12 @@ export default function VideosPage() {
     }
   }
 
-  const handleCommentAdded = (postId) => {
+  const handleCommentAdded = useCallback((postId) => {
+    // Only update posts — activeComment is derived from posts, so it updates automatically
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, comments_count: (p.comments_count ?? 0) + 1 } : p))
-    setActiveComment(prev => prev && prev.id === postId
-      ? { ...prev, comments_count: (prev.comments_count ?? 0) + 1 }
-      : prev)
-  }
+  }, [])
 
-  const handleShare = async (postId) => {
+  const handleShare = useCallback(async (postId) => {
     // Increment local count regardless of auth — the VideoCard already did the clipboard/native share
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, shares_count: (p.shares_count ?? 0) + 1 } : p))
 
@@ -533,7 +549,7 @@ export default function VideosPage() {
     await supabase
       .from('video_shares')
       .insert({ video_id: postId, user_id: currentUser.id })
-  }
+  }, [currentUser])
 
   const handleViewed = async (postId) => {
     if (!currentUser) return
@@ -591,9 +607,9 @@ export default function VideosPage() {
             post={post}
             isLiked={likedPosts.has(post.id)}
             onLike={() => handleLike(post.id)}
-            onComment={() => { setActiveGift(null); setActiveComment(post) }}
+            onComment={() => { setActiveGiftId(null); setActiveCommentId(post.id) }}
             onScrollUp={scrollFeedUp}
-            onGift={() => { setActiveComment(null); setActiveGift(post) }}
+            onGift={() => { setActiveCommentId(null); setActiveGiftId(post.id) }}
             onViewed={handleViewed}
             onShare={handleShare}
           />
@@ -604,9 +620,9 @@ export default function VideosPage() {
         <CommentsDrawer
           post={activeComment}
           currentUser={currentUser}
-          onClose={() => setActiveComment(null)}
+          onClose={() => setActiveCommentId(null)}
           router={router}
-          onOpenGift={() => { setActiveComment(null); setActiveGift(activeComment) }}
+          onOpenGift={() => { setActiveCommentId(null); setActiveGiftId(activeCommentId) }}
           onCommentAdded={handleCommentAdded}
         />
       )}
@@ -615,7 +631,7 @@ export default function VideosPage() {
           post={activeGift}
           currentUser={currentUser}
           coins={userCoins}
-          onClose={() => setActiveGift(null)}
+          onClose={() => setActiveGiftId(null)}
           router={router}
           onSent={(_gift, cost) => setUserCoins(prev => prev - cost)}
         />
