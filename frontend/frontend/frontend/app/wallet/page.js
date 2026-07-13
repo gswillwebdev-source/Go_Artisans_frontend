@@ -14,13 +14,13 @@ const PAYMENT_METHODS = [
 ]
 
 const TX_LABELS = {
-    deposit:        { label: 'Top-up',              color: 'text-green-600',  sign: '+', bg: 'bg-green-50 border-green-200'   },
-    escrow_lock:    { label: 'Job Payment Locked',  color: 'text-orange-600', sign: '-', bg: 'bg-orange-50 border-orange-200' },
-    escrow_release: { label: 'Job Payment Received',color: 'text-green-600',  sign: '+', bg: 'bg-green-50 border-green-200'   },
-    escrow_refund:  { label: 'Refund',              color: 'text-blue-600',   sign: '+', bg: 'bg-blue-50 border-blue-200'     },
-    withdrawal:     { label: 'Withdrawal',          color: 'text-red-600',    sign: '-', bg: 'bg-red-50 border-red-200'       },
-    send:           { label: 'Sent',                color: 'text-red-600',    sign: '-', bg: 'bg-red-50 border-red-200'       },
-    receive:        { label: 'Received',            color: 'text-green-600',  sign: '+', bg: 'bg-green-50 border-green-200'   },
+    deposit: { label: 'Top-up', color: 'text-green-600', sign: '+', bg: 'bg-green-50 border-green-200' },
+    escrow_lock: { label: 'Job Payment Locked', color: 'text-orange-600', sign: '-', bg: 'bg-orange-50 border-orange-200' },
+    escrow_release: { label: 'Job Payment Received', color: 'text-green-600', sign: '+', bg: 'bg-green-50 border-green-200' },
+    escrow_refund: { label: 'Refund', color: 'text-blue-600', sign: '+', bg: 'bg-blue-50 border-blue-200' },
+    withdrawal: { label: 'Withdrawal', color: 'text-red-600', sign: '-', bg: 'bg-red-50 border-red-200' },
+    send: { label: 'Sent', color: 'text-red-600', sign: '-', bg: 'bg-red-50 border-red-200' },
+    receive: { label: 'Received', color: 'text-green-600', sign: '+', bg: 'bg-green-50 border-green-200' },
 }
 
 // ── Shared small field styles ──────────────────────────────────────────────
@@ -30,36 +30,36 @@ function WalletContent() {
     const router = useRouter()
     const searchParams = useSearchParams()
 
-    const [session, setSession]         = useState(null)
-    const [loading, setLoading]         = useState(true)
-    const [balance, setBalance]         = useState(0)
+    const [session, setSession] = useState(null)
+    const [loading, setLoading] = useState(true)
+    const [balance, setBalance] = useState(0)
     const [transactions, setTransactions] = useState([])
-    const [tab, setTab]                 = useState(searchParams.get('tab') || 'overview')
+    const [tab, setTab] = useState(searchParams.get('tab') || 'overview')
 
     // Deposit state
-    const [depMethod, setDepMethod]     = useState('mtn')
-    const [depPhone, setDepPhone]       = useState('')
-    const [depAmount, setDepAmount]     = useState('')
-    const [depositing, setDepositing]   = useState(false)
+    const [depMethod, setDepMethod] = useState('mtn')
+    const [depPhone, setDepPhone] = useState('')
+    const [depAmount, setDepAmount] = useState('')
+    const [depositing, setDepositing] = useState(false)
 
     // Send state
-    const [sendQuery, setSendQuery]     = useState('')
+    const [sendQuery, setSendQuery] = useState('')
     const [sendResults, setSendResults] = useState([])
-    const [sendUser, setSendUser]       = useState(null)
-    const [sendAmount, setSendAmount]   = useState('')
-    const [sendNote, setSendNote]       = useState('')
-    const [sending, setSending]         = useState(false)
-    const searchTimer                   = useRef(null)
+    const [sendUser, setSendUser] = useState(null)
+    const [sendAmount, setSendAmount] = useState('')
+    const [sendNote, setSendNote] = useState('')
+    const [sending, setSending] = useState(false)
+    const searchTimer = useRef(null)
 
     // Withdraw state
-    const [wdMethod, setWdMethod]       = useState('mtn')
-    const [wdPhone, setWdPhone]         = useState('')
-    const [wdAmount, setWdAmount]       = useState('')
+    const [wdMethod, setWdMethod] = useState('mtn')
+    const [wdPhone, setWdPhone] = useState('')
+    const [wdAmount, setWdAmount] = useState('')
     const [withdrawing, setWithdrawing] = useState(false)
 
     // Shared feedback
-    const [error, setError]             = useState('')
-    const [success, setSuccess]         = useState('')
+    const [error, setError] = useState('')
+    const [success, setSuccess] = useState('')
 
     const clearFeedback = () => { setError(''); setSuccess('') }
     const switchTab = (t) => { setTab(t); clearFeedback() }
@@ -174,10 +174,10 @@ function WalletContent() {
     )
 
     const TABS = [
-        { key: 'overview',  label: '📊',  full: 'Overview'    },
-        { key: 'deposit',   label: '💳',  full: 'Add Money'   },
-        { key: 'send',      label: '➡️',  full: 'Send'        },
-        { key: 'withdraw',  label: '⬇️',  full: 'Withdraw'    },
+        { key: 'overview', label: '📊', full: 'Overview' },
+        { key: 'deposit', label: '💳', full: 'Add Money' },
+        { key: 'send', label: '➡️', full: 'Send' },
+        { key: 'withdraw', label: '⬇️', full: 'Withdraw' },
     ]
 
     return (
@@ -207,9 +207,9 @@ function WalletContent() {
                     {/* Quick action grid */}
                     <div className="grid grid-cols-4 gap-2">
                         {[
-                            { tab: 'deposit',  icon: '＋', label: 'Add' },
-                            { tab: 'send',     icon: '↗',  label: 'Send' },
-                            { tab: 'withdraw', icon: '↓',  label: 'Withdraw' },
+                            { tab: 'deposit', icon: '＋', label: 'Add' },
+                            { tab: 'send', icon: '↗', label: 'Send' },
+                            { tab: 'withdraw', icon: '↓', label: 'Withdraw' },
                             { href: '/escrow/new', icon: '🔒', label: 'Pay Job' },
                         ].map(a => a.href ? (
                             <Link key={a.label} href={a.href}
@@ -240,7 +240,7 @@ function WalletContent() {
                 </div>
 
                 {/* ── Feedback ──────────────────────────────────────────── */}
-                {error   && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
+                {error && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-4 py-3">{error}</p>}
                 {success && <p className="text-green-700 text-sm bg-green-50 border border-green-200 rounded-xl px-4 py-3">{success}</p>}
 
                 {/* ══════════════════════════════════════════════════════

@@ -73,7 +73,7 @@ const VideoCard = memo(function VideoCard({ post, isLiked, onLike, onComment, on
     )
     obs.observe(target)
     return () => obs.disconnect()
-  // Only recreate when the post itself changes — NOT on every parent render.
+    // Only recreate when the post itself changes — NOT on every parent render.
   }, [post.id, post.media_type])
 
   const handleFullscreen = () => {

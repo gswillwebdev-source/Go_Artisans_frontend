@@ -164,8 +164,26 @@ AFTER INSERT ON public.jobs
 FOR EACH ROW EXECUTE FUNCTION broadcast_new_job();
 
 -- ── 7. ENABLE REALTIME on direct_messages ────────────────────────────────
--- Run this separately if realtime isn't already enabled:
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.direct_messages;
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcast_notifications;
+-- REPLICA IDENTITY FULL makes every column available in the WAL change event,
+-- which is required for Supabase Realtime row-level filters on non-PK columns.
+ALTER TABLE public.direct_messages      REPLICA IDENTITY FULL;
+ALTER TABLE public.broadcast_notifications REPLICA IDENTITY FULL;
+
+-- Add tables to the Supabase Realtime publication so clients receive live events.
+ALTER PUBLICATION supabase_realtime ADD TABLE public.direct_messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.broadcast_notifications;
+
+-- ── 8. NAMED FK CONSTRAINTS (ensures PostgREST can resolve ambiguous joins) ──
+-- Both sender_id and recipient_id reference public.users.
+-- Named constraints let PostgREST/Supabase JS resolve them unambiguously.
+ALTER TABLE public.direct_messages
+    DROP CONSTRAINT IF EXISTS direct_messages_sender_id_fkey,
+    DROP CONSTRAINT IF EXISTS direct_messages_recipient_id_fkey;
+
+ALTER TABLE public.direct_messages
+    ADD CONSTRAINT direct_messages_sender_id_fkey
+        FOREIGN KEY (sender_id) REFERENCES public.users(id) ON DELETE CASCADE,
+    ADD CONSTRAINT direct_messages_recipient_id_fkey
+        FOREIGN KEY (recipient_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 -- ── END OF MIGRATION ─────────────────────────────────────────────────────
