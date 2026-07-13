@@ -7,6 +7,10 @@
             "schedule": "0 9 * * *"
         },
         {
+            "path": "/api/cron/daily-broadcast",
+            "schedule": "0 8 * * *"
+        },
+        {
             "path": "/api/cron/process-trials",
             "schedule": "0 0 * * *"
         },

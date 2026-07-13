@@ -76,7 +76,14 @@ export function useNotificationPolling() {
                 .eq('user_id', session.user.id)
                 .eq('is_read', false)
 
-            const countValue = (jobCount || 0) + (followCount || 0)
+            // Count unread direct messages
+            const { count: dmCount } = await supabase
+                .from('direct_messages')
+                .select('*', { count: 'exact', head: true })
+                .eq('recipient_id', session.user.id)
+                .eq('is_read', false)
+
+            const countValue = (jobCount || 0) + (followCount || 0) + (dmCount || 0)
 
             // Show browser notification if count increased
             if (countValue > 0 && notificationManager.lastCheck !== null && countValue > notificationManager.lastCheck) {

@@ -266,6 +266,9 @@ export default function Navbar() {
                             <Link href="/wallet" onClick={closeDrawer} className={drawerLinkClasses('/wallet')}>
                                 <span>💳</span> My Wallet
                             </Link>
+                            <Link href="/messages" onClick={closeDrawer} className={drawerLinkClasses('/messages')}>
+                                <span>💬</span> Messages
+                            </Link>
                             <Link href="/videos" onClick={closeDrawer} className={drawerLinkClasses('/videos')}>
                                 <span>🎬</span> Videos
                             </Link>
