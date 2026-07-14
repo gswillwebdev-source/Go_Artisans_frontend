@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { usePathname } from 'next/navigation'
 
 export default function ChatAssistant() {
   const { user } = useAuth({ redirectToLogin: false })
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [inputValue, setInputValue] = useState('')
@@ -122,7 +124,8 @@ export default function ChatAssistant() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button — hidden on chat pages so it doesn't cover the send button */}
+      {!pathname?.startsWith('/messages') && (
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-lg z-40 transition-transform duration-200 hover:scale-110"
@@ -138,6 +141,7 @@ export default function ChatAssistant() {
           </svg>
         )}
       </button>
+      )}
 
       {/* Chat Modal */}
       {isOpen && (

@@ -33,21 +33,21 @@ export async function GET(request, { params }) {
         .single()
     if (!partner) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-// Fetch messages between the two users.
-  // Use two explicit conditions joined by or() — avoids nested and() syntax issues.
-  const { data: messages, error } = await admin
-    .from('direct_messages')
-    .select('id, sender_id, recipient_id, content, is_read, created_at')
-    .or(
-      `and(sender_id.eq.${user.id},recipient_id.eq.${userId}),` +
-      `and(sender_id.eq.${userId},recipient_id.eq.${user.id})`
-    )
-    .order('created_at', { ascending: true })
-    .limit(100)
+    // Fetch messages between the two users.
+    // Use two explicit conditions joined by or() — avoids nested and() syntax issues.
+    const { data: messages, error } = await admin
+        .from('direct_messages')
+        .select('id, sender_id, recipient_id, content, is_read, created_at')
+        .or(
+            `and(sender_id.eq.${user.id},recipient_id.eq.${userId}),` +
+            `and(sender_id.eq.${userId},recipient_id.eq.${user.id})`
+        )
+        .order('created_at', { ascending: true })
+        .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Mark all unread incoming messages as read in a single update
+    // Mark all unread incoming messages as read in a single update
     await admin
         .from('direct_messages')
         .update({ is_read: true })

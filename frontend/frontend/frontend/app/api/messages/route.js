@@ -21,12 +21,12 @@ export async function GET(request) {
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { user, admin } = auth
 
-// Get the latest message per conversation partner.
-  // Use explicit FK constraint names so PostgREST resolves the ambiguous
-  // sender_id/recipient_id → users joins correctly.
-  const { data: messages, error } = await admin
-    .from('direct_messages')
-    .select(`
+    // Get the latest message per conversation partner.
+    // Use explicit FK constraint names so PostgREST resolves the ambiguous
+    // sender_id/recipient_id → users joins correctly.
+    const { data: messages, error } = await admin
+        .from('direct_messages')
+        .select(`
       id, content, is_read, created_at, sender_id, recipient_id,
       sender:users!direct_messages_sender_id_fkey(id, first_name, last_name, profile_picture),
       recipient:users!direct_messages_recipient_id_fkey(id, first_name, last_name, profile_picture)
