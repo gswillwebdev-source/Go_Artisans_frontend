@@ -16,6 +16,7 @@ async function getAuthUser(request) {
 }
 
 // GET /api/messages/[userId] — load conversation + mark as read
+// Supports ?since=ISO_TIMESTAMP to fetch only new messages (used by polling)
 export async function GET(request, { params }) {
     const auth = await getAuthUser(request)
     if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -25,6 +26,38 @@ export async function GET(request, { params }) {
     if (!userId) return NextResponse.json({ error: 'userId required' }, { status: 400 })
     if (userId === user.id) return NextResponse.json({ error: 'Cannot message yourself' }, { status: 400 })
 
+    const url = new URL(request.url)
+    const since = url.searchParams.get('since')
+
+    // ── Polling mode: only return messages newer than `since` ─────────────
+    if (since) {
+        const { data: newMessages, error } = await admin
+            .from('direct_messages')
+            .select('id, sender_id, recipient_id, content, is_read, created_at')
+            .or(
+                `and(sender_id.eq.${user.id},recipient_id.eq.${userId}),` +
+                `and(sender_id.eq.${userId},recipient_id.eq.${user.id})`
+            )
+            .gt('created_at', since)
+            .order('created_at', { ascending: true })
+            .limit(50)
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+        // Mark any new incoming messages as read
+        if (newMessages?.some(m => m.sender_id === userId)) {
+            await admin
+                .from('direct_messages')
+                .update({ is_read: true })
+                .eq('sender_id', userId)
+                .eq('recipient_id', user.id)
+                .eq('is_read', false)
+        }
+
+        return NextResponse.json({ new_messages: newMessages ?? [] })
+    }
+
+    // ── Full load ─────────────────────────────────────────────────────────
     // Fetch partner profile
     const { data: partner } = await admin
         .from('users')

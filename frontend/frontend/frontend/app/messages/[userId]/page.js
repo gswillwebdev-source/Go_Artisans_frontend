@@ -5,6 +5,15 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+// Merge incoming messages into existing list, deduplicating by id
+function mergeMessages(prev, incoming) {
+    if (!incoming?.length) return prev
+    const existingIds = new Set(prev.map(m => m.id))
+    const fresh = incoming.filter(m => !existingIds.has(m.id))
+    if (!fresh.length) return prev
+    return [...prev, ...fresh].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+}
+
 export default function ChatPage() {
     const router = useRouter()
     const { userId } = useParams()
@@ -18,9 +27,25 @@ export default function ChatPage() {
     const [error, setError] = useState('')
     const bottomRef = useRef(null)
 
-    const scrollToBottom = () => {
+    // Keep a ref to the shared broadcast channel so handleSend can use it
+    const channelRef = useRef(null)
+    // Track latest real message timestamp for polling
+    const latestTsRef = useRef(null)
+
+    const scrollToBottom = useCallback(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
+    }, [])
+
+    const addIncoming = useCallback((incoming, token) => {
+        setMessages(prev => mergeMessages(prev, incoming))
+        // Mark as read via lightweight PATCH
+        if (incoming?.some(m => m.sender_id === userId)) {
+            fetch(`/api/messages/${userId}/read`, {
+                method: 'PATCH',
+                headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => { })
+        }
+    }, [userId])
 
     const loadThread = useCallback(async (s) => {
         const res = await fetch(`/api/messages/${userId}`, {
@@ -33,9 +58,13 @@ export default function ChatPage() {
         }
         const data = await res.json()
         setPartner(data.partner)
-        setMessages(data.messages ?? [])
+        const msgs = data.messages ?? []
+        setMessages(msgs)
+        // Track latest timestamp for polling
+        if (msgs.length > 0) latestTsRef.current = msgs[msgs.length - 1].created_at
     }, [userId])
 
+    // ── Auth + initial load ──────────────────────────────────────────────
     useEffect(() => {
         supabase.auth.getSession().then(async ({ data: { session: s } }) => {
             if (!s) { router.replace('/login'); return }
@@ -45,15 +74,28 @@ export default function ChatPage() {
         })
     }, [router, loadThread])
 
-    // Scroll to bottom when messages load or change
-    useEffect(() => { scrollToBottom() }, [messages])
+    // ── Scroll to bottom on new messages ────────────────────────────────
+    useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
 
-    // Subscribe to realtime new messages in this thread
+    // ── Realtime: Broadcast + postgres_changes ──────────────────────────
     useEffect(() => {
         if (!session || !userId) return
 
+        // Canonical channel name: sorted IDs ensure BOTH users join the same channel
+        // regardless of who opened the chat first.
+        const canonicalId = [session.user.id, userId].sort().join('-')
+
         const channel = supabase
-            .channel(`dm-${session.user.id}-${userId}`)
+            .channel(`chat-${canonicalId}`, {
+                config: { broadcast: { self: false } }, // don't echo our own broadcasts back
+            })
+            // ① Broadcast (primary — works instantly, no SQL setup required)
+            .on('broadcast', { event: 'dm' }, ({ payload }) => {
+                const msg = payload?.message
+                if (!msg) return
+                addIncoming([msg], session.access_token)
+            })
+            // ② postgres_changes (backup — works once SQL migration is run)
             .on(
                 'postgres_changes',
                 {
@@ -64,36 +106,54 @@ export default function ChatPage() {
                 },
                 (payload) => {
                     const msg = payload.new
-                    // Only handle messages from this conversation partner
                     if (msg.sender_id !== userId) return
-                    setMessages(prev => {
-                        // Avoid duplicates (in case optimistic update + realtime race)
-                        if (prev.some(m => m.id === msg.id)) return prev
-                        return [...prev, msg]
-                    })
-                    // Use dedicated PATCH endpoint — no data fetch, just flips is_read flag
-                    fetch(`/api/messages/${userId}/read`, {
-                        method: 'PATCH',
-                        headers: { Authorization: `Bearer ${session.access_token}` },
-                    }).catch(() => { })
+                    addIncoming([msg], session.access_token)
                 }
             )
-            .subscribe((status) => {
-                if (status === 'CHANNEL_ERROR') {
-                    console.warn('[chat] Realtime channel error — falling back to polling')
-                }
-            })
+            .subscribe()
 
-        return () => { supabase.removeChannel(channel) }
+        channelRef.current = channel
+        return () => {
+            supabase.removeChannel(channel)
+            channelRef.current = null
+        }
+    }, [session, userId, addIncoming])
+
+    // ── Polling fallback every 5 s (catches missed broadcasts/changes) ───
+    useEffect(() => {
+        if (!session || !userId) return
+        const interval = setInterval(async () => {
+            const since = latestTsRef.current
+            if (!since) return
+            try {
+                const res = await fetch(
+                    `/api/messages/${userId}?since=${encodeURIComponent(since)}`,
+                    { headers: { Authorization: `Bearer ${session.access_token}` } }
+                )
+                if (!res.ok) return
+                const data = await res.json()
+                if (!data.new_messages?.length) return
+                setMessages(prev => {
+                    const merged = mergeMessages(prev, data.new_messages)
+                    if (merged !== prev) {
+                        const real = merged.filter(m => !m._optimistic)
+                        if (real.length) latestTsRef.current = real[real.length - 1].created_at
+                    }
+                    return merged
+                })
+            } catch { /* polling is best-effort */ }
+        }, 5000)
+        return () => clearInterval(interval)
     }, [session, userId])
 
+    // ── Send message ─────────────────────────────────────────────────────
     async function handleSend(e) {
         e.preventDefault()
         if (!text.trim() || sending) return
         setError('')
         setSending(true)
 
-        // Optimistically add the message to UI
+        // Optimistic UI insert
         const optimistic = {
             id: `tmp-${Date.now()}`,
             sender_id: session.user.id,
@@ -118,8 +178,18 @@ export default function ChatPage() {
                 setMessages(prev => prev.filter(m => m.id !== optimistic.id))
                 return
             }
-            // Replace optimistic message with real one
-            setMessages(prev => prev.map(m => m.id === optimistic.id ? data.message : m))
+            const realMsg = data.message
+
+            // Replace optimistic with real message
+            setMessages(prev => prev.map(m => m.id === optimistic.id ? realMsg : m))
+            latestTsRef.current = realMsg.created_at
+
+            // Broadcast to shared channel so the other user receives it instantly
+            channelRef.current?.send({
+                type: 'broadcast',
+                event: 'dm',
+                payload: { message: realMsg },
+            }).catch(() => { })
         } catch {
             setError('Something went wrong. Please try again.')
             setMessages(prev => prev.filter(m => m.id !== optimistic.id))
