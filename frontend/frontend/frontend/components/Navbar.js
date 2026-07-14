@@ -142,6 +142,7 @@ export default function Navbar() {
                                         <Link href="/jobs" className={getLinkClasses('/jobs')}>📋 {t('browseJobs')}</Link>
                                     )}
                                     <Link href={profileHref} className={getLinkClasses(profileHref)}>👤 {t('profile')}</Link>
+                                    <Link href="/messages" className={getLinkClasses('/messages')}>💬 Messages</Link>
                                     <Link href="/pricing" className={`${getLinkClasses('/pricing')} flex items-center gap-1`}>
                                         {planTier === 'premium' ? '💎' : planTier === 'pro' ? '⭐' : '🚀'} Plans
                                         {planTier === 'free' && <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full font-bold">Upgrade</span>}
@@ -179,6 +180,10 @@ export default function Navbar() {
                                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-red-700 hover:bg-red-50 border border-red-300 hover:border-red-500 transition whitespace-nowrap">
                                         🚪 {t('logout')}
                                     </button>
+                                    <Link href="/messages" title="Messages"
+                                        className="relative flex items-center justify-center w-9 h-9 rounded-lg text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition border border-transparent">
+                                        <span className="text-lg leading-none">💬</span>
+                                    </Link>
                                     <NotificationBell />
                                 </div>
                             ) : (
