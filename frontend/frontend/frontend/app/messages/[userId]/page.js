@@ -77,8 +77,24 @@ export default function ChatPage() {
     const recorderRef     = useRef(null)
     const audioChunksRef  = useRef([])
     const recTimerRef     = useRef(null)
-    const fileInputRef    = useRef(null)
-    const cameraInputRef  = useRef(null)
+    const fileInputRef    = useRef(null)   // general files
+    const imageInputRef   = useRef(null)   // images only
+    const videoInputRef   = useRef(null)   // videos only
+    const cameraInputRef  = useRef(null)   // camera capture
+
+    // ── WebRTC calling state ─────────────────────────────────────────
+    const [callState, setCallState]     = useState(null)  // null|'calling'|'incoming'|'active'
+    const [callType, setCallType]       = useState('voice') // 'voice'|'video'
+    const [isMuted, setIsMuted]         = useState(false)
+    const [isCamOff, setIsCamOff]       = useState(false)
+    const [callDuration, setCallDuration] = useState(0)
+    const incomingOfferRef  = useRef(null)
+    const pcRef             = useRef(null)
+    const localStreamRef    = useRef(null)
+    const remoteStreamRef   = useRef(null)
+    const localVideoRef     = useRef(null)
+    const remoteVideoRef    = useRef(null)
+    const callTimerRef      = useRef(null)
 
     const scrollToBottom = useCallback(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -144,6 +160,32 @@ export default function ChatPage() {
             .on('broadcast', { event: 'dm' }, ({ payload }) => {
                 const msg = payload?.message
                 if (msg) addIncoming([msg], session.access_token, partner?.first_name)
+            })
+            // Call signaling
+            .on('broadcast', { event: 'call_offer' }, ({ payload }) => {
+                incomingOfferRef.current = payload.offer
+                setCallType(payload.call_type || 'voice')
+                setCallState('incoming')
+                playNotificationSound()
+            })
+            .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
+                if (pcRef.current && payload.answer) {
+                    await pcRef.current.setRemoteDescription(payload.answer).catch(() => {})
+                    setCallState('active')
+                    callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
+                }
+            })
+            .on('broadcast', { event: 'ice_candidate' }, async ({ payload }) => {
+                if (pcRef.current && payload.candidate) {
+                    await pcRef.current.addIceCandidate(payload.candidate).catch(() => {})
+                }
+            })
+            .on('broadcast', { event: 'call_end' }, () => {
+                clearInterval(callTimerRef.current)
+                pcRef.current?.close(); pcRef.current = null
+                localStreamRef.current?.getTracks().forEach(t => t.stop()); localStreamRef.current = null
+                incomingOfferRef.current = null
+                setCallState(null); setCallDuration(0); setIsMuted(false); setIsCamOff(false)
             })
             .on('postgres_changes', {
                 event: 'INSERT', schema: 'public', table: 'direct_messages',
@@ -245,24 +287,27 @@ export default function ChatPage() {
         setSending(false)
     }
 
-    // ── Voice recording ────────────────────────────────────────────
+    // ── Voice recording — detect supported MIME type (iOS needs audio/mp4) ─
     async function startRecording() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             audioChunksRef.current = []
-            const recorder = new MediaRecorder(stream)
+            const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg','audio/mp4']
+                .find(t => MediaRecorder.isTypeSupported(t)) || ''
+            const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
+            const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
             recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
             recorder.onstop = async () => {
                 stream.getTracks().forEach(t => t.stop())
-                const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
-                await uploadAndSend(new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' }))
+                const blob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' })
+                await uploadAndSend(new File([blob], `voice-${Date.now()}.${ext}`, { type: mimeType || 'audio/webm' }))
                 setRecordSecs(0)
             }
             recorder.start()
             recorderRef.current = recorder
             setRecording(true)
             recTimerRef.current = setInterval(() => setRecordSecs(s => s + 1), 1000)
-        } catch { setError('Microphone access denied') }
+        } catch (err) { setError(err?.name === 'NotAllowedError' ? 'Microphone access denied' : 'Recording not supported on this device') }
     }
 
     function stopRecording() {
@@ -283,6 +328,103 @@ export default function ChatPage() {
     }
 
     const myId = session?.user?.id
+
+    // ── WebRTC: ICE server config ────────────────────────────────────────
+    const ICE_SERVERS = [
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+        { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    ]
+
+    function createPC() {
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
+        pc.onicecandidate = ({ candidate }) => {
+            if (candidate) {
+                channelRef.current?.send({ type: 'broadcast', event: 'ice_candidate',
+                    payload: { candidate: candidate.toJSON() } }).catch(() => {})
+            }
+        }
+        pc.ontrack = (event) => {
+            remoteStreamRef.current = event.streams[0]
+            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+        }
+        pc.onconnectionstatechange = () => {
+            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) endCall()
+        }
+        return pc
+    }
+
+    async function startCall(type) {
+        try {
+            const constraints = type === 'video' ? { audio: true, video: true } : { audio: true }
+            const stream = await navigator.mediaDevices.getUserMedia(constraints)
+            localStreamRef.current = stream
+            if (localVideoRef.current) localVideoRef.current.srcObject = stream
+            const pc = createPC()
+            pcRef.current = pc
+            stream.getTracks().forEach(track => pc.addTrack(track, stream))
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            setCallState('calling')
+            setCallType(type)
+            channelRef.current?.send({ type: 'broadcast', event: 'call_offer',
+                payload: { offer: pc.localDescription.toJSON(), call_type: type } }).catch(() => {})
+        } catch (err) {
+            setError(err?.name === 'NotAllowedError' ? 'Camera/microphone access denied' : 'Call failed to start')
+        }
+    }
+
+    async function acceptCall() {
+        try {
+            const constraints = callType === 'video' ? { audio: true, video: true } : { audio: true }
+            const stream = await navigator.mediaDevices.getUserMedia(constraints)
+            localStreamRef.current = stream
+            if (localVideoRef.current) localVideoRef.current.srcObject = stream
+            const pc = createPC()
+            pcRef.current = pc
+            stream.getTracks().forEach(track => pc.addTrack(track, stream))
+            await pc.setRemoteDescription(incomingOfferRef.current)
+            const answer = await pc.createAnswer()
+            await pc.setLocalDescription(answer)
+            setCallState('active')
+            callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
+            channelRef.current?.send({ type: 'broadcast', event: 'call_answer',
+                payload: { answer: pc.localDescription.toJSON() } }).catch(() => {})
+        } catch (err) {
+            setError(err?.name === 'NotAllowedError' ? 'Camera/microphone access denied' : 'Failed to accept call')
+            rejectCall()
+        }
+    }
+
+    function rejectCall() {
+        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => {})
+        endCall()
+    }
+
+    function endCall() {
+        clearInterval(callTimerRef.current)
+        pcRef.current?.close(); pcRef.current = null
+        localStreamRef.current?.getTracks().forEach(t => t.stop()); localStreamRef.current = null
+        remoteStreamRef.current = null
+        incomingOfferRef.current = null
+        setCallState(null); setCallDuration(0); setIsMuted(false); setIsCamOff(false)
+        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => {})
+    }
+
+    function toggleMute() {
+        const track = localStreamRef.current?.getAudioTracks()[0]
+        if (track) { track.enabled = !track.enabled; setIsMuted(!track.enabled) }
+    }
+
+    function toggleCamera() {
+        const track = localStreamRef.current?.getVideoTracks()[0]
+        if (track) { track.enabled = !track.enabled; setIsCamOff(!track.enabled) }
+    }
+
+    function fmtCallDur(s) {
+        return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+    }
 
     const fmt = (dateStr) => new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
@@ -326,13 +468,13 @@ export default function ChatPage() {
                     <p className="font-bold text-sm text-white truncate">{partner?.first_name} {partner?.last_name}</p>
                     <p className="text-[11px] text-white/60 capitalize">{partner?.user_type}</p>
                 </div>
-                <button onClick={() => alert('📞 Voice calls coming soon!')}
+                <button onClick={() => startCall('voice')}
                     className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition" title="Voice call">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                 </button>
-                <button onClick={() => alert('📹 Video calls coming soon!')}
+                <button onClick={() => startCall('video')}
                     className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 transition" title="Video call">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -413,9 +555,9 @@ export default function ChatPage() {
                 <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-t border-slate-200 overflow-x-auto">
                     {[
                         { label: 'Camera', icon: '📷', fn: () => { setShowAttachMenu(false); cameraInputRef.current?.click() } },
-                        { label: 'Image',  icon: '🖼️', fn: () => { setShowAttachMenu(false); if (fileInputRef.current) { fileInputRef.current.accept = 'image/*'; fileInputRef.current.click() } } },
-                        { label: 'Video',  icon: '🎥', fn: () => { setShowAttachMenu(false); if (fileInputRef.current) { fileInputRef.current.accept = 'video/*'; fileInputRef.current.click() } } },
-                        { label: 'File',   icon: '📄', fn: () => { setShowAttachMenu(false); if (fileInputRef.current) { fileInputRef.current.accept = '*/*'; fileInputRef.current.click() } } },
+                        { label: 'Image',  icon: '🖼️', fn: () => { setShowAttachMenu(false); imageInputRef.current?.click() } },
+                        { label: 'Video',  icon: '🎥', fn: () => { setShowAttachMenu(false); videoInputRef.current?.click() } },
+                        { label: 'File',   icon: '📄', fn: () => { setShowAttachMenu(false); fileInputRef.current?.click() } },
                     ].map(a => (
                         <button key={a.label} onClick={a.fn}
                             className="flex flex-col items-center gap-1 shrink-0 px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition">
@@ -481,11 +623,83 @@ export default function ChatPage() {
                 )}
             </div>
 
-            {/* Hidden file inputs */}
-            <input ref={fileInputRef} type="file" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
-            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            {/* ── Separate hidden file inputs (static accept = mobile-safe) ── */}
+            <input ref={imageInputRef}  type="file" accept="image/*"           className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={videoInputRef}  type="file" accept="video/*"           className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={fileInputRef}   type="file" accept="*/*"               className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+
+            {/* ── Incoming call overlay ─────────────────────────── */}
+            {callState === 'incoming' && (
+                <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#075E54]">
+                    <div className="w-24 h-24 rounded-full bg-[#128C7E] overflow-hidden flex items-center justify-center text-white font-bold text-3xl mb-4">
+                        {partner?.profile_picture ? <img src={partner.profile_picture} alt="" className="w-full h-full object-cover" /> : partner?.first_name?.[0]}
+                    </div>
+                    <p className="text-white font-bold text-xl">{partner?.first_name} {partner?.last_name}</p>
+                    <p className="text-white/70 text-sm mt-1">Incoming {callType} call…</p>
+                    <div className="flex gap-8 mt-10">
+                        <button onClick={rejectCall}
+                            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white rotate-135" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                        </button>
+                        <button onClick={acceptCall}
+                            className="w-16 h-16 rounded-full bg-[#25D366] flex items-center justify-center shadow-lg active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Calling / Active call overlay ─────────────────── */}
+            {(callState === 'calling' || callState === 'active') && (
+                <div className="fixed inset-0 z-50 flex flex-col bg-[#1C1C1E]">
+                    {/* Video area */}
+                    <div className="flex-1 relative bg-black flex items-center justify-center">
+                        {callType === 'video' ? (
+                            <>
+                                <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                <video ref={localVideoRef} autoPlay playsInline muted
+                                    className="absolute bottom-4 right-4 w-28 h-36 rounded-xl object-cover border-2 border-white shadow-lg" />
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="w-24 h-24 rounded-full bg-[#128C7E] overflow-hidden flex items-center justify-center text-white font-bold text-3xl">
+                                    {partner?.profile_picture ? <img src={partner.profile_picture} alt="" className="w-full h-full object-cover" /> : partner?.first_name?.[0]}
+                                </div>
+                                <p className="text-white font-bold text-xl">{partner?.first_name} {partner?.last_name}</p>
+                                <p className="text-white/60 text-sm">
+                                    {callState === 'calling' ? 'Calling…' : fmtCallDur(callDuration)}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                    {/* Call controls */}
+                    <div className="shrink-0 flex items-center justify-around px-8 py-6 bg-[#1C1C1E]">
+                        <button onClick={toggleMute}
+                            className={`w-14 h-14 rounded-full flex items-center justify-center transition
+                                ${isMuted ? 'bg-white text-slate-900' : 'bg-white/20 text-white'}`}>
+                            {isMuted ? '🔇' : '🎤'}
+                        </button>
+                        {callType === 'video' && (
+                            <button onClick={toggleCamera}
+                                className={`w-14 h-14 rounded-full flex items-center justify-center transition
+                                    ${isCamOff ? 'bg-white text-slate-900' : 'bg-white/20 text-white'}`}>
+                                {isCamOff ? '📵' : '📹'}
+                            </button>
+                        )}
+                        <button onClick={endCall}
+                            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg active:scale-95">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white rotate-135" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
