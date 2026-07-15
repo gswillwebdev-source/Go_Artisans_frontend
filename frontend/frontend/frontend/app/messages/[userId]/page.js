@@ -94,7 +94,22 @@ export default function ChatPage() {
     const remoteStreamRef   = useRef(null)
     const localVideoRef     = useRef(null)
     const remoteVideoRef    = useRef(null)
+    const remoteAudioRef    = useRef(null)  // always-present audio element for remote stream
     const callTimerRef      = useRef(null)
+
+    // Attach streams to DOM elements once the call overlay renders
+    useEffect(() => {
+        if (callState === 'active' || callState === 'calling') {
+            if (localStreamRef.current && localVideoRef.current)
+                localVideoRef.current.srcObject = localStreamRef.current
+        }
+        if (callState === 'active') {
+            if (remoteStreamRef.current && remoteVideoRef.current)
+                remoteVideoRef.current.srcObject = remoteStreamRef.current
+            if (remoteStreamRef.current && remoteAudioRef.current)
+                remoteAudioRef.current.srcObject = remoteStreamRef.current
+        }
+    }, [callState])
 
     const scrollToBottom = useCallback(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -347,10 +362,13 @@ export default function ChatPage() {
         }
         pc.ontrack = (event) => {
             remoteStreamRef.current = event.streams[0]
+            // Attach immediately if overlay is already mounted
             if (remoteVideoRef.current) remoteVideoRef.current.srcObject = event.streams[0]
+            if (remoteAudioRef.current) remoteAudioRef.current.srcObject = event.streams[0]
         }
         pc.onconnectionstatechange = () => {
-            if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) endCall()
+            // 'disconnected' is a temporary state during ICE reconnection — only end on 'failed'
+            if (pc.connectionState === 'failed') endCall()
         }
         return pc
     }
@@ -450,7 +468,9 @@ export default function ChatPage() {
     )
 
     return (
-        <div className="flex flex-col h-[calc(100vh-48px)] sm:h-[calc(100vh-64px)] bg-[#ECE5DD]">
+        <div className="flex flex-col h-screen bg-[#ECE5DD]">
+            {/* Hidden audio element — always present so remote audio plays for both voice + video calls */}
+            <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
 
             {/* ── Header ────────────────────────────────────────── */}
             <div className="shrink-0 flex items-center gap-3 px-3 py-2.5 bg-[#075E54] shadow-md z-10">

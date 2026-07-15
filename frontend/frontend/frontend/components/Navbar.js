@@ -74,6 +74,10 @@ export default function Navbar() {
 
     const profileHref = user?.user_type === 'worker' ? '/worker-profile' : '/client-profile'
 
+    // Hide the site navbar on individual chat threads so the full-height chat UI shows cleanly
+    const isChatThread = /^\/messages\/[^/]+/.test(pathname)
+    if (isChatThread) return null
+
     return (
         <>
             {/* ── NAVBAR ── */}
