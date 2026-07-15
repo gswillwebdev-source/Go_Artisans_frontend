@@ -59,43 +59,43 @@ export default function ChatPage() {
     const router = useRouter()
     const { userId } = useParams()
 
-    const [session, setSession]             = useState(null)
-    const [partner, setPartner]             = useState(null)
-    const [messages, setMessages]           = useState([])
-    const [loading, setLoading]             = useState(true)
-    const [text, setText]                   = useState('')
-    const [sending, setSending]             = useState(false)
-    const [error, setError]                 = useState('')
+    const [session, setSession] = useState(null)
+    const [partner, setPartner] = useState(null)
+    const [messages, setMessages] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [text, setText] = useState('')
+    const [sending, setSending] = useState(false)
+    const [error, setError] = useState('')
     const [showAttachMenu, setShowAttachMenu] = useState(false)
-    const [recording, setRecording]         = useState(false)
-    const [recordSecs, setRecordSecs]       = useState(0)
+    const [recording, setRecording] = useState(false)
+    const [recordSecs, setRecordSecs] = useState(0)
     const [uploadingMedia, setUploadingMedia] = useState(false)
 
-    const bottomRef       = useRef(null)
-    const channelRef      = useRef(null)
-    const latestTsRef     = useRef(null)
-    const recorderRef     = useRef(null)
-    const audioChunksRef  = useRef([])
-    const recTimerRef     = useRef(null)
-    const fileInputRef    = useRef(null)   // general files
-    const imageInputRef   = useRef(null)   // images only
-    const videoInputRef   = useRef(null)   // videos only
-    const cameraInputRef  = useRef(null)   // camera capture
+    const bottomRef = useRef(null)
+    const channelRef = useRef(null)
+    const latestTsRef = useRef(null)
+    const recorderRef = useRef(null)
+    const audioChunksRef = useRef([])
+    const recTimerRef = useRef(null)
+    const fileInputRef = useRef(null)   // general files
+    const imageInputRef = useRef(null)   // images only
+    const videoInputRef = useRef(null)   // videos only
+    const cameraInputRef = useRef(null)   // camera capture
 
     // ── WebRTC calling state ─────────────────────────────────────────
-    const [callState, setCallState]     = useState(null)  // null|'calling'|'incoming'|'active'
-    const [callType, setCallType]       = useState('voice') // 'voice'|'video'
-    const [isMuted, setIsMuted]         = useState(false)
-    const [isCamOff, setIsCamOff]       = useState(false)
+    const [callState, setCallState] = useState(null)  // null|'calling'|'incoming'|'active'
+    const [callType, setCallType] = useState('voice') // 'voice'|'video'
+    const [isMuted, setIsMuted] = useState(false)
+    const [isCamOff, setIsCamOff] = useState(false)
     const [callDuration, setCallDuration] = useState(0)
-    const incomingOfferRef  = useRef(null)
-    const pcRef             = useRef(null)
-    const localStreamRef    = useRef(null)
-    const remoteStreamRef   = useRef(null)
-    const localVideoRef     = useRef(null)
-    const remoteVideoRef    = useRef(null)
-    const remoteAudioRef    = useRef(null)  // always-present audio element for remote stream
-    const callTimerRef      = useRef(null)
+    const incomingOfferRef = useRef(null)
+    const pcRef = useRef(null)
+    const localStreamRef = useRef(null)
+    const remoteStreamRef = useRef(null)
+    const localVideoRef = useRef(null)
+    const remoteVideoRef = useRef(null)
+    const remoteAudioRef = useRef(null)  // always-present audio element for remote stream
+    const callTimerRef = useRef(null)
 
     // Attach streams to DOM elements once the call overlay renders
     useEffect(() => {
@@ -133,7 +133,7 @@ export default function ChatPage() {
             fetch(`/api/messages/${userId}/read`, {
                 method: 'PATCH',
                 headers: { Authorization: `Bearer ${token}` },
-            }).catch(() => {})
+            }).catch(() => { })
         }
     }, [userId])
 
@@ -185,14 +185,23 @@ export default function ChatPage() {
             })
             .on('broadcast', { event: 'call_answer' }, async ({ payload }) => {
                 if (pcRef.current && payload.answer) {
-                    await pcRef.current.setRemoteDescription(payload.answer).catch(() => {})
+                    await pcRef.current.setRemoteDescription(
+                        new RTCSessionDescription(payload.answer)
+                    ).catch(() => {})
+                    // Flush ICE candidates that arrived before remote description was set
+                    await flushIceCandidates()
                     setCallState('active')
                     callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
                 }
             })
             .on('broadcast', { event: 'ice_candidate' }, async ({ payload }) => {
-                if (pcRef.current && payload.candidate) {
-                    await pcRef.current.addIceCandidate(payload.candidate).catch(() => {})
+                // Queue candidates if PC doesn't exist yet or has no remote description
+                if (pcRef.current && pcRef.current.remoteDescription) {
+                    await pcRef.current.addIceCandidate(
+                        new RTCIceCandidate(payload.candidate)
+                    ).catch(() => {})
+                } else {
+                    iceCandidateQueueRef.current.push(payload.candidate)
                 }
             })
             .on('broadcast', { event: 'call_end' }, () => {
@@ -231,7 +240,7 @@ export default function ChatPage() {
                 addIncoming(data.new_messages, session.access_token, partner?.first_name)
                 const real = data.new_messages.filter(m => !m._optimistic)
                 if (real.length) latestTsRef.current = real[real.length - 1].created_at
-            } catch {}
+            } catch { }
         }, 5000)
         return () => clearInterval(iv)
     }, [session, userId, addIncoming, partner?.first_name])
@@ -285,7 +294,7 @@ export default function ChatPage() {
             const real = data.message
             setMessages(prev => prev.map(m => m.id === optimistic.id ? real : m))
             latestTsRef.current = real.created_at
-            channelRef.current?.send({ type: 'broadcast', event: 'dm', payload: { message: real } }).catch(() => {})
+            channelRef.current?.send({ type: 'broadcast', event: 'dm', payload: { message: real } }).catch(() => { })
         } catch {
             setError('Send failed. Try again.')
             setMessages(prev => prev.filter(m => m.id !== optimistic.id))
@@ -307,7 +316,7 @@ export default function ChatPage() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             audioChunksRef.current = []
-            const mimeType = ['audio/webm;codecs=opus','audio/webm','audio/ogg','audio/mp4']
+            const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg', 'audio/mp4']
                 .find(t => MediaRecorder.isTypeSupported(t)) || ''
             const ext = mimeType.includes('mp4') ? 'mp4' : mimeType.includes('ogg') ? 'ogg' : 'webm'
             const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
@@ -336,8 +345,8 @@ export default function ChatPage() {
         setRecording(false)
         setRecordSecs(0)
         if (recorderRef.current?.state === 'recording') {
-            recorderRef.current.ondataavailable = () => {}
-            recorderRef.current.onstop = () => {}
+            recorderRef.current.ondataavailable = () => { }
+            recorderRef.current.onstop = () => { }
             recorderRef.current.stop()
         }
     }
@@ -346,18 +355,30 @@ export default function ChatPage() {
 
     // ── WebRTC: ICE server config ────────────────────────────────────────
     const ICE_SERVERS = [
-        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+        { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302',
+                 'stun:stun2.l.google.com:19302', 'stun:stun3.l.google.com:19302'] },
         { urls: 'turn:openrelay.metered.ca:80',  username: 'openrelayproject', credential: 'openrelayproject' },
         { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
         { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
     ]
 
+    // Flush any ICE candidates that arrived before the remote description was set
+    async function flushIceCandidates() {
+        const queue = [...iceCandidateQueueRef.current]
+        iceCandidateQueueRef.current = []
+        for (const c of queue) {
+            await pcRef.current?.addIceCandidate(new RTCIceCandidate(c)).catch(() => {})
+        }
+    }
+
     function createPC() {
         const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })
         pc.onicecandidate = ({ candidate }) => {
             if (candidate) {
-                channelRef.current?.send({ type: 'broadcast', event: 'ice_candidate',
-                    payload: { candidate: candidate.toJSON() } }).catch(() => {})
+                channelRef.current?.send({
+                    type: 'broadcast', event: 'ice_candidate',
+                    payload: { candidate: candidate.toJSON() }
+                }).catch(() => { })
             }
         }
         pc.ontrack = (event) => {
@@ -369,6 +390,12 @@ export default function ChatPage() {
         pc.onconnectionstatechange = () => {
             // 'disconnected' is a temporary state during ICE reconnection — only end on 'failed'
             if (pc.connectionState === 'failed') endCall()
+        }
+        pc.oniceconnectionstatechange = () => {
+            // Attempt ICE restart if the connection drops
+            if (pc.iceConnectionState === 'failed') {
+                pc.restartIce()
+            }
         }
         return pc
     }
@@ -386,8 +413,10 @@ export default function ChatPage() {
             await pc.setLocalDescription(offer)
             setCallState('calling')
             setCallType(type)
-            channelRef.current?.send({ type: 'broadcast', event: 'call_offer',
-                payload: { offer: pc.localDescription.toJSON(), call_type: type } }).catch(() => {})
+            channelRef.current?.send({
+                type: 'broadcast', event: 'call_offer',
+                payload: { offer: pc.localDescription.toJSON(), call_type: type }
+            }).catch(() => { })
         } catch (err) {
             setError(err?.name === 'NotAllowedError' ? 'Camera/microphone access denied' : 'Call failed to start')
         }
@@ -402,13 +431,18 @@ export default function ChatPage() {
             const pc = createPC()
             pcRef.current = pc
             stream.getTracks().forEach(track => pc.addTrack(track, stream))
-            await pc.setRemoteDescription(incomingOfferRef.current)
+            // setRemoteDescription BEFORE creating the answer
+            await pc.setRemoteDescription(new RTCSessionDescription(incomingOfferRef.current))
+            // Flush ICE candidates that arrived while we were setting up (before PC existed)
+            await flushIceCandidates()
             const answer = await pc.createAnswer()
             await pc.setLocalDescription(answer)
             setCallState('active')
             callTimerRef.current = setInterval(() => setCallDuration(d => d + 1), 1000)
-            channelRef.current?.send({ type: 'broadcast', event: 'call_answer',
-                payload: { answer: pc.localDescription.toJSON() } }).catch(() => {})
+            channelRef.current?.send({
+                type: 'broadcast', event: 'call_answer',
+                payload: { answer: pc.localDescription.toJSON() }
+            }).catch(() => { })
         } catch (err) {
             setError(err?.name === 'NotAllowedError' ? 'Camera/microphone access denied' : 'Failed to accept call')
             rejectCall()
@@ -416,7 +450,7 @@ export default function ChatPage() {
     }
 
     function rejectCall() {
-        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => {})
+        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => { })
         endCall()
     }
 
@@ -426,8 +460,9 @@ export default function ChatPage() {
         localStreamRef.current?.getTracks().forEach(t => t.stop()); localStreamRef.current = null
         remoteStreamRef.current = null
         incomingOfferRef.current = null
+        iceCandidateQueueRef.current = []
         setCallState(null); setCallDuration(0); setIsMuted(false); setIsCamOff(false)
-        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => {})
+        channelRef.current?.send({ type: 'broadcast', event: 'call_end', payload: {} }).catch(() => { })
     }
 
     function toggleMute() {
@@ -575,9 +610,9 @@ export default function ChatPage() {
                 <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-white border-t border-slate-200 overflow-x-auto">
                     {[
                         { label: 'Camera', icon: '📷', fn: () => { setShowAttachMenu(false); cameraInputRef.current?.click() } },
-                        { label: 'Image',  icon: '🖼️', fn: () => { setShowAttachMenu(false); imageInputRef.current?.click() } },
-                        { label: 'Video',  icon: '🎥', fn: () => { setShowAttachMenu(false); videoInputRef.current?.click() } },
-                        { label: 'File',   icon: '📄', fn: () => { setShowAttachMenu(false); fileInputRef.current?.click() } },
+                        { label: 'Image', icon: '🖼️', fn: () => { setShowAttachMenu(false); imageInputRef.current?.click() } },
+                        { label: 'Video', icon: '🎥', fn: () => { setShowAttachMenu(false); videoInputRef.current?.click() } },
+                        { label: 'File', icon: '📄', fn: () => { setShowAttachMenu(false); fileInputRef.current?.click() } },
                     ].map(a => (
                         <button key={a.label} onClick={a.fn}
                             className="flex flex-col items-center gap-1 shrink-0 px-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 transition">
@@ -644,9 +679,9 @@ export default function ChatPage() {
             </div>
 
             {/* ── Separate hidden file inputs (static accept = mobile-safe) ── */}
-            <input ref={imageInputRef}  type="file" accept="image/*"           className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
-            <input ref={videoInputRef}  type="file" accept="video/*"           className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
-            <input ref={fileInputRef}   type="file" accept="*/*"               className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
+            <input ref={fileInputRef} type="file" accept="*/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) uploadAndSend(f); e.target.value = '' }} />
 
             {/* ── Incoming call overlay ─────────────────────────── */}
