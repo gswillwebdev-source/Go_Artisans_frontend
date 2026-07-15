@@ -107,7 +107,13 @@ export async function POST(request, { params }) {
     }
 
     const content = String(body?.content || '').trim()
-    if (!content) return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
+    const mediaUrl = String(body?.media_url || '').trim() || null
+    const mediaType = String(body?.media_type || '').trim() || null
+
+    // Require at least text OR media
+    if (!content && !mediaUrl) {
+        return NextResponse.json({ error: 'Message cannot be empty' }, { status: 400 })
+    }
     if (content.length > 2000) return NextResponse.json({ error: 'Message too long (max 2000 chars)' }, { status: 400 })
 
     // Verify recipient exists
@@ -118,10 +124,13 @@ export async function POST(request, { params }) {
         .single()
     if (!recipient) return NextResponse.json({ error: 'Recipient not found' }, { status: 404 })
 
+    const insertPayload = { sender_id: user.id, recipient_id: userId, content: content || '' }
+    if (mediaUrl) { insertPayload.media_url = mediaUrl; insertPayload.media_type = mediaType }
+
     const { data: message, error } = await admin
         .from('direct_messages')
-        .insert({ sender_id: user.id, recipient_id: userId, content })
-        .select('id, sender_id, recipient_id, content, is_read, created_at')
+        .insert(insertPayload)
+        .select('id, sender_id, recipient_id, content, media_url, media_type, is_read, created_at')
         .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
